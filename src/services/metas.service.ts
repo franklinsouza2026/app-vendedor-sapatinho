@@ -7,26 +7,31 @@ import { prisma } from '../db';
 // Por isso o realizado do dia é o snapshot mais recente do dia, e o realizado
 // da semana/mês é a soma dos "fechamentos" (snapshot mais recente de cada dia).
 
-function inicioDoDia(data: Date): Date {
+export function inicioDoDia(data: Date): Date {
   const d = new Date(data);
   d.setHours(0, 0, 0, 0);
   return d;
 }
 
-function inicioDaSemana(data: Date): Date {
+/** Data no formato YYYY-MM-DD — usado em idempotencyKeys em vários módulos de gamificação. */
+export function dataISO(data: Date): string {
+  return inicioDoDia(data).toISOString().slice(0, 10);
+}
+
+export function inicioDaSemana(data: Date): Date {
   const d = inicioDoDia(data);
   const diaSemana = d.getDay(); // 0 = domingo
   d.setDate(d.getDate() - diaSemana);
   return d;
 }
 
-function inicioDoMes(data: Date): Date {
+export function inicioDoMes(data: Date): Date {
   const d = inicioDoDia(data);
   d.setDate(1);
   return d;
 }
 
-async function realizadoNoPeriodo(vendedorId: string, desde: Date, ate: Date) {
+export async function realizadoNoPeriodo(vendedorId: string, desde: Date, ate: Date) {
   const snapshots = await prisma.indicadorRealizado.findMany({
     where: { vendedorId, dataHora: { gte: desde, lte: ate } },
     orderBy: { dataHora: 'asc' },
@@ -55,7 +60,7 @@ async function realizadoNoPeriodo(vendedorId: string, desde: Date, ate: Date) {
   return { faturamento, ticketMedio, pa, numAtendimentos };
 }
 
-async function metaDoPeriodo(vendedorId: string, tipo: TipoMeta, periodo: PeriodoMeta, referencia: Date) {
+export async function metaDoPeriodo(vendedorId: string, tipo: TipoMeta, periodo: PeriodoMeta, referencia: Date) {
   const meta = await prisma.meta.findUnique({
     where: { vendedorId_tipo_periodo_referencia: { vendedorId, tipo, periodo, referencia } },
   });

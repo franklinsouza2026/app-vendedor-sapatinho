@@ -3,7 +3,9 @@
 Documento completo (briefing, diagrama, roadmap ICE, decisões) vive no vault Obsidian:
 `~/Documents/Obsidian/03 - Projetos/Arquitetura-App-Vendedor-Sapatinho-de-Luxo/`
 
-Resumo do que já está implementado (Fatia 0/1):
+A partir da Fatia 2, a especificação funcional detalhada do produto (gamificação, coach, treinador, etc.) é `FONTE_DE_VERDADE_VENDEDOR_IA.md` — ler antes de mudar regra de negócio.
+
+## Fatia 0/1 — Fundação + MVP de metas
 
 - `src/config.ts` — validação de env (fail fast)
 - `src/db.ts` — client Prisma
@@ -14,8 +16,30 @@ Resumo do que já está implementado (Fatia 0/1):
 - `src/queues/sync-erp.queue.ts` — job horário (BullMQ) que popula `indicador_realizado`, idempotente por hora
 - `src/services/metas.service.ts` — calcula progresso dia/semana/mês a partir dos snapshots do ERP
 
-Não implementado ainda (fatias futuras):
-- Gamificação (moeda/ledger, regras configuráveis, ranking) — Fatia 2
-- Coach motivacional e treinador de vendas via IA — Fatia 3
-- Push notification — Fatia 4
-- App React Native — próxima etapa combinada com o usuário
+## Fatia 2 — Gamification Engine determinístico
+
+Tudo em `src/gamificacao/`, sem nenhuma dependência de LLM (motor calcula, IA só vai interpretar nas fatias futuras):
+
+- `regras.service.ts` — Control Plane versionado (`RegraGamificacaoVersao`); régua v1 (`REGUA_V1`) vem de `FONTE_DE_VERDADE_VENDEDOR_IA.md`, seções 13/14/18
+- `ledger.service.ts` — ledger imutável de XP e VendaCoins, idempotente (`idempotencyKey` único), com reversão compensatória (`reverterMoeda`) — nunca edita/apaga transação histórica
+- `motor.service.ts` — avalia a meta diária a cada sync do ERP (tiers 100/110/120/150%), concede e **reverte** quando um resync do ERP derruba o faturamento abaixo do tier; rastreia por saldo líquido de uma referência estável, permitindo reconceder se a venda voltar a valer no mesmo dia (ver Decisão 6 no vault)
+- `baseline.service.ts` — baseline pessoal (PA, ticket, faturamento) com janela de 14 dias fechados e amostra mínima de 5 — nunca inclui o dia avaliado, nunca inventa média com poucos dados
+- `streak.service.ts` — fecha um dia por vez (nunca o dia corrente — ver Decisão 8), idempotente via `StreakChecagem`
+- `badges.service.ts` — catálogo v1 restrito (`PRIMEIRA_META`, `STREAK_7`, `PA_MASTER`, `TICKET_MASTER` — ver Decisão 9)
+- `score.ts` — funções puras de normalização e Score Geral (testadas sem banco)
+- `ranking.service.ts` — 7 rankings paralelos por snapshot (loja + rede), incluindo `EVOLUCAO` isolado do `SCORE_GERAL` (ver Decisão 10)
+- `niveis.ts` — curva de XP→nível v1 (Bronze..Elite)
+
+Filas novas: `src/queues/fechamento-dia.queue.ts` (job diário às 00:10, isola falha por vendedor). `sync-erp.queue.ts` agora dispara `avaliarMetaDiaria` por vendedor e recalcula os rankings do dia ao final do ciclo.
+
+Rotas novas: `src/routes/gamificacao.ts` (`/gamificacao/carteira`, `/extrato-moedas`, `/streak`, `/badges`, `/ranking`) — sempre resolvem `vendedorId`/`empresaId`/`lojaId` a partir do JWT, nunca de parâmetro do client (elimina IDOR estruturalmente).
+
+## Testes
+
+- `*.test.ts` — unitários puros (score, níveis, JWT), sem banco
+- `*.integration.test.ts` — contra Postgres real, banco **dedicado** de teste (`.env.test` → `app_vendedor_sapatinho_test`, nunca o banco de dev — ver incidente documentado nas decisões)
+- Casos cobertos: idempotência de reprocessamento, reversão por resync, reconcessão após reversão no mesmo dia, streak consecutivo/reset, baseline com amostra insuficiente, RBAC e isolamento de tenant nas rotas
+
+## Não implementado ainda (fatias futuras)
+
+- App React Native (Fatia 3), Coach IA (Fatia 4), Treinador IA (Fatia 5), Simulador + Academia (Fatia 6), Missões/Desafios (Fatia 7), Competições/Temporadas/Feed (Fatia 8), Painel do Gestor avançado (Fatia 9), Linx real (Fatia 10)

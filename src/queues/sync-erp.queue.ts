@@ -3,6 +3,8 @@ import { connection } from './connection';
 import { createLogger } from '../utils/logger';
 import { erpAdapter } from '../integracoes/erp';
 import { prisma } from '../db';
+import { avaliarMetaDiaria } from '../gamificacao/motor.service';
+import { recalcularTodosOsRankingsDoDia } from '../gamificacao/ranking.service';
 
 const log = createLogger('queue:sync-erp');
 
@@ -42,6 +44,7 @@ export function createSyncErpWorker() {
       const lojas = await prisma.loja.findMany({ select: { id: true, empresaId: true, codigoErp: true } });
 
       let totalProcessados = 0;
+      const empresasAfetadas = new Set<string>();
 
       for (const loja of lojas) {
         const indicadores = await erpAdapter.buscarIndicadoresPorLoja(loja.codigoErp, dataHora);
@@ -79,6 +82,24 @@ export function createSyncErpWorker() {
           });
 
           totalProcessados++;
+          empresasAfetadas.add(loja.empresaId);
+
+          // Motor de gamificação roda no worker (nunca no processo HTTP) logo
+          // após o indicador ser persistido — mantém eventos de performance
+          // próximos do dado que os originou (seção 8/16 da fonte de verdade).
+          try {
+            await avaliarMetaDiaria(vendedor.id);
+          } catch (err) {
+            log.error({ err, vendedorId: vendedor.id }, 'falha ao avaliar gamificação — sync do indicador não é afetado');
+          }
+        }
+      }
+
+      for (const empresaId of empresasAfetadas) {
+        try {
+          await recalcularTodosOsRankingsDoDia(empresaId);
+        } catch (err) {
+          log.error({ err, empresaId }, 'falha ao recalcular rankings do dia');
         }
       }
 

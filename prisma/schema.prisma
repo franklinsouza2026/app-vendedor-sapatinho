@@ -1,8 +1,8 @@
-// Schema da Fatia 0/1 (fundação + MVP de metas).
+// Schema da Fatia 0/1 (fundação + MVP de metas) + Fatia 2 (Gamification Engine).
 // empresa_id + loja_id em toda tabela desde o início — ver decisão em
 // 05-Decisoes-e-Tradeoffs.md (multi-loja lógico, não multi-tenant físico).
-// Tabelas de gamificação (moeda, ranking, regras) e coach/treinador entram
-// nas Fatias 2 e 3, quando as respectivas features forem implementadas.
+// Régua de XP/moeda e fórmula de Score Geral vêm de
+// /Users/Franklin/Downloads/FONTE_DE_VERDADE_VENDEDOR_IA.md (fonte de verdade do produto).
 
 generator client {
   provider = "prisma-client-js"
@@ -59,6 +59,12 @@ model Vendedor {
   metas       Meta[]
   indicadores IndicadorRealizado[]
 
+  xpTransacoes     XpTransacao[]
+  moedaTransacoes  MoedaTransacao[]
+  streak           StreakVendedor?
+  badges           BadgeConcessao[]
+  rankingSnapshots RankingSnapshot[]
+
   @@index([empresaId, lojaId])
   @@unique([lojaId, matriculaErp])
   @@map("vendedor")
@@ -113,4 +119,203 @@ model IndicadorRealizado {
   @@unique([vendedorId, dataHora])
   @@index([empresaId, lojaId, dataHora])
   @@map("indicador_realizado")
+}
+
+// =====================================================================
+// FATIA 2 — GAMIFICATION ENGINE
+// =====================================================================
+
+enum TipoEventoGamificacao {
+  CHECKIN_DIARIO
+  TREINAMENTO_CONCLUIDO
+  QUIZ_APROVADO
+  META_DIARIA_100
+  META_DIARIA_110
+  META_DIARIA_120
+  META_DIARIA_150
+  MELHORA_PA
+  MELHORA_TICKET
+  STREAK_3
+  STREAK_5
+  STREAK_10
+  MISSAO
+  AJUSTE_MANUAL
+  REVERSAO
+}
+
+// Régua de XP/moeda e pesos do Score Geral — versionados (nunca hardcoded
+// espalhado no motor). Só uma versão fica ativa por empresa por vez.
+model RegraGamificacaoVersao {
+  id          String   @id @default(uuid())
+  empresaId   String
+  versao      Int
+  ativo       Boolean  @default(false)
+  regrasXp    Json // { CHECKIN_DIARIO: 5, TREINAMENTO_CONCLUIDO: 20, META_DIARIA_100: 100, ... }
+  regrasMoeda Json // { TREINAMENTO_CONCLUIDO: 5, META_DIARIA_100: 50, ... }
+  pesosScore  Json // { meta: 0.40, evolucao: 0.20, pa: 0.15, ticket: 0.15, consistencia: 0.10 }
+  criadoEm    DateTime @default(now())
+  criadoPor   String
+
+  @@unique([empresaId, versao])
+  @@index([empresaId, ativo])
+  @@map("regra_gamificacao_versao")
+}
+
+// Ledger imutável de XP — nunca um contador mutável. XP não é gasto e não diminui
+// em situações normais (só REVERSAO compensa um evento incorretamente concedido).
+model XpTransacao {
+  id             String                @id @default(uuid())
+  empresaId      String
+  lojaId         String
+  vendedorId     String
+  tipoEvento     TipoEventoGamificacao
+  quantidade     Int
+  referenciaTipo String?
+  referenciaId   String?
+  idempotencyKey String                @unique
+  regraVersao    Int
+  ocorridoEm     DateTime
+  createdAt      DateTime              @default(now())
+
+  vendedor Vendedor @relation(fields: [vendedorId], references: [id])
+
+  @@index([empresaId, lojaId, vendedorId])
+  @@map("xp_transacao")
+}
+
+// Ledger imutável de VendaCoins — saldo é sempre a soma das transações válidas.
+model MoedaTransacao {
+  id             String                @id @default(uuid())
+  empresaId      String
+  lojaId         String
+  vendedorId     String
+  tipoEvento     TipoEventoGamificacao
+  valor          Int // positivo = crédito, negativo = estorno/débito
+  referenciaTipo String?
+  referenciaId   String?
+  idempotencyKey String                @unique
+  regraVersao    Int
+  ocorridoEm     DateTime
+  createdAt      DateTime              @default(now())
+
+  vendedor Vendedor @relation(fields: [vendedorId], references: [id])
+
+  @@index([empresaId, lojaId, vendedorId])
+  @@map("moeda_transacao")
+}
+
+// Estado corrente do streak (derivado dos fechamentos de dia). A fonte de
+// auditoria é StreakChecagem; este registro é uma projeção pra leitura rápida.
+model StreakVendedor {
+  id                String    @id @default(uuid())
+  empresaId         String
+  lojaId            String
+  vendedorId        String    @unique
+  tipo              String    @default("META_DIARIA")
+  streakAtual       Int       @default(0)
+  maiorStreak       Int       @default(0)
+  ultimaDataContada DateTime?
+  atualizadoEm      DateTime  @updatedAt
+
+  vendedor Vendedor @relation(fields: [vendedorId], references: [id])
+
+  @@map("streak_vendedor")
+}
+
+// Barreira de idempotência: cada dia fechado só é avaliado uma vez por vendedor/tipo.
+model StreakChecagem {
+  id         String   @id @default(uuid())
+  vendedorId String
+  tipo       String
+  data       DateTime // dia normalizado (00:00)
+  atingiu    Boolean
+  createdAt  DateTime @default(now())
+
+  @@unique([vendedorId, tipo, data])
+  @@map("streak_checagem")
+}
+
+model Badge {
+  id        String   @id @default(uuid())
+  codigo    String   @unique
+  titulo    String
+  descricao String
+  categoria String
+  versao    Int      @default(1)
+  createdAt DateTime @default(now())
+
+  concessoes BadgeConcessao[]
+
+  @@map("badge")
+}
+
+model BadgeConcessao {
+  id             String   @id @default(uuid())
+  empresaId      String
+  lojaId         String
+  vendedorId     String
+  badgeId        String
+  idempotencyKey String   @unique
+  concedidoEm    DateTime @default(now())
+
+  vendedor Vendedor @relation(fields: [vendedorId], references: [id])
+  badge    Badge    @relation(fields: [badgeId], references: [id])
+
+  @@index([empresaId, lojaId, vendedorId])
+  @@map("badge_concessao")
+}
+
+// Baseline pessoal (não de segmento/loja) usado pra normalizar PA/ticket/evolução
+// no Score Geral e pra decidir "melhora validada". Nunca inventado: só calculado
+// quando há amostra mínima de dias fechados.
+model BaselinePessoal {
+  id            String   @id @default(uuid())
+  vendedorId    String
+  metrica       String // "PA" | "TICKET_MEDIO" | "FATURAMENTO_DIA"
+  valor         Decimal  @db.Decimal(12, 4)
+  amostras      Int
+  amostraMinima Int
+  atualizadoEm  DateTime @updatedAt
+
+  @@unique([vendedorId, metrica])
+  @@map("baseline_pessoal")
+}
+
+enum EscopoRanking {
+  LOJA
+  REDE
+}
+
+enum TipoRanking {
+  FATURAMENTO
+  PERCENTUAL_META
+  PA
+  TICKET
+  EVOLUCAO
+  MOEDAS
+  SCORE_GERAL
+}
+
+// Snapshot calculado — nunca query ao vivo pra ranking (caro com centenas de
+// vendedores). provisorio=true quando algum componente do score não tinha
+// amostra suficiente (nunca vira score artificialmente baixo).
+model RankingSnapshot {
+  id          String        @id @default(uuid())
+  empresaId   String
+  escopo      EscopoRanking
+  lojaId      String?
+  tipo        TipoRanking
+  periodo     PeriodoMeta
+  referencia  DateTime
+  vendedorId  String
+  posicao     Int
+  valor       Decimal       @db.Decimal(14, 4)
+  provisorio  Boolean       @default(false)
+  regraVersao Int
+  calculadoEm DateTime      @default(now())
+
+  vendedor Vendedor @relation(fields: [vendedorId], references: [id])
+
+  @@index([empresaId, escopo, lojaId, tipo, periodo, referencia])
+  @@map("ranking_snapshot")
 }

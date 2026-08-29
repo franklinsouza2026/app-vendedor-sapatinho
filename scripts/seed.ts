@@ -1,5 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { PrismaClient } from '@prisma/client';
+import { REGUA_V1 } from '../src/gamificacao/regras.service';
+import { CATALOGO_BADGES_V1 } from '../src/gamificacao/badges.service';
 
 const prisma = new PrismaClient();
 
@@ -50,10 +52,52 @@ async function main() {
     },
   });
 
+  const vendedorPiloto = await prisma.vendedor.findUniqueOrThrow({
+    where: { lojaId_matriculaErp: { lojaId: loja.id, matriculaErp: 'VEND001' } },
+  });
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  await prisma.meta.upsert({
+    where: { vendedorId_tipo_periodo_referencia: { vendedorId: vendedorPiloto.id, tipo: 'FATURAMENTO', periodo: 'DIA', referencia: hoje } },
+    update: {},
+    create: {
+      empresaId: empresa.id,
+      lojaId: loja.id,
+      vendedorId: vendedorPiloto.id,
+      tipo: 'FATURAMENTO',
+      periodo: 'DIA',
+      referencia: hoje,
+      valorMeta: 1000,
+    },
+  });
+
+  await prisma.regraGamificacaoVersao.upsert({
+    where: { empresaId_versao: { empresaId: empresa.id, versao: 1 } },
+    update: {},
+    create: {
+      empresaId: empresa.id,
+      versao: 1,
+      ativo: true,
+      regrasXp: REGUA_V1.regrasXp,
+      regrasMoeda: REGUA_V1.regrasMoeda,
+      pesosScore: REGUA_V1.pesosScore,
+      criadoPor: 'seed',
+    },
+  });
+
+  for (const badge of CATALOGO_BADGES_V1) {
+    await prisma.badge.upsert({
+      where: { codigo: badge.codigo },
+      update: {},
+      create: badge,
+    });
+  }
+
   console.log('Seed concluído:');
   console.log(`  Loja: codigoErpLoja=${loja.codigoErp}`);
   console.log('  Admin:    matriculaErp=ADM001   senha=admin123');
   console.log('  Vendedor: matriculaErp=VEND001  senha=vendedor123');
+  console.log('  Meta diária de VEND001: R$ 1000');
 }
 
 main()

@@ -9,6 +9,22 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: vendedor_app
+          POSTGRES_PASSWORD: senha
+          POSTGRES_DB: app_vendedor_sapatinho_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U vendedor_app"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - uses: actions/checkout@v4
 
@@ -24,5 +40,16 @@ jobs:
       - run: npm run lint
 
       - run: npm run build
+
+      # Testes de integração (motor/streak/baseline/rotas) precisam de um Postgres
+      # real — sobrescreve .env.test para apontar pro serviço deste job, já que o
+      # arquivo versionado aponta pro Postgres de dev local (porta 5435).
+      - name: Aponta .env.test para o Postgres do CI
+        run: echo "DATABASE_URL=postgresql://vendedor_app:senha@localhost:5432/app_vendedor_sapatinho_test" > .env.test
+
+      - name: Aplica migrations no banco de teste
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: postgresql://vendedor_app:senha@localhost:5432/app_vendedor_sapatinho_test
 
       - run: npm test
