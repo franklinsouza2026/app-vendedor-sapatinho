@@ -13,10 +13,12 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "seed": "tsx scripts/seed.ts",
+    "reset:coach-e2e": "tsx scripts/reset-coach-e2e.ts",
     "test": "vitest run",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.122.0",
     "@prisma/client": "^5.20.0",
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.12.0",

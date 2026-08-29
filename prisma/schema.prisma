@@ -18,7 +18,8 @@ model Empresa {
   nome      String
   createdAt DateTime @default(now())
 
-  lojas Loja[]
+  lojas          Loja[]
+  aiBudgetConfig AIBudgetConfig?
 
   @@map("empresa")
 }
@@ -65,8 +66,13 @@ model Vendedor {
   badges           BadgeConcessao[]
   rankingSnapshots RankingSnapshot[]
 
-  @@index([empresaId, lojaId])
+  checkins            CoachCheckIn[]
+  conversasCoach      CoachConversation[]
+  memoriaProfissional ProfessionalMemory?
+  usosIA              AIUsage[]
+
   @@unique([lojaId, matriculaErp])
+  @@index([empresaId, lojaId])
   @@map("vendedor")
 }
 
@@ -318,4 +324,165 @@ model RankingSnapshot {
 
   @@index([empresaId, escopo, lojaId, tipo, periodo, referencia])
   @@map("ranking_snapshot")
+}
+
+// =====================================================================
+// FATIA 4 — COACH IA CONTEXTUAL E SEGURO
+// =====================================================================
+// Princípio inegociável: motor calcula, IA interpreta/explica/treina/motiva.
+// Nenhuma tabela aqui é escrita pelo LLM diretamente — sempre pelo backend,
+// depois de validar limites (rate limit, budget, tamanho de mensagem).
+
+enum MoodCheckIn {
+  VERY_GOOD
+  GOOD
+  NEUTRAL
+  NOT_GOOD
+}
+
+// Um check-in representa o estado do vendedor NO DIA — idempotente por
+// [vendedorId, dia]. Refazer o check-in no mesmo dia atualiza o registro do
+// dia (não duplica); dias anteriores nunca são reescritos, preservando
+// histórico auditável.
+model CoachCheckIn {
+  id         String      @id @default(uuid())
+  empresaId  String
+  lojaId     String
+  vendedorId String
+  mood       MoodCheckIn
+  dia        DateTime // dia normalizado (00:00) — chave de idempotência
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  vendedor Vendedor @relation(fields: [vendedorId], references: [id])
+
+  @@unique([vendedorId, dia])
+  @@map("coach_checkin")
+}
+
+enum StatusConversaCoach {
+  ABERTA
+  ENCERRADA
+}
+
+// Invariante "no máximo 1 conversa ABERTA por vendedor" é garantida por um
+// índice único parcial (não expressável em @@unique) — ver migração
+// 20260829210614_fatia4_uma_conversa_aberta_por_vendedor. Sem isso, chamadas
+// concorrentes a getOrCreateConversaAtual/criarNovaConversa podiam criar
+// conversas ABERTA duplicadas, cada uma com seu próprio lock de geração,
+// permitindo furar rate limit/budget via requisições paralelas em conversas
+// diferentes (achado de security review).
+model CoachConversation {
+  id                 String              @id @default(uuid())
+  empresaId          String
+  lojaId             String
+  vendedorId         String
+  status             StatusConversaCoach @default(ABERTA)
+  // Lock simples de sequenciamento: só 1 resposta sendo gerada por vez nesta
+  // conversa — evita respostas fora de ordem quando o vendedor manda 2
+  // mensagens rápido (seção 20 da fonte de verdade).
+  geracaoEmAndamento Boolean             @default(false)
+  startedAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  closedAt           DateTime?
+
+  vendedor  Vendedor       @relation(fields: [vendedorId], references: [id])
+  mensagens CoachMessage[]
+
+  @@index([empresaId, lojaId, vendedorId])
+  @@map("coach_conversation")
+}
+
+enum RoleMensagemCoach {
+  USER
+  ASSISTANT
+}
+
+model CoachMessage {
+  id               String            @id @default(uuid())
+  conversationId   String
+  role             RoleMensagemCoach
+  content          String            @db.Text
+  // Idempotência do lado do cliente — só preenchido em mensagens USER. NULL
+  // nunca colide com NULL no unique index (comportamento padrão do Postgres),
+  // então mensagens ASSISTANT (sempre NULL aqui) nunca conflitam entre si.
+  clientMessageId  String?
+  provider         String?
+  model            String?
+  inputTokens      Int?
+  outputTokens     Int?
+  estimatedCostUSD Decimal?          @db.Decimal(10, 6)
+  latencyMs        Int?
+  createdAt        DateTime          @default(now())
+
+  conversation CoachConversation @relation(fields: [conversationId], references: [id])
+
+  @@unique([conversationId, clientMessageId])
+  @@index([conversationId, createdAt])
+  @@map("coach_message")
+}
+
+// Memória profissional mínima — estritamente sobre desempenho/desenvolvimento
+// de vendas, nunca sobre vida pessoal/emocional (seção 13/29 da fonte de
+// verdade). Derivada deterministicamente pelo motor (baseline vs. realizado),
+// nunca escrita livremente pelo LLM.
+model ProfessionalMemory {
+  id               String   @id @default(uuid())
+  empresaId        String
+  vendedorId       String   @unique
+  strengths        Json     @default("[]")
+  developmentAreas Json     @default("[]")
+  currentFocus     String?
+  summary          String?  @db.Text
+  updatedAt        DateTime @updatedAt
+
+  vendedor Vendedor @relation(fields: [vendedorId], references: [id])
+
+  @@map("coach_professional_memory")
+}
+
+enum StatusUsoIA {
+  SUCESSO
+  ERRO
+  TIMEOUT
+  BLOQUEADO_BUDGET
+  BLOQUEADO_RATE_LIMIT
+}
+
+// Ledger auditável de cada chamada ao provider de IA — nunca um contador
+// mutável. Gasto mensal é sempre SUM(estimatedCostUSD) deste mês, nunca um
+// campo "currentSpend" editado (mesmo princípio já usado no ledger de moeda).
+model AIUsage {
+  id               String      @id @default(uuid())
+  empresaId        String
+  vendedorId       String
+  conversationId   String?
+  messageId        String?
+  provider         String
+  model            String
+  inputTokens      Int         @default(0)
+  outputTokens     Int         @default(0)
+  estimatedCostUSD Decimal     @db.Decimal(10, 6)
+  latencyMs        Int         @default(0)
+  status           StatusUsoIA
+  createdAt        DateTime    @default(now())
+
+  vendedor Vendedor @relation(fields: [vendedorId], references: [id])
+
+  @@index([empresaId, createdAt])
+  @@index([vendedorId, createdAt])
+  @@map("ai_usage")
+}
+
+model AIBudgetConfig {
+  id                         String   @id @default(uuid())
+  empresaId                  String   @unique
+  monthlyLimitUSD            Decimal  @db.Decimal(10, 2)
+  dailyMessageLimitPerSeller Int      @default(20)
+  updatedAt                  DateTime @updatedAt
+  updatedBy                  String
+
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
+  @@map("ai_budget_config")
 }

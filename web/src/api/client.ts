@@ -36,7 +36,8 @@ export function limparToken() {
 export class ApiError extends Error {
   constructor(
     public status: number,
-    message: string
+    message: string,
+    public type?: string
   ) {
     super(message);
   }
@@ -60,7 +61,7 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
 
   if (!resp.ok) {
     const corpo = await resp.json().catch(() => ({ error: 'erro inesperado' }));
-    throw new ApiError(resp.status, corpo.error ?? 'erro inesperado');
+    throw new ApiError(resp.status, corpo.error ?? 'erro inesperado', corpo.type);
   }
 
   return resp.json();

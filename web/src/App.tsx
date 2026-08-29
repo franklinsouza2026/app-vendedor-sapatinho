@@ -9,6 +9,7 @@ import { Ranking } from './screens/Ranking';
 import { Carteira } from './screens/Carteira';
 import { Badges } from './screens/Badges';
 import { Perfil } from './screens/Perfil';
+import { Coach } from './screens/Coach';
 
 export function App() {
   return (
@@ -16,6 +17,17 @@ export function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
+          {/* Coach fica fora do Layout (sem bottom nav) — tela de chat ocupa a
+              altura inteira, com input fixo embaixo; bottom nav junto quebraria
+              esse layout. */}
+          <Route
+            path="/coach"
+            element={
+              <RequireAuth>
+                <Coach />
+              </RequireAuth>
+            }
+          />
           <Route
             element={
               <RequireAuth>

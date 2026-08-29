@@ -71,3 +71,35 @@ export interface RankingLinha {
   valor: string;
   provisorio: boolean;
 }
+
+export type Mood = 'VERY_GOOD' | 'GOOD' | 'NEUTRAL' | 'NOT_GOOD';
+
+export interface CheckIn {
+  id: string;
+  mood: Mood;
+  dia: string;
+}
+
+export type StatusConversa = 'ABERTA' | 'ENCERRADA';
+
+export interface Conversa {
+  id: string;
+  vendedorId: string;
+  status: StatusConversa;
+  startedAt: string;
+}
+
+export type RoleMensagem = 'USER' | 'ASSISTANT';
+
+export interface MensagemCoach {
+  id: string;
+  conversationId: string;
+  role: RoleMensagem;
+  content: string;
+  createdAt: string;
+}
+
+export interface ErroCoach {
+  error: string;
+  type?: 'not_found' | 'message_too_long' | 'rate_limited' | 'budget_exceeded' | 'generation_in_progress' | 'provider_unavailable';
+}

@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import { PrismaClient } from '@prisma/client';
 import { REGUA_V1 } from '../src/gamificacao/regras.service';
 import { CATALOGO_BADGES_V1 } from '../src/gamificacao/badges.service';
+import { env } from '../src/config';
 
 const prisma = new PrismaClient();
 
@@ -52,6 +53,21 @@ async function main() {
     },
   });
 
+  // Segundo vendedor — usado pelo E2E de isolamento entre vendedores (ranking
+  // entre lojas/pessoas e privacidade de conversas do Coach exigem >1 vendedor).
+  await prisma.vendedor.upsert({
+    where: { lojaId_matriculaErp: { lojaId: loja.id, matriculaErp: 'VEND002' } },
+    update: {},
+    create: {
+      empresaId: empresa.id,
+      lojaId: loja.id,
+      matriculaErp: 'VEND002',
+      nome: 'Segundo Vendedor',
+      senhaHash: senhaHashVendedor,
+      papel: 'VENDEDOR',
+    },
+  });
+
   const vendedorPiloto = await prisma.vendedor.findUniqueOrThrow({
     where: { lojaId_matriculaErp: { lojaId: loja.id, matriculaErp: 'VEND001' } },
   });
@@ -93,10 +109,22 @@ async function main() {
     });
   }
 
+  await prisma.aIBudgetConfig.upsert({
+    where: { empresaId: empresa.id },
+    update: {},
+    create: {
+      empresaId: empresa.id,
+      monthlyLimitUSD: env.AI_MONTHLY_BUDGET_USD_DEFAULT,
+      dailyMessageLimitPerSeller: env.AI_DAILY_MESSAGE_LIMIT_DEFAULT,
+      updatedBy: 'seed',
+    },
+  });
+
   console.log('Seed concluído:');
   console.log(`  Loja: codigoErpLoja=${loja.codigoErp}`);
   console.log('  Admin:    matriculaErp=ADM001   senha=admin123');
   console.log('  Vendedor: matriculaErp=VEND001  senha=vendedor123');
+  console.log('  Vendedor: matriculaErp=VEND002  senha=vendedor123');
   console.log('  Meta diária de VEND001: R$ 1000');
 }
 

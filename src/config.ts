@@ -16,7 +16,18 @@ const envSchema = z.object({
   LINX_API_URL: z.union([z.string().url(), z.literal('')]).optional(),
   LINX_API_KEY: z.string().optional(),
 
+  // Coach IA (Fatia 4) — provider desacoplado, mock por padrão em dev/test/CI.
+  // A ausência de ANTHROPIC_API_KEY nunca bloqueia o app: só impede
+  // AI_PROVIDER=anthropic de funcionar de verdade.
+  AI_PROVIDER: z.enum(['mock', 'anthropic']).default('mock'),
   ANTHROPIC_API_KEY: z.string().optional(),
+  AI_MODEL: z.string().default('claude-opus-5'),
+  AI_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
+  AI_MAX_OUTPUT_TOKENS: z.coerce.number().int().positive().default(400), // respostas curtas por padrão
+  AI_MAX_INPUT_CHARS: z.coerce.number().int().positive().default(4000),
+  AI_CONVERSATION_WINDOW: z.coerce.number().int().positive().default(16), // últimas N mensagens enviadas ao provider
+  AI_DAILY_MESSAGE_LIMIT_DEFAULT: z.coerce.number().int().positive().default(20), // usado só no seed — o valor real fica em AIBudgetConfig por empresa
+  AI_MONTHLY_BUDGET_USD_DEFAULT: z.coerce.number().positive().default(20), // idem
 });
 
 export type Env = z.infer<typeof envSchema>;

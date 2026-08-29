@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { useApi } from '../utils/useApi';
 import { buscarMinhasMetas } from '../api/metas';
@@ -107,6 +108,16 @@ export function Home() {
           <p className="text-xs text-slate-400">moedas</p>
         </Card>
       </div>
+
+      <Link to="/coach">
+        <Card className="flex items-center gap-3">
+          <span className="text-2xl">💬</span>
+          <div>
+            <p className="font-medium text-white">Falar com o Coach</p>
+            <p className="text-xs text-slate-400">Tire dúvidas, treine e organize seu foco de hoje</p>
+          </div>
+        </Card>
+      </Link>
 
       {atualizadoEm && <p className="text-center text-xs text-slate-600">Dados atualizados às {formatarHora(atualizadoEm)}</p>}
     </div>

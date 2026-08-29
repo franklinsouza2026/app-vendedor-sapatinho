@@ -9,6 +9,7 @@ import { healthRouter } from './routes/health';
 import { authRouter } from './routes/auth';
 import { metasRouter } from './routes/metas';
 import { gamificacaoRouter } from './routes/gamificacao';
+import { coachRouter } from './routes/coach';
 import { apiRateLimit } from './middlewares/ratelimit';
 import { errorHandler } from './middlewares/error-handler';
 
@@ -24,5 +25,6 @@ app.use(healthRouter);
 app.use(authRouter);
 app.use(metasRouter);
 app.use(gamificacaoRouter);
+app.use(coachRouter);
 
 app.use(errorHandler);
