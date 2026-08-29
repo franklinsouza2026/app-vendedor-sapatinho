@@ -114,7 +114,17 @@ export function Home() {
           <span className="text-2xl">💬</span>
           <div>
             <p className="font-medium text-white">Falar com o Coach</p>
-            <p className="text-xs text-slate-400">Tire dúvidas, treine e organize seu foco de hoje</p>
+            <p className="text-xs text-slate-400">Foco, evolução e como você está chegando hoje</p>
+          </div>
+        </Card>
+      </Link>
+
+      <Link to="/treinador">
+        <Card className="flex items-center gap-3 border border-emerald-800/50">
+          <span className="text-2xl">🎯</span>
+          <div>
+            <p className="font-medium text-white">Treinador de Vendas</p>
+            <p className="text-xs text-slate-400">Objeções, abordagem e técnica — com o playbook da loja</p>
           </div>
         </Card>
       </Link>

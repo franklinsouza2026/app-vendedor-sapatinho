@@ -14,6 +14,7 @@
     "prisma:migrate": "prisma migrate dev",
     "seed": "tsx scripts/seed.ts",
     "reset:coach-e2e": "tsx scripts/reset-coach-e2e.ts",
+    "reset:treinador-e2e": "tsx scripts/reset-treinador-e2e.ts",
     "test": "vitest run",
     "lint": "tsc --noEmit"
   },

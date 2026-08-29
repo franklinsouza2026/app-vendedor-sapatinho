@@ -9,7 +9,7 @@ import {
 import { criarFixtureEmpresa } from '../gamificacao/test-helpers';
 import { prisma } from '../db';
 import { env } from '../config';
-import { MARCADOR_SIMULAR_ERRO, MARCADOR_SIMULAR_LENTO, MARCADOR_SIMULAR_TIMEOUT } from './providers/mock-ai-provider';
+import { MARCADOR_SIMULAR_ERRO, MARCADOR_SIMULAR_LENTO, MARCADOR_SIMULAR_TIMEOUT } from '../ai-platform/providers/mock-ai-provider';
 
 describe('getOrCreateConversaAtual / criarNovaConversa', () => {
   it('cria e reaproveita a mesma conversa aberta', async () => {

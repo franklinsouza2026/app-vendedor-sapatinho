@@ -1,21 +1,25 @@
-// Orquestração de conversas do Coach (seções 8, 18-22 da fonte de verdade).
-// Ownership (tenant/seller isolation), idempotência, sequenciamento, rate
-// limit e budget são todos aplicados aqui — nunca no frontend, nunca no LLM.
-import { Prisma, RoleMensagemCoach } from '@prisma/client';
+// Orquestração de conversas do Treinador (seções 3-27 da Fatia 5). Espelha a
+// arquitetura do Coach (Fatia 4) de propósito — mesma ownership IDOR-safe,
+// idempotência, rate limit, budget e lock de concorrência — sem generalizar
+// numa tabela única `AIConversation` (ver Decisão 18): o benefício de
+// generalizar agora não supera o risco de tocar as tabelas do Coach já em
+// produção. Ownership/idempotência/lock/budget são todos aplicados aqui —
+// nunca no frontend, nunca no LLM.
+import { ModoTreinador, Prisma, RoleMensagemTreinador } from '@prisma/client';
 import { prisma } from '../db';
 import { env } from '../config';
 import { aiProvider, AIProviderError } from '../ai-platform/providers';
 import { calcularCustoEstimadoUSD } from '../ai-platform/custo';
 import { verificarBudgetMensal } from '../ai-platform/budget.service';
-import { buildCoachContext } from './context-builder.service';
+import { buildTrainerContext } from './context-builder.service';
 import { getSystemPrompt } from './prompts/system-prompt';
 import { formatarContextoParaPrompt } from './prompts/context-formatter';
 import { verificarRateLimitDiario } from './limites.service';
 import { createLogger } from '../utils/logger';
 
-const log = createLogger('coach:conversation');
+const log = createLogger('treinador:conversation');
 
-export type CoachErrorType =
+export type TrainerErrorType =
   | 'not_found'
   | 'message_too_long'
   | 'rate_limited'
@@ -23,9 +27,9 @@ export type CoachErrorType =
   | 'generation_in_progress'
   | 'provider_unavailable';
 
-export class CoachError extends Error {
+export class TrainerError extends Error {
   constructor(
-    public type: CoachErrorType,
+    public type: TrainerErrorType,
     message: string
   ) {
     super(message);
@@ -36,19 +40,16 @@ async function getVendedor(vendedorId: string) {
   return prisma.vendedor.findUniqueOrThrow({ where: { id: vendedorId } });
 }
 
-// findFirst+create (e updateMany+create abaixo) não são atômicos — 2 chamadas
-// concorrentes podiam criar 2 conversas ABERTA pro mesmo vendedor, cada uma
-// com seu próprio lock de geração, furando rate limit/budget via mensagens em
-// paralelo em conversas diferentes (achado de security review). O índice
-// único parcial (schema.prisma, migração 20260829210614) barra a 2ª criação;
-// aqui só tratamos essa corrida como caminho normal, devolvendo a conversa
-// que de fato venceu — nunca um erro pro vendedor.
+// Mesma lição da Fatia 4 (security review): findFirst+create/updateMany+create
+// não são atômicos — o índice único parcial (schema.prisma, migração
+// 20260829223048) barra a 2ª criação; aqui tratamos a corrida como caminho
+// normal, devolvendo a conversa que venceu — nunca um erro pro vendedor.
 function isViolacaoConversaAbertaDuplicada(err: unknown): boolean {
   return err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002';
 }
 
 export async function getOrCreateConversaAtual(vendedorId: string) {
-  const aberta = await prisma.coachConversation.findFirst({
+  const aberta = await prisma.trainerConversation.findFirst({
     where: { vendedorId, status: 'ABERTA' },
     orderBy: { startedAt: 'desc' },
   });
@@ -56,66 +57,77 @@ export async function getOrCreateConversaAtual(vendedorId: string) {
 
   const vendedor = await getVendedor(vendedorId);
   try {
-    return await prisma.coachConversation.create({
+    return await prisma.trainerConversation.create({
       data: { empresaId: vendedor.empresaId, lojaId: vendedor.lojaId, vendedorId },
     });
   } catch (err) {
     if (!isViolacaoConversaAbertaDuplicada(err)) throw err;
-    return prisma.coachConversation.findFirstOrThrow({ where: { vendedorId, status: 'ABERTA' }, orderBy: { startedAt: 'desc' } });
+    return prisma.trainerConversation.findFirstOrThrow({ where: { vendedorId, status: 'ABERTA' }, orderBy: { startedAt: 'desc' } });
   }
 }
 
 export async function criarNovaConversa(vendedorId: string) {
   const vendedor = await getVendedor(vendedorId);
-  await prisma.coachConversation.updateMany({
+  await prisma.trainerConversation.updateMany({
     where: { vendedorId, status: 'ABERTA' },
     data: { status: 'ENCERRADA', closedAt: new Date() },
   });
   try {
-    return await prisma.coachConversation.create({
+    return await prisma.trainerConversation.create({
       data: { empresaId: vendedor.empresaId, lojaId: vendedor.lojaId, vendedorId },
     });
   } catch (err) {
     if (!isViolacaoConversaAbertaDuplicada(err)) throw err;
-    return prisma.coachConversation.findFirstOrThrow({ where: { vendedorId, status: 'ABERTA' }, orderBy: { startedAt: 'desc' } });
+    return prisma.trainerConversation.findFirstOrThrow({ where: { vendedorId, status: 'ABERTA' }, orderBy: { startedAt: 'desc' } });
   }
 }
 
 async function getConversaComOwnership(conversationId: string, vendedorId: string) {
-  const conversa = await prisma.coachConversation.findUnique({ where: { id: conversationId } });
+  const conversa = await prisma.trainerConversation.findUnique({ where: { id: conversationId } });
   // Mesmo erro (not_found) tanto pra "não existe" quanto "não é sua conversa"
   // — nunca revela a um vendedor que a conversa de outro existe (IDOR-safe).
   if (!conversa || conversa.vendedorId !== vendedorId) {
-    throw new CoachError('not_found', 'conversa não encontrada');
+    throw new TrainerError('not_found', 'conversa não encontrada');
   }
   return conversa;
 }
 
 export async function listarMensagens(conversationId: string, vendedorId: string) {
   await getConversaComOwnership(conversationId, vendedorId);
-  return prisma.coachMessage.findMany({ where: { conversationId }, orderBy: { createdAt: 'asc' } });
+  return prisma.trainerMessage.findMany({ where: { conversationId }, orderBy: { createdAt: 'asc' } });
+}
+
+export interface EnviarMensagemInput {
+  conversationId: string;
+  vendedorId: string;
+  content: string;
+  mode: ModoTreinador;
+  objection?: string | null;
+  situation?: string | null;
+  clientMessageId?: string;
 }
 
 /**
- * Envia uma mensagem do vendedor e retorna a resposta do Coach. Aplica, nesta
- * ordem: ownership, tamanho, idempotência (clientMessageId), rate limit
- * diário, budget mensal, lock de "1 geração por vez" na conversa.
+ * Envia uma mensagem do vendedor e retorna a resposta do Treinador. Aplica,
+ * nesta ordem: ownership, tamanho, idempotência (clientMessageId), rate
+ * limit diário, budget mensal, lock de "1 geração por vez" na conversa.
  */
-export async function enviarMensagem(conversationId: string, vendedorId: string, content: string, clientMessageId?: string) {
+export async function enviarMensagem(input: EnviarMensagemInput) {
+  const { conversationId, vendedorId, content, mode, objection, situation, clientMessageId } = input;
   await getConversaComOwnership(conversationId, vendedorId);
 
   if (content.length > env.AI_MAX_INPUT_CHARS) {
-    throw new CoachError('message_too_long', `mensagem excede o limite de ${env.AI_MAX_INPUT_CHARS} caracteres`);
+    throw new TrainerError('message_too_long', `mensagem excede o limite de ${env.AI_MAX_INPUT_CHARS} caracteres`);
   }
 
   // Idempotência: mesma clientMessageId já processada nesta conversa -> retorna
   // a resposta já gerada, nunca chama o provider (nem cobra) de novo.
   if (clientMessageId) {
-    const existente = await prisma.coachMessage.findUnique({
+    const existente = await prisma.trainerMessage.findUnique({
       where: { conversationId_clientMessageId: { conversationId, clientMessageId } },
     });
     if (existente) {
-      const resposta = await prisma.coachMessage.findFirst({
+      const resposta = await prisma.trainerMessage.findFirst({
         where: { conversationId, role: 'ASSISTANT', createdAt: { gt: existente.createdAt } },
         orderBy: { createdAt: 'asc' },
       });
@@ -129,64 +141,63 @@ export async function enviarMensagem(conversationId: string, vendedorId: string,
 
   const rateLimit = await verificarRateLimitDiario(vendedorId, vendedor.empresaId);
   if (!rateLimit.permitido) {
-    throw new CoachError('rate_limited', `limite de ${rateLimit.limite} mensagens/dia atingido`);
+    throw new TrainerError('rate_limited', `limite de ${rateLimit.limite} mensagens/dia atingido`);
   }
 
   const budget = await verificarBudgetMensal(vendedor.empresaId);
   if (!budget.permitido) {
-    throw new CoachError('budget_exceeded', 'o Coach está temporariamente indisponível por limite de uso da empresa — tente de novo amanhã');
+    throw new TrainerError('budget_exceeded', 'o Treinador está temporariamente indisponível por limite de uso da empresa — tente de novo amanhã');
   }
 
   // Lock de sequenciamento: só libera se conseguir marcar geracaoEmAndamento
   // false->true atomicamente (update condicional, não read-then-write).
-  const lock = await prisma.coachConversation.updateMany({
+  const lock = await prisma.trainerConversation.updateMany({
     where: { id: conversationId, geracaoEmAndamento: false },
     data: { geracaoEmAndamento: true },
   });
   if (lock.count === 0) {
-    throw new CoachError('generation_in_progress', 'já há uma resposta sendo gerada nesta conversa — aguarde');
+    throw new TrainerError('generation_in_progress', 'já há uma resposta sendo gerada nesta conversa — aguarde');
   }
 
   try {
-    // upsert só quando clientMessageId é fornecido: o índice composto único é
-    // sobre (conversationId, clientMessageId), e usar undefined/null como
-    // "chave de busca" no upsert do Prisma não é confiável para campos
-    // nullable em unique compostos — sem clientMessageId, sempre cria nova.
     const mensagemUsuario = clientMessageId
-      ? await prisma.coachMessage.upsert({
+      ? await prisma.trainerMessage.upsert({
           where: { conversationId_clientMessageId: { conversationId, clientMessageId } },
-          create: { conversationId, role: 'USER', content, clientMessageId },
+          create: { conversationId, role: 'USER', content, clientMessageId, mode, objection: objection ?? null },
           update: {},
         })
-      : await prisma.coachMessage.create({ data: { conversationId, role: 'USER', content } });
+      : await prisma.trainerMessage.create({ data: { conversationId, role: 'USER', content, mode, objection: objection ?? null } });
 
-    const contexto = await buildCoachContext(vendedorId);
+    const { context: contexto, playbookId } = await buildTrainerContext(vendedorId, { mode, objection, situation });
     const systemPrompt = `${getSystemPrompt()}\n\n${formatarContextoParaPrompt(contexto)}`;
 
-    const historico = await prisma.coachMessage.findMany({
+    const historico = await prisma.trainerMessage.findMany({
       where: { conversationId },
       orderBy: { createdAt: 'desc' },
       take: env.AI_CONVERSATION_WINDOW,
     });
-    const mensagensParaProvider = historico
-      .reverse()
-      .map((m) => ({ role: mapRole(m.role), content: m.content }));
+    const mensagensParaProvider = historico.reverse().map((m) => ({ role: mapRole(m.role), content: m.content }));
 
     let resultado;
     try {
-      resultado = await aiProvider.generateResponse({ systemPrompt, messages: mensagensParaProvider, metadata: { context: contexto } });
+      resultado = await aiProvider.generateResponse({
+        systemPrompt,
+        messages: mensagensParaProvider,
+        metadata: { specialist: 'trainer', context: contexto },
+      });
     } catch (err) {
       await registrarFalhaUso(vendedor.empresaId, vendedorId, conversationId, err);
-      throw new CoachError('provider_unavailable', 'o Coach está indisponível no momento — tente de novo em instantes');
+      throw new TrainerError('provider_unavailable', 'o Treinador está indisponível no momento — tente de novo em instantes');
     }
 
     const custoUSD = resultado.provider === 'mock' ? 0 : calcularCustoEstimadoUSD(resultado.model, resultado.inputTokens, resultado.outputTokens);
 
-    const mensagemAssistente = await prisma.coachMessage.create({
+    const mensagemAssistente = await prisma.trainerMessage.create({
       data: {
         conversationId,
         role: 'ASSISTANT',
         content: resultado.content,
+        playbookVersionId: playbookId,
         provider: resultado.provider,
         model: resultado.model,
         inputTokens: resultado.inputTokens,
@@ -200,6 +211,7 @@ export async function enviarMensagem(conversationId: string, vendedorId: string,
       data: {
         empresaId: vendedor.empresaId,
         vendedorId,
+        specialist: 'TRAINER',
         conversationId,
         messageId: mensagemAssistente.id,
         provider: resultado.provider,
@@ -215,22 +227,23 @@ export async function enviarMensagem(conversationId: string, vendedorId: string,
     void mensagemUsuario; // já persistida acima; mantido só pra clareza do fluxo
     return mensagemAssistente;
   } finally {
-    await prisma.coachConversation.update({ where: { id: conversationId }, data: { geracaoEmAndamento: false } });
+    await prisma.trainerConversation.update({ where: { id: conversationId }, data: { geracaoEmAndamento: false } });
   }
 
-  function mapRole(role: RoleMensagemCoach): 'user' | 'assistant' {
+  function mapRole(role: RoleMensagemTreinador): 'user' | 'assistant' {
     return role === 'USER' ? 'user' : 'assistant';
   }
 }
 
 async function registrarFalhaUso(empresaId: string, vendedorId: string, conversationId: string, err: unknown) {
   const status = err instanceof AIProviderError && err.type === 'timeout' ? 'TIMEOUT' : 'ERRO';
-  log.error({ err, vendedorId, conversationId }, 'falha ao gerar resposta do Coach');
+  log.error({ err, vendedorId, conversationId }, 'falha ao gerar resposta do Treinador');
   try {
     await prisma.aIUsage.create({
       data: {
         empresaId,
         vendedorId,
+        specialist: 'TRAINER',
         conversationId,
         provider: env.AI_PROVIDER,
         model: env.AI_MODEL,

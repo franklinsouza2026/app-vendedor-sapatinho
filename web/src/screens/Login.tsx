@@ -35,7 +35,11 @@ export function Login() {
       if (!lojaEscolhida?.codigoErp) throw new Error('loja inválida');
       await login(lojaEscolhida.codigoErp, matricula.trim(), senha);
     } catch (err) {
-      setErro(err instanceof ApiError ? 'Matrícula, senha ou loja incorretos.' : 'Não foi possível entrar. Tente de novo.');
+      if (err instanceof ApiError && err.status === 429) {
+        setErro('Muitas tentativas de login. Aguarde um instante e tente de novo.');
+      } else {
+        setErro(err instanceof ApiError ? 'Matrícula, senha ou loja incorretos.' : 'Não foi possível entrar. Tente de novo.');
+      }
     } finally {
       setEnviando(false);
     }

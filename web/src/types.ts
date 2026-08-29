@@ -103,3 +103,39 @@ export interface ErroCoach {
   error: string;
   type?: 'not_found' | 'message_too_long' | 'rate_limited' | 'budget_exceeded' | 'generation_in_progress' | 'provider_unavailable';
 }
+
+export type ModoTreinador =
+  | 'GERAL'
+  | 'ABORDAGEM'
+  | 'SONDAGEM'
+  | 'DEMONSTRACAO'
+  | 'OBJECAO'
+  | 'FECHAMENTO'
+  | 'VENDA_COMPLEMENTAR'
+  | 'PA'
+  | 'TICKET'
+  | 'POS_VENDA';
+
+export interface ObjecaoComum {
+  code: string;
+  label: string;
+}
+
+export type StatusConversaTreinador = 'ABERTA' | 'ENCERRADA';
+
+export interface ConversaTreinador {
+  id: string;
+  vendedorId: string;
+  status: StatusConversaTreinador;
+  startedAt: string;
+}
+
+export interface MensagemTreinador {
+  id: string;
+  conversationId: string;
+  role: RoleMensagem;
+  content: string;
+  mode?: ModoTreinador | null;
+  objection?: string | null;
+  createdAt: string;
+}

@@ -70,4 +70,19 @@ describe('Login', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Matrícula, senha ou loja incorretos.');
   });
+
+  it('mostra mensagem de rate limit (429) em vez de "credenciais incorretas" — não é o mesmo erro', async () => {
+    const { ApiError } = await import('../api/client');
+    vi.mocked(authApi.login).mockRejectedValue(new ApiError(429, 'Too many requests'));
+
+    const user = userEvent.setup();
+    renderLogin();
+
+    await screen.findByText('Loja Piloto');
+    await user.type(screen.getByLabelText('Matrícula'), 'VEND001');
+    await user.type(screen.getByLabelText('Senha'), 'vendedor123');
+    await user.click(screen.getByRole('button', { name: 'Entrar' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Muitas tentativas de login. Aguarde um instante e tente de novo.');
+  });
 });

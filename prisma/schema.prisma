@@ -20,6 +20,7 @@ model Empresa {
 
   lojas          Loja[]
   aiBudgetConfig AIBudgetConfig?
+  playbooks      Playbook[]
 
   @@map("empresa")
 }
@@ -70,6 +71,7 @@ model Vendedor {
   conversasCoach      CoachConversation[]
   memoriaProfissional ProfessionalMemory?
   usosIA              AIUsage[]
+  conversasTreinador  TrainerConversation[]
 
   @@unique([lojaId, matriculaErp])
   @@index([empresaId, lojaId])
@@ -449,28 +451,40 @@ enum StatusUsoIA {
   BLOQUEADO_RATE_LIMIT
 }
 
+// Especialista da AI Platform que gerou o uso — permite analisar custo por
+// especialista (seção 25 da fonte de verdade do Treinador) sem que o budget
+// mensal deixe de ser agregado pra empresa inteira (calcularGastoMensalUSD
+// nunca filtra por specialist).
+enum EspecialistaIA {
+  COACH
+  TRAINER
+}
+
 // Ledger auditável de cada chamada ao provider de IA — nunca um contador
 // mutável. Gasto mensal é sempre SUM(estimatedCostUSD) deste mês, nunca um
 // campo "currentSpend" editado (mesmo princípio já usado no ledger de moeda).
+// Compartilhado por todos os especialistas — nunca duplicar esta tabela.
 model AIUsage {
-  id               String      @id @default(uuid())
+  id               String         @id @default(uuid())
   empresaId        String
   vendedorId       String
+  specialist       EspecialistaIA @default(COACH)
   conversationId   String?
   messageId        String?
   provider         String
   model            String
-  inputTokens      Int         @default(0)
-  outputTokens     Int         @default(0)
-  estimatedCostUSD Decimal     @db.Decimal(10, 6)
-  latencyMs        Int         @default(0)
+  inputTokens      Int            @default(0)
+  outputTokens     Int            @default(0)
+  estimatedCostUSD Decimal        @db.Decimal(10, 6)
+  latencyMs        Int            @default(0)
   status           StatusUsoIA
-  createdAt        DateTime    @default(now())
+  createdAt        DateTime       @default(now())
 
   vendedor Vendedor @relation(fields: [vendedorId], references: [id])
 
   @@index([empresaId, createdAt])
   @@index([vendedorId, createdAt])
+  @@index([specialist, createdAt])
   @@map("ai_usage")
 }
 
@@ -478,6 +492,13 @@ model AIBudgetConfig {
   id                         String   @id @default(uuid())
   empresaId                  String   @unique
   monthlyLimitUSD            Decimal  @db.Decimal(10, 2)
+  // Aplicado de forma INDEPENDENTE por especialista (Coach conta CoachMessage,
+  // Treinador conta TrainerMessage — decisão explícita da Fatia 5, não um
+  // descuido: achado de security review, confiança 4/10, considerado aceito
+  // porque o teto de custo real é monthlyLimitUSD, que É agregado entre os
+  // dois especialistas em ai-platform/budget.service.ts). Ou seja, um
+  // vendedor pode enviar até este número de mensagens em CADA especialista
+  // por dia, não um total compartilhado entre os dois.
   dailyMessageLimitPerSeller Int      @default(20)
   updatedAt                  DateTime @updatedAt
   updatedBy                  String
@@ -485,4 +506,157 @@ model AIBudgetConfig {
   empresa Empresa @relation(fields: [empresaId], references: [id])
 
   @@map("ai_budget_config")
+}
+
+// ============================================================
+// FATIA 5 — TREINADOR DE VENDAS IA + PLAYBOOK
+// ============================================================
+
+enum StatusPlaybook {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum CategoriaPlaybook {
+  PRINCIPIOS
+  ABORDAGEM
+  SONDAGEM
+  DEMONSTRACAO
+  ARGUMENTACAO
+  OBJECOES
+  FECHAMENTO
+  VENDA_COMPLEMENTAR
+  POS_VENDA
+  CONDUTA
+}
+
+// OFICIAL = extraído de material comercial real da empresa (auditável até a
+// fonte). DEMONSTRATIVO = infraestrutura mínima pra categorias sem material
+// oficial ainda — nunca deve ser apresentado ao vendedor como "regra da
+// empresa" (seção 10 da Fatia 5). O prompt do Treinador distingue os dois.
+enum OrigemConteudoPlaybook {
+  OFICIAL
+  DEMONSTRATIVO
+}
+
+// Playbook da empresa (seções 8-11 da Fatia 5 / seção 30 da fonte de
+// verdade). Tenant-scoped e versionado — só a versão PUBLISHED é usada pelo
+// Treinador, nunca DRAFT/ARCHIVED. Invariante "no máximo 1 PUBLISHED por
+// empresa" garantida por índice único parcial (mesma técnica da Fatia 4 pra
+// CoachConversation.ABERTA — ver migração 20260829223048_fatia5_treinador_playbook).
+// Publicar uma nova versão preserva as anteriores (ARCHIVED) — uma resposta
+// já gerada referencia o Playbook pelo id (versão), então uma republicação
+// futura nunca reescreve retroativamente qual versão foi usada numa resposta
+// antiga (seção 9 da Fatia 5).
+model Playbook {
+  id           String         @id @default(uuid())
+  empresaId    String
+  nome         String
+  versao       Int
+  status       StatusPlaybook @default(DRAFT)
+  publicadoEm  DateTime?
+  publicadoPor String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  empresa            Empresa           @relation(fields: [empresaId], references: [id])
+  secoes             PlaybookSection[]
+  mensagensTreinador TrainerMessage[]
+
+  @@unique([empresaId, versao])
+  @@index([empresaId, status])
+  @@map("playbook")
+}
+
+model PlaybookSection {
+  id         String                 @id @default(uuid())
+  playbookId String
+  categoria  CategoriaPlaybook
+  titulo     String
+  conteudo   String                 @db.Text
+  origem     OrigemConteudoPlaybook
+  ordem      Int                    @default(0)
+  ativo      Boolean                @default(true)
+  createdAt  DateTime               @default(now())
+  updatedAt  DateTime               @updatedAt
+
+  playbook Playbook @relation(fields: [playbookId], references: [id])
+
+  @@index([playbookId, categoria, ativo])
+  @@map("playbook_section")
+}
+
+enum ModoTreinador {
+  GERAL
+  ABORDAGEM
+  SONDAGEM
+  DEMONSTRACAO
+  OBJECAO
+  FECHAMENTO
+  VENDA_COMPLEMENTAR
+  PA
+  TICKET
+  POS_VENDA
+}
+
+enum StatusConversaTreinador {
+  ABERTA
+  ENCERRADA
+}
+
+// Mesma arquitetura de CoachConversation (Fatia 4), deliberadamente não
+// generalizada numa tabela única `AIConversation` — ver seção 22 da Fatia 5 e
+// Decisão 18 (05-Decisoes-e-Tradeoffs.md): o benefício de generalizar agora
+// não supera o risco de tocar as tabelas do Coach já em produção. Mesma
+// invariante "no máximo 1 ABERTA por vendedor" via índice único parcial.
+model TrainerConversation {
+  id                 String                  @id @default(uuid())
+  empresaId          String
+  lojaId             String
+  vendedorId         String
+  status             StatusConversaTreinador @default(ABERTA)
+  geracaoEmAndamento Boolean                 @default(false)
+  startedAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  closedAt           DateTime?
+
+  vendedor  Vendedor         @relation(fields: [vendedorId], references: [id])
+  mensagens TrainerMessage[]
+
+  @@index([empresaId, lojaId, vendedorId])
+  @@map("trainer_conversation")
+}
+
+enum RoleMensagemTreinador {
+  USER
+  ASSISTANT
+}
+
+model TrainerMessage {
+  id                String                @id @default(uuid())
+  conversationId    String
+  role              RoleMensagemTreinador
+  content           String                @db.Text
+  // Só preenchidos em mensagens USER — metadado da pergunta, não da resposta.
+  mode              ModoTreinador?
+  objection         String?
+  // Qual versão do Playbook foi usada pra gerar a resposta (mensagens
+  // ASSISTANT) — auditável mesmo que uma versão futura seja publicada depois.
+  playbookVersionId String?
+  clientMessageId   String?
+  provider          String?
+  model             String?
+  inputTokens       Int?
+  outputTokens      Int?
+  estimatedCostUSD  Decimal?              @db.Decimal(10, 6)
+  latencyMs         Int?
+  createdAt         DateTime              @default(now())
+
+  conversation    TrainerConversation @relation(fields: [conversationId], references: [id])
+  playbookVersion Playbook?           @relation(fields: [playbookVersionId], references: [id])
+
+  @@unique([conversationId, clientMessageId])
+  @@index([conversationId, createdAt])
+  @@map("trainer_message")
 }

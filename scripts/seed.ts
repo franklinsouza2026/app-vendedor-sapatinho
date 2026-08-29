@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import { PrismaClient } from '@prisma/client';
 import { REGUA_V1 } from '../src/gamificacao/regras.service';
 import { CATALOGO_BADGES_V1 } from '../src/gamificacao/badges.service';
+import { seedPlaybookInicialSeNaoExistir } from '../src/treinador/playbook-seed';
 import { env } from '../src/config';
 
 const prisma = new PrismaClient();
@@ -120,12 +121,15 @@ async function main() {
     },
   });
 
+  const playbook = await seedPlaybookInicialSeNaoExistir(empresa.id, 'seed');
+
   console.log('Seed concluído:');
   console.log(`  Loja: codigoErpLoja=${loja.codigoErp}`);
   console.log('  Admin:    matriculaErp=ADM001   senha=admin123');
   console.log('  Vendedor: matriculaErp=VEND001  senha=vendedor123');
   console.log('  Vendedor: matriculaErp=VEND002  senha=vendedor123');
   console.log('  Meta diária de VEND001: R$ 1000');
+  console.log(`  Playbook: "${playbook.nome}" v${playbook.versao} (PUBLISHED)`);
 }
 
 main()

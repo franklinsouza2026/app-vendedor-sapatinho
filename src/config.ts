@@ -28,6 +28,12 @@ const envSchema = z.object({
   AI_CONVERSATION_WINDOW: z.coerce.number().int().positive().default(16), // últimas N mensagens enviadas ao provider
   AI_DAILY_MESSAGE_LIMIT_DEFAULT: z.coerce.number().int().positive().default(20), // usado só no seed — o valor real fica em AIBudgetConfig por empresa
   AI_MONTHLY_BUDGET_USD_DEFAULT: z.coerce.number().positive().default(20), // idem
+
+  // Rate limit HTTP geral/login — configurável pra permitir headroom maior em
+  // dev/E2E (Playwright roda várias jornadas completas em segundos, sem a
+  // cadência de um humano real) sem alterar o valor padrão de produção.
+  API_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(120),
+  LOGIN_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(10),
 });
 
 export type Env = z.infer<typeof envSchema>;

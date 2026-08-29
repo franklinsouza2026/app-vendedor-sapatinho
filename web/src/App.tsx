@@ -10,6 +10,7 @@ import { Carteira } from './screens/Carteira';
 import { Badges } from './screens/Badges';
 import { Perfil } from './screens/Perfil';
 import { Coach } from './screens/Coach';
+import { Treinador } from './screens/Treinador';
 
 export function App() {
   return (
@@ -25,6 +26,14 @@ export function App() {
             element={
               <RequireAuth>
                 <Coach />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/treinador"
+            element={
+              <RequireAuth>
+                <Treinador />
               </RequireAuth>
             }
           />
