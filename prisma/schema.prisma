@@ -1,0 +1,116 @@
+// Schema da Fatia 0/1 (fundação + MVP de metas).
+// empresa_id + loja_id em toda tabela desde o início — ver decisão em
+// 05-Decisoes-e-Tradeoffs.md (multi-loja lógico, não multi-tenant físico).
+// Tabelas de gamificação (moeda, ranking, regras) e coach/treinador entram
+// nas Fatias 2 e 3, quando as respectivas features forem implementadas.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Empresa {
+  id        String   @id @default(uuid())
+  nome      String
+  createdAt DateTime @default(now())
+
+  lojas Loja[]
+
+  @@map("empresa")
+}
+
+model Loja {
+  id        String   @id @default(uuid())
+  empresaId String
+  nome      String
+  codigoErp String
+  createdAt DateTime @default(now())
+
+  empresa    Empresa    @relation(fields: [empresaId], references: [id])
+  vendedores Vendedor[]
+
+  @@index([empresaId])
+  @@map("loja")
+}
+
+enum Papel {
+  VENDEDOR
+  GERENTE
+  ADMIN
+}
+
+model Vendedor {
+  id           String   @id @default(uuid())
+  empresaId    String
+  lojaId       String
+  matriculaErp String
+  nome         String
+  senhaHash    String
+  papel        Papel    @default(VENDEDOR)
+  ativo        Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  loja Loja @relation(fields: [lojaId], references: [id])
+
+  metas       Meta[]
+  indicadores IndicadorRealizado[]
+
+  @@index([empresaId, lojaId])
+  @@unique([lojaId, matriculaErp])
+  @@map("vendedor")
+}
+
+enum TipoMeta {
+  FATURAMENTO
+  TICKET_MEDIO
+  PA
+}
+
+enum PeriodoMeta {
+  DIA
+  SEMANA
+  MES
+}
+
+model Meta {
+  id         String      @id @default(uuid())
+  empresaId  String
+  lojaId     String
+  vendedorId String
+  tipo       TipoMeta
+  periodo    PeriodoMeta
+  referencia DateTime
+  valorMeta  Decimal     @db.Decimal(12, 2)
+  createdAt  DateTime    @default(now())
+
+  vendedor Vendedor @relation(fields: [vendedorId], references: [id])
+
+  @@unique([vendedorId, tipo, periodo, referencia])
+  @@index([empresaId, lojaId])
+  @@map("meta")
+}
+
+// Snapshot horário vindo do ERP — upsert por [vendedorId, dataHora], nunca duplica.
+model IndicadorRealizado {
+  id              String   @id @default(uuid())
+  empresaId       String
+  lojaId          String
+  vendedorId      String
+  dataHora        DateTime
+  faturamento     Decimal  @db.Decimal(12, 2)
+  ticketMedio     Decimal  @db.Decimal(12, 2)
+  pa              Decimal  @db.Decimal(6, 2)
+  numAtendimentos Int
+  fonteJobId      String
+  createdAt       DateTime @default(now())
+
+  vendedor Vendedor @relation(fields: [vendedorId], references: [id])
+
+  @@unique([vendedorId, dataHora])
+  @@index([empresaId, lojaId, dataHora])
+  @@map("indicador_realizado")
+}
