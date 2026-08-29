@@ -34,12 +34,22 @@ Filas novas: `src/queues/fechamento-dia.queue.ts` (job diário às 00:10, isola 
 
 Rotas novas: `src/routes/gamificacao.ts` (`/gamificacao/carteira`, `/extrato-moedas`, `/streak`, `/badges`, `/ranking`) — sempre resolvem `vendedorId`/`empresaId`/`lojaId` a partir do JWT, nunca de parâmetro do client (elimina IDOR estruturalmente).
 
+## Fatia 3 — PWA mobile-first do vendedor
+
+Frontend novo em `web/` (Vite + React + TS + Tailwind + `vite-plugin-pwa`) — ver `web/README.md`. Consome os endpoints das Fatias 0-2 sem duplicar regra de negócio no cliente.
+
+Endpoints novos no backend, pequenos e testados (não expandiram o core):
+- `GET /lojas` — público (roda antes do login), lista lojas pro formulário de login mobile por nome amigável em vez do código ERP técnico. Filtra pela empresa mais antiga do deployment — nunca lista lojas de outra empresa (ver Decisão 12 no vault; achado de security review antes do commit)
+- `GET /auth/me` — autenticado, reidrata vendedor/loja/empresa a partir do JWT (usado no F5/reabertura do PWA). Verifica `vendedor.ativo` e nunca usa `findUniqueOrThrow` em rota HTTP direta (ver Decisão 13)
+
 ## Testes
 
-- `*.test.ts` — unitários puros (score, níveis, JWT), sem banco
+- `*.test.ts` — unitários puros (score, níveis, JWT, cálculos de exibição do frontend), sem banco
 - `*.integration.test.ts` — contra Postgres real, banco **dedicado** de teste (`.env.test` → `app_vendedor_sapatinho_test`, nunca o banco de dev — ver incidente documentado nas decisões)
-- Casos cobertos: idempotência de reprocessamento, reversão por resync, reconcessão após reversão no mesmo dia, streak consecutivo/reset, baseline com amostra insuficiente, RBAC e isolamento de tenant nas rotas
+- Casos cobertos: idempotência de reprocessamento, reversão por resync, reconcessão após reversão no mesmo dia, streak consecutivo/reset, baseline com amostra insuficiente, RBAC e isolamento de tenant nas rotas, tenant isolation de `/lojas`, sessão expirada/vendedor desativado não derruba o processo
+- Frontend: testes de componente (login, proteção de rota, home) + E2E real (Playwright) cobrindo login → home → ranking → moedas → conquistas → logout, incluindo confirmação de que nenhuma rota protegida vaza dado após logout
 
 ## Não implementado ainda (fatias futuras)
 
-- App React Native (Fatia 3), Coach IA (Fatia 4), Treinador IA (Fatia 5), Simulador + Academia (Fatia 6), Missões/Desafios (Fatia 7), Competições/Temporadas/Feed (Fatia 8), Painel do Gestor avançado (Fatia 9), Linx real (Fatia 10)
+- Coach IA (Fatia 4), Treinador IA (Fatia 5), Simulador + Academia (Fatia 6), Missões/Desafios (Fatia 7), Competições/Temporadas/Feed (Fatia 8), Painel do Gestor avançado (Fatia 9), Linx real (Fatia 10)
+- Seleção de múltiplas lojas por vendedor (modelo de dados atual não suporta — `Vendedor.lojaId` é singular)

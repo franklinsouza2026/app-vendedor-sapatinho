@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -24,6 +24,11 @@ const databaseUrlTeste =
 
 export default defineConfig({
   test: {
+    // Estende os defaults do vitest (não substitui — `exclude: [...]` sozinho
+    // descartaria os padrões padrão de .git/cypress/*.config.*). Sem isso, o
+    // vitest da raiz também tentaria rodar os testes do frontend (web/, que
+    // precisa de jsdom + setup próprios) e os .test.js compilados em dist/.
+    exclude: [...configDefaults.exclude, 'web/**', 'dist/**'],
     env: {
       NODE_ENV: 'development',
       APP_NAME: 'app-vendedor-sapatinho-test',

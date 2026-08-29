@@ -10,3 +10,10 @@ coverage
 *.log
 .vscode
 .idea
+playwright-report
+test-results
+*.tsbuildinfo
+/web/vite.config.js
+/web/vite.config.d.ts
+/web/playwright.config.js
+/web/playwright.config.d.ts

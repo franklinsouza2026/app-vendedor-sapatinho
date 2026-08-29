@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-base text-slate-100;
+  /* respeita a safe-area do iPhone (notch/home indicator) — pedido explícito da fatia */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* área de toque confortável (mínimo ~44px, recomendação de acessibilidade mobile) */
+button,
+a[role='button'] {
+  min-height: 44px;
+}
