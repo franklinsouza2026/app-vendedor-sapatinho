@@ -11,7 +11,7 @@ export class MockErpAdapter implements ErpAdapter {
     const loja = await prisma.loja.findFirst({ where: { codigoErp: codigoErpLoja } });
     if (!loja) return [];
 
-    const vendedores = await prisma.vendedor.findMany({ where: { lojaId: loja.id, ativo: true } });
+    const vendedores = await prisma.vendedor.findMany({ where: { lojaId: loja.id, status: 'ACTIVE' } });
 
     return vendedores.map((v) => {
       const numAtendimentos = 2 + Math.floor(Math.random() * 8);

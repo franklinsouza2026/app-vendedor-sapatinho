@@ -71,6 +71,6 @@ gamificacaoRouter.get('/gamificacao/ranking', requireAuth(), async (req, res) =>
   // lojaId/empresaId sempre do token — nunca aceitos do client (evita cross-tenant leak).
   const lojaId = escopo === 'LOJA' ? req.auth!.lojaId : null;
 
-  const ranking = await getRanking(req.auth!.empresaId, escopo, lojaId, tipo, periodo);
+  const ranking = await getRanking(req.auth!.empresaId, escopo, lojaId, tipo, periodo, req.auth!.vendedorId);
   res.json({ tipo, escopo, periodo, ranking });
 });

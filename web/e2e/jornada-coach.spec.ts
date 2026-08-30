@@ -29,8 +29,8 @@ test.describe('Jornada do Coach IA', () => {
 
     // 2. Home → Evoluir → abrir Coach
     await page.getByRole('link', { name: 'Evoluir', exact: true }).click();
-    await page.getByText('Coach', { exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Coach' })).toBeVisible();
+    await page.getByText('Conselheiro', { exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Conselheiro' })).toBeVisible();
 
     // 3. Check-in — mood não-negativo, sem disparar o fluxo especial de NOT_GOOD
     await expect(page.getByText('Como você está chegando pra trabalhar hoje?')).toBeVisible();
@@ -44,7 +44,7 @@ test.describe('Jornada do Coach IA', () => {
 
     // 5. Enviar mensagem livre e validar que a resposta do MockAIProvider usa
     // o contexto profissional real (meta do dia), não um valor inventado
-    await page.getByPlaceholder('Fala com o Coach...').fill('Como estou hoje?');
+    await page.getByPlaceholder('Fala com o Conselheiro...').fill('Como estou hoje?');
     await page.getByRole('button', { name: 'Enviar' }).click();
     await expect(page.getByText(/pra bater sua meta de hoje/)).toBeVisible();
 
@@ -68,8 +68,8 @@ test.describe('Jornada do Coach IA', () => {
     await expect(page.getByRole('link', { name: 'Evoluir', exact: true })).toBeVisible(); // landmark universal — VEND002 pode não ter meta cadastrada
 
     await page.getByRole('link', { name: 'Evoluir', exact: true }).click();
-    await page.getByText('Coach', { exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Coach' })).toBeVisible();
+    await page.getByText('Conselheiro', { exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Conselheiro' })).toBeVisible();
     await expect(page.getByText('Como você está chegando pra trabalhar hoje?')).toBeVisible(); // check-in ainda não feito por este vendedor hoje
     await expect(page.getByText(/Vamos organizar seu foco/)).not.toBeVisible();
     await expect(page.getByText(/pra bater sua meta de hoje/)).not.toBeVisible();

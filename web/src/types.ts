@@ -10,6 +10,24 @@ export interface VendedorResumo {
   id: string;
   nome: string;
   papel: Papel;
+  cpfMascarado?: string | null;
+}
+
+export type StatusConta = 'PENDING_ACTIVATION' | 'ACTIVE' | 'BLOCKED' | 'OFFBOARDED';
+
+export interface VendedorAdmin {
+  id: string;
+  nome: string;
+  matriculaErp: string;
+  papel: Papel;
+  status: StatusConta;
+  cpfMascarado: string | null;
+  createdAt: string;
+  loja: { id: string; nome: string };
+}
+
+export interface VendedorAdminDetalhe extends VendedorAdmin {
+  identidadesExternas: { provider: 'LINX'; status: 'PENDING' | 'VERIFIED' | 'REJECTED'; matchMethod: string; verifiedAt: string | null }[];
 }
 
 export interface SessaoAtual {
@@ -68,7 +86,10 @@ export interface RankingLinha {
   vendedorId: string;
   nomeVendedor: string;
   posicao: number;
-  valor: string;
+  // null quando tipo === 'FATURAMENTO' e a linha não é a do próprio vendedor
+  // (Fatia 7.5A, seção 30 — nunca o valor bruto de faturamento alheio).
+  valor: string | null;
+  gapParaAnterior: number | null;
   provisorio: boolean;
 }
 

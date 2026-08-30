@@ -29,6 +29,11 @@ export function Perfil() {
         </div>
       </div>
 
+      {/* CPF sempre mascarado (Fatia 7.5A, seção 17) — nunca o valor completo. */}
+      {sessao!.vendedor.cpfMascarado && (
+        <p className="text-xs text-slate-500">CPF: {sessao!.vendedor.cpfMascarado}</p>
+      )}
+
       {carregando && !dados && <LoadingState />}
       {erro && <ErrorState mensagem={erro} onRetry={recarregar} />}
 
@@ -75,6 +80,24 @@ export function Perfil() {
             </Link>
           </div>
         </>
+      )}
+
+      <Link
+        to="/perfil/senha"
+        className="flex min-h-[44px] items-center justify-between rounded-lg bg-surface px-4 py-3 text-sm text-slate-300 active:opacity-80"
+      >
+        <span>Segurança — alterar senha</span>
+        <span aria-hidden="true">→</span>
+      </Link>
+
+      {sessao!.vendedor.papel === 'ADMIN' && (
+        <Link
+          to="/admin/usuarios"
+          className="flex min-h-[44px] items-center justify-between rounded-lg bg-surface px-4 py-3 text-sm text-slate-300 active:opacity-80"
+        >
+          <span>Administração</span>
+          <span aria-hidden="true">→</span>
+        </Link>
       )}
 
       <button

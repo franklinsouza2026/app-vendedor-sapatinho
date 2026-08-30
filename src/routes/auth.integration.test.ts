@@ -60,7 +60,7 @@ describe('GET /auth/me', () => {
 
   it('retorna 401 (nunca derruba o processo) quando o vendedor do token foi desativado', async () => {
     const { vendedor } = await criarFixtureEmpresa();
-    await prisma.vendedor.update({ where: { id: vendedor.id }, data: { ativo: false } });
+    await prisma.vendedor.update({ where: { id: vendedor.id }, data: { status: 'BLOCKED' } });
     const token = assinarToken({ vendedorId: vendedor.id, empresaId: vendedor.empresaId, lojaId: vendedor.lojaId, papel: 'VENDEDOR' });
 
     const res = await request(app).get('/auth/me').set('Authorization', `Bearer ${token}`);

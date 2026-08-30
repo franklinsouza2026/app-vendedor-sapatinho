@@ -18,6 +18,7 @@
     "reset:simulador-e2e": "tsx scripts/reset-simulador-e2e.ts",
     "reset:academia-e2e": "tsx scripts/reset-academia-e2e.ts",
     "reset:missoes-e2e": "tsx scripts/reset-missoes-e2e.ts",
+    "reset:identidade-e2e": "tsx scripts/reset-identidade-e2e.ts",
     "test": "vitest run",
     "lint": "tsc --noEmit"
   },

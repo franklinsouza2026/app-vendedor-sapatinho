@@ -8,6 +8,7 @@ interface AuthContextValue {
   carregando: boolean;
   erroSessao: string | null;
   login: (codigoErpLoja: string, matriculaErp: string, senha: string) => Promise<void>;
+  adotarToken: (token: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -67,8 +68,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSessao(atual);
   }
 
+  // Adota um token já emitido (ex.: resposta de POST /auth/ativacao, que loga
+  // o vendedor automaticamente após ativar a conta) sem passar pelo fluxo de
+  // /auth/login de novo.
+  async function adotarToken(token: string) {
+    setErroSessao(null);
+    setToken(token);
+    const atual = await buscarSessaoAtual();
+    setSessao(atual);
+  }
+
   return (
-    <AuthContext.Provider value={{ sessao, carregando, erroSessao, login, logout }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ sessao, carregando, erroSessao, login, adotarToken, logout }}>{children}</AuthContext.Provider>
   );
 }
 

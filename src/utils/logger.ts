@@ -17,6 +17,14 @@ const CAMINHOS_REDACT = [
   '*.senha',
   '*.senhaHash',
   '*.token',
+  // Identidade/CPF (Fatia 7.5A) — mesma resiliência de baixo custo: nenhum
+  // log deste projeto injeta esses campos hoje, mas CPF é dado pessoal
+  // sensível operacionalmente (seção 5) e nunca deveria aparecer em log
+  // nem por engano.
+  '*.cpf',
+  '*.cpfHash',
+  '*.tokenHash',
+  '*.tokenAtivacao',
 ];
 
 export function createLogger(name: string) {

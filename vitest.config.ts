@@ -34,9 +34,15 @@ export default defineConfig({
       APP_NAME: 'app-vendedor-sapatinho-test',
       JWT_SECRET: 'segredo-de-teste-com-pelo-menos-32-caracteres',
       JWT_ISSUER: 'app-vendedor-sapatinho',
+      CPF_HASH_SECRET: 'outro-segredo-de-teste-com-pelo-menos-32-chars',
       DATABASE_URL: databaseUrlTeste,
       REDIS_URL: 'redis://localhost:6379',
       ERP_MODE: 'mock',
+      // Testes de integração de identidade (Fatia 7.5A) chamam /auth/login e
+      // /auth/ativacao repetidamente dentro da mesma janela de 1 minuto — bem
+      // mais rápido que qualquer cadência humana real. Mesmo raciocínio já
+      // aplicado ao .env local pra E2E (nunca o valor de produção, só aqui).
+      LOGIN_RATE_LIMIT_PER_MINUTE: '1000',
     },
   },
 });

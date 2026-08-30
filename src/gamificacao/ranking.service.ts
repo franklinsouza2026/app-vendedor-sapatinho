@@ -103,7 +103,7 @@ async function coletarDadosVendedor(
 async function coletarDadosEmpresa(empresaId: string, periodo: PeriodoMeta, hoje: Date): Promise<DadosVendedor[]> {
   const referencia = referenciaDoPeriodo(periodo, hoje);
   const vendedores = await prisma.vendedor.findMany({
-    where: { empresaId, ativo: true },
+    where: { empresaId, status: 'ACTIVE' },
     select: { id: true, lojaId: true },
   });
 
@@ -203,12 +203,24 @@ export async function recalcularTodosOsRankingsDoDia(empresaId: string, hoje: Da
   log.info({ empresaId, lojas: porLoja.size, vendedores: dados.length }, 'rankings do dia recalculados (loja + rede)');
 }
 
+/**
+ * Privacidade de faturamento (Fatia 7.5A, seção 30/31): o vendedor autenticado
+ * vê seu próprio faturamento, mas NUNCA o valor bruto do faturamento dos
+ * demais — só posição e nome. Isso é decidido AQUI, no backend, nunca
+ * "escondido só no componente": o valor mascarado nem sai desta função pro
+ * controller. `gapParaAnterior` preserva a funcionalidade de produto
+ * ("faltam R$X pra alcançar Fulano", Decisão 32 da Fatia 6.5) sem nunca
+ * expor o valor absoluto de quem está acima — é sempre uma DIFERENÇA
+ * calculada aqui a partir dos valores reais (que a função tem acesso interno),
+ * nunca reconstruível a partir da resposta.
+ */
 export async function getRanking(
   empresaId: string,
   escopo: EscopoRanking,
   lojaId: string | null,
   tipo: TipoRanking,
   periodo: PeriodoMeta,
+  viewerVendedorId: string,
   hoje: Date = new Date()
 ) {
   const referencia = referenciaDoPeriodo(periodo, hoje);
@@ -224,5 +236,27 @@ export async function getRanking(
   });
   const nomePorId = new Map(vendedores.map((v) => [v.id, v.nome]));
 
-  return snapshot.map((s) => ({ ...s, nomeVendedor: nomePorId.get(s.vendedorId) ?? '—' }));
+  const ehFaturamento = tipo === 'FATURAMENTO';
+
+  return snapshot.map((s, idx) => {
+    const souEu = s.vendedorId === viewerVendedorId;
+    const anterior = idx > 0 ? snapshot[idx - 1] : null;
+    // ACHADO CRÍTICO da revisão de segurança desta fatia, corrigido antes do
+    // commit: calcular gapParaAnterior pra TODA linha (não só a do próprio
+    // vendedor) permitia encadear as diferenças e reconstruir o faturamento
+    // bruto de todo mundo a partir do próprio valor conhecido (valor[i-1] =
+    // valor[i] + gap[i], repetido pra cima e pra baixo na lista) — o mesmo
+    // vazamento que esta fatia existe pra fechar, só que via aritmética em
+    // vez de um campo `valor` direto. Por isso o gap só existe na PRÓPRIA
+    // linha do vendedor (única em que ele já conhece um dos dois lados).
+    return {
+      ...s,
+      // `valor` bruto de FATURAMENTO nunca sai daqui pra ninguém além do
+      // próprio dono da linha — outros tipos de ranking (score/PA/ticket/
+      // moedas/evolução) não são considerados dado financeiro sensível.
+      valor: ehFaturamento && !souEu ? null : s.valor,
+      gapParaAnterior: souEu && anterior ? Number(anterior.valor) - Number(s.valor) : null,
+      nomeVendedor: nomePorId.get(s.vendedorId) ?? '—',
+    };
+  });
 }

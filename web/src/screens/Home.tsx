@@ -173,7 +173,7 @@ export function Home() {
           <span className="text-2xl">🚀</span>
           <div className="flex-1">
             <p className="font-medium text-white">Evoluir</p>
-            <p className="text-xs text-slate-400">Coach · Treinador · Simulador · Academia</p>
+            <p className="text-xs text-slate-400">Conselheiro · Treinador · Simulador · Academia</p>
           </div>
           <span className="text-slate-500" aria-hidden="true">
             →

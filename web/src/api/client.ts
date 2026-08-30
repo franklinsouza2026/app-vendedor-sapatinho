@@ -64,5 +64,9 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
     throw new ApiError(resp.status, corpo.error ?? 'erro inesperado', corpo.type);
   }
 
+  // 204 (ex.: POST /auth/senha) nunca tem corpo — chamar .json() lançaria
+  // "Unexpected end of JSON input".
+  if (resp.status === 204) return undefined as T;
+
   return resp.json();
 }

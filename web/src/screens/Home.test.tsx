@@ -33,7 +33,7 @@ beforeEach(() => {
   vi.mocked(gamificacaoApi.buscarRanking).mockResolvedValue({
     tipo: 'SCORE_GERAL',
     escopo: 'LOJA',
-    ranking: [{ vendedorId: 'v1', nomeVendedor: 'Ana Vendedora', posicao: 1, valor: '800', provisorio: false }],
+    ranking: [{ vendedorId: 'v1', nomeVendedor: 'Ana Vendedora', posicao: 1, valor: '800', gapParaAnterior: null, provisorio: false }],
   });
   vi.mocked(missoesApi.buscarMissoesAtivas).mockResolvedValue({ missoes: [] });
 });

@@ -1,26 +1,60 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 import { Coach } from './Coach';
 import { ApiError } from '../api/client';
 import * as coachApi from '../api/coach';
+import * as authApi from '../api/auth';
+import { AuthProvider } from '../auth/AuthContext';
+import { RequireAuth } from '../auth/RequireAuth';
 import { MensagemCoach } from '../types';
 
 vi.mock('../api/coach');
+vi.mock('../api/auth');
 
 const CONVERSA = { id: 'conv-1', vendedorId: 'v1', status: 'ABERTA' as const, startedAt: '2026-08-29T10:00:00Z' };
 
+const SESSAO = {
+  vendedor: { id: 'v1', nome: 'Ana Vendedora', papel: 'VENDEDOR' as const },
+  loja: { id: 'loja-1', nome: 'Loja Piloto' },
+  empresa: { nome: 'Sapatinho de Luxo' },
+};
+
+// Coach só é montado atrás de RequireAuth/AuthProvider na aplicação real
+// (App.tsx) — desde a Fatia 7.5A ele usa o nome real do vendedor na saudação.
+function renderCoach() {
+  return render(
+    <MemoryRouter>
+      <AuthProvider>
+        <RequireAuth>
+          <Coach />
+        </RequireAuth>
+      </AuthProvider>
+    </MemoryRouter>
+  );
+}
+
 beforeEach(() => {
+  localStorage.clear();
+  localStorage.setItem('vendedor-ia:token', 'token-valido');
+  vi.mocked(authApi.buscarSessaoAtual).mockResolvedValue(SESSAO);
   vi.mocked(coachApi.buscarCheckinHoje).mockResolvedValue(null);
   vi.mocked(coachApi.buscarConversaAtual).mockResolvedValue(CONVERSA);
   vi.mocked(coachApi.buscarMensagens).mockResolvedValue({ mensagens: [] });
 });
 
 describe('Coach', () => {
-  it('mostra o check-in quando ainda não foi feito hoje', async () => {
-    render(<Coach />);
+  it('mostra "Conselheiro" (nunca "Coach") como nome do módulo pro vendedor — código interno continua Coach', async () => {
+    renderCoach();
 
-    expect(await screen.findByText('Como você está chegando pra trabalhar hoje?')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Conselheiro' })).toBeInTheDocument();
+  });
+
+  it('mostra o check-in quando ainda não foi feito hoje', async () => {
+    renderCoach();
+
+    expect(await screen.findByText(/Como você está chegando pra trabalhar hoje\?/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Muito bem/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Não estou legal/ })).toBeInTheDocument();
   });
@@ -29,18 +63,18 @@ describe('Coach', () => {
     const user = userEvent.setup();
     vi.mocked(coachApi.registrarCheckin).mockResolvedValue({ id: 'chk-1', mood: 'GOOD', dia: '2026-08-29' });
 
-    render(<Coach />);
+    renderCoach();
 
     await user.click(await screen.findByText('Bem', { exact: true }));
 
     expect(coachApi.registrarCheckin).toHaveBeenCalledWith('GOOD');
-    await waitFor(() => expect(screen.queryByText('Como você está chegando pra trabalhar hoje?')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText(/Como você está chegando pra trabalhar hoje\?/)).not.toBeInTheDocument());
   });
 
   it('mostra fluxo especial quando o check-in é NOT_GOOD e ainda não há mensagens', async () => {
     vi.mocked(coachApi.buscarCheckinHoje).mockResolvedValue({ id: 'chk-1', mood: 'NOT_GOOD', dia: '2026-08-29' });
 
-    render(<Coach />);
+    renderCoach();
 
     expect(await screen.findByText(/Entendi\. Quer me contar/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Quero conversar' })).toBeInTheDocument();
@@ -50,7 +84,7 @@ describe('Coach', () => {
   it('mostra quick actions quando não há mensagens e o mood não é NOT_GOOD', async () => {
     vi.mocked(coachApi.buscarCheckinHoje).mockResolvedValue({ id: 'chk-1', mood: 'GOOD', dia: '2026-08-29' });
 
-    render(<Coach />);
+    renderCoach();
 
     expect(await screen.findByRole('button', { name: 'Como estou hoje?' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Quero melhorar meu PA' })).toBeInTheDocument();
@@ -66,7 +100,7 @@ describe('Coach', () => {
       })
     );
 
-    render(<Coach />);
+    renderCoach();
 
     await user.click(await screen.findByRole('button', { name: 'Como estou hoje?' }));
 
@@ -96,9 +130,9 @@ describe('Coach', () => {
       createdAt: '2026-08-29T10:01:00Z',
     });
 
-    render(<Coach />);
+    renderCoach();
 
-    const input = await screen.findByPlaceholderText('Fala com o Coach...');
+    const input = await screen.findByPlaceholderText('Fala com o Conselheiro...');
     await user.type(input, 'Quero treinar quebra de objeção');
     await user.click(screen.getByRole('button', { name: 'Enviar' }));
 
@@ -121,7 +155,7 @@ describe('Coach', () => {
       ],
     });
 
-    render(<Coach />);
+    renderCoach();
 
     expect(await screen.findByText('<b>tentativa de injeção</b>')).toBeInTheDocument();
     expect(document.querySelector('b')).not.toBeInTheDocument();
@@ -136,7 +170,7 @@ describe('Coach', () => {
       ],
     });
 
-    render(<Coach />);
+    renderCoach();
 
     expect(await screen.findByText('Oi')).toBeInTheDocument();
     expect(screen.getByText('Olá! Como posso ajudar?')).toBeInTheDocument();
@@ -147,13 +181,13 @@ describe('Coach', () => {
     vi.mocked(coachApi.buscarCheckinHoje).mockResolvedValue({ id: 'chk-1', mood: 'GOOD', dia: '2026-08-29' });
     vi.mocked(coachApi.enviarMensagem).mockRejectedValue(new ApiError(429, 'limite atingido', 'rate_limited'));
 
-    render(<Coach />);
+    renderCoach();
 
-    const input = await screen.findByPlaceholderText('Fala com o Coach...');
+    const input = await screen.findByPlaceholderText('Fala com o Conselheiro...');
     await user.type(input, 'Minha pergunta');
     await user.click(screen.getByRole('button', { name: 'Enviar' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Você atingiu o limite de mensagens de hoje com o Coach. Volta amanhã!');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Você atingiu o limite de mensagens de hoje com o Conselheiro. Volta amanhã!');
     // rollback: a mensagem otimista que falhou não fica pendurada na tela
     await waitFor(() => expect(screen.queryByText('Minha pergunta')).not.toBeInTheDocument());
   });
@@ -163,9 +197,9 @@ describe('Coach', () => {
     vi.mocked(coachApi.buscarCheckinHoje).mockResolvedValue({ id: 'chk-1', mood: 'GOOD', dia: '2026-08-29' });
     vi.mocked(coachApi.enviarMensagem).mockRejectedValue(new Error('falha de rede'));
 
-    render(<Coach />);
+    renderCoach();
 
-    const input = await screen.findByPlaceholderText('Fala com o Coach...');
+    const input = await screen.findByPlaceholderText('Fala com o Conselheiro...');
     await user.type(input, 'Minha pergunta');
     await user.click(screen.getByRole('button', { name: 'Enviar' }));
 
@@ -175,9 +209,9 @@ describe('Coach', () => {
   it('mostra tela de erro com opção de tentar de novo quando o carregamento inicial falha', async () => {
     vi.mocked(coachApi.buscarConversaAtual).mockRejectedValue(new Error('falha de rede'));
 
-    render(<Coach />);
+    renderCoach();
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível carregar o Coach agora.');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível carregar o Conselheiro agora.');
     expect(screen.getByRole('button', { name: 'Tentar de novo' })).toBeInTheDocument();
   });
 
@@ -186,9 +220,9 @@ describe('Coach', () => {
     vi.mocked(coachApi.buscarCheckinHoje).mockResolvedValue({ id: 'chk-1', mood: 'GOOD', dia: '2026-08-29' });
     vi.mocked(coachApi.enviarMensagem).mockReturnValue(new Promise(() => {})); // nunca resolve nesse teste
 
-    render(<Coach />);
+    renderCoach();
 
-    const input = await screen.findByPlaceholderText('Fala com o Coach...');
+    const input = await screen.findByPlaceholderText('Fala com o Conselheiro...');
     await user.type(input, 'Pergunta');
     await user.click(screen.getByRole('button', { name: 'Enviar' }));
 

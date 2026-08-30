@@ -45,16 +45,44 @@ enum Papel {
   ADMIN
 }
 
+// Ciclo de vida da conta (Fatia 7.5A, seção 12) — substitui o antigo campo
+// `ativo: Boolean`. PENDING_ACTIVATION: pré-autorizado pelo Admin, ainda sem
+// senha própria (senhaHash null) — não consegue logar. ACTIVE: uso normal.
+// BLOCKED: acesso temporariamente impedido (reversível via desbloqueio).
+// OFFBOARDED: vínculo profissional encerrado (reversível via reativação) —
+// nunca hard delete, todo o histórico (vendas/XP/moedas/badges/missões/
+// conversas) permanece intacto e ligado ao mesmo id.
+enum StatusConta {
+  PENDING_ACTIVATION
+  ACTIVE
+  BLOCKED
+  OFFBOARDED
+}
+
 model Vendedor {
-  id           String   @id @default(uuid())
+  id           String      @id @default(uuid())
   empresaId    String
   lojaId       String
   matriculaErp String
   nome         String
-  senhaHash    String
-  papel        Papel    @default(VENDEDOR)
-  ativo        Boolean  @default(true)
-  createdAt    DateTime @default(now())
+  // Nullable: uma conta PENDING_ACTIVATION (pré-autorizada pelo Admin, seção
+  // 39) ainda não tem senha própria — só ganha uma no fluxo de ativação
+  // (seção 10/11). Login e requireAuth já checam `status === 'ACTIVE'` antes
+  // de qualquer comparação de senha, então nunca chegam a comparar contra null.
+  senhaHash    String?
+  papel        Papel       @default(VENDEDOR)
+  status       StatusConta @default(ACTIVE)
+  createdAt    DateTime    @default(now())
+
+  // CPF (Fatia 7.5A, seção 5/6) — NUNCA armazenado em claro. cpfHash é um
+  // HMAC determinístico (ver src/identidade/cpf.ts) usado só pra unicidade
+  // dentro da empresa e pra localizar a conta durante a ativação;
+  // cpfUltimosDigitos guarda só os 2 últimos dígitos, suficiente pra exibir
+  // a máscara "***.***.***-XX" sem nunca reconstruir o valor completo.
+  // Nullable: ADMIN/GERENTE cadastrados pelo fluxo antigo (POST /vendedores)
+  // podem não ter CPF; e contas seedadas antes desta fatia também não têm.
+  cpfHash           String?
+  cpfUltimosDigitos String?
 
   loja Loja @relation(fields: [lojaId], references: [id])
 
@@ -77,8 +105,17 @@ model Vendedor {
   missoes             MissionAssignment[]
   desafios            ChallengeAssignment[]
 
+  tokensAtivacao      ActivationToken[]
+  identidadesExternas ExternalIdentity[]
+  auditoriasComoAtor  AuditEvent[]       @relation("AuditEventAtor")
+  auditoriasComoAlvo  AuditEvent[]       @relation("AuditEventAlvo")
+
   @@unique([lojaId, matriculaErp])
+  // NULL é distinto de NULL no Postgres — vendedores sem CPF (ADMIN/GERENTE
+  // legado, contas seedadas antes desta fatia) nunca colidem entre si aqui.
+  @@unique([empresaId, cpfHash])
   @@index([empresaId, lojaId])
+  @@index([empresaId, status])
   @@map("vendedor")
 }
 
@@ -1067,4 +1104,101 @@ model ChallengeAssignment {
   @@unique([vendedorId, challengeDefinitionId, startsAt])
   @@index([vendedorId, status])
   @@map("challenge_assignment")
+}
+
+// ============================================================================
+// FATIA 7.5A — Identidade, acessos, Admin Foundation e privacidade comercial
+// ============================================================================
+
+enum StatusTokenAtivacao {
+  PENDING
+  USED
+  EXPIRED
+  REVOKED
+}
+
+// Token de ativação de conta (seção 39/40) — gerado pelo Admin ao
+// pré-autorizar um vendedor, consumido uma única vez no fluxo de ativação
+// (POST /auth/ativacao). Nunca armazenado em claro: só o hash SHA-256 do
+// valor aleatório entregue ao Admin (que precisa repassar ao vendedor por um
+// canal próprio — este projeto não tem infraestrutura de e-mail/SMS ainda,
+// ver limitação documentada na fonte de verdade).
+model ActivationToken {
+  id         String              @id @default(uuid())
+  vendedorId String
+  tokenHash  String              @unique
+  status     StatusTokenAtivacao @default(PENDING)
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime            @default(now())
+
+  vendedor Vendedor @relation(fields: [vendedorId], references: [id])
+
+  @@index([vendedorId, status])
+  @@map("activation_token")
+}
+
+enum ErpProvider {
+  LINX
+}
+
+enum MetodoVinculoErp {
+  CPF
+  EXTERNAL_ID
+  SELLER_CODE
+  MANUAL
+}
+
+enum StatusVinculoErp {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+// Fundação do vínculo Vendedor <-> identidade no ERP externo (seção 8/9) —
+// modelo criado nesta fatia, mas SEM nenhuma chamada real ao Linx (isso é a
+// Fatia 10). Existe pra que a identidade interna (Vendedor.id, sempre a
+// chave primária real) já tenha onde registrar "este vendedor corresponde a
+// tal matrícula/código no ERP X" quando a integração real existir, sem
+// precisar de uma migração de schema depois.
+model ExternalIdentity {
+  id                 String           @id @default(uuid())
+  empresaId          String
+  vendedorId         String
+  provider           ErpProvider
+  externalSellerId   String?
+  externalEmployeeId String?
+  externalStoreId    String?
+  matchMethod        MetodoVinculoErp
+  status             StatusVinculoErp @default(PENDING)
+  verifiedAt         DateTime?
+  metadata           Json?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  vendedor Vendedor @relation(fields: [vendedorId], references: [id])
+
+  @@unique([vendedorId, provider])
+  @@index([empresaId, provider])
+  @@map("external_identity")
+}
+
+// Auditoria de ações administrativas críticas (seção 42) — append-only por
+// design (nenhuma rota de update/delete é exposta). `metadata` guarda só
+// contexto não sensível (nunca CPF em claro, nunca token/senha).
+model AuditEvent {
+  id        String   @id @default(uuid())
+  empresaId String
+  actorId   String?
+  targetId  String?
+  acao      String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  ator Vendedor? @relation("AuditEventAtor", fields: [actorId], references: [id])
+  alvo Vendedor? @relation("AuditEventAlvo", fields: [targetId], references: [id])
+
+  @@index([empresaId, createdAt])
+  @@index([targetId])
+  @@map("audit_event")
 }

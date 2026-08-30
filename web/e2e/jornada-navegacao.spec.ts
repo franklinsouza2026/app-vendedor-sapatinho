@@ -23,8 +23,8 @@ test.describe('Navegação completa pós-redesign (Fatia 6.5)', () => {
     await expect(page.getByRole('heading', { name: 'Evoluir' })).toBeVisible();
 
     // Coach → voltar pro hub
-    await page.getByText('Coach', { exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Coach' })).toBeVisible();
+    await page.getByText('Conselheiro', { exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Conselheiro' })).toBeVisible();
     await page.goBack();
     await expect(page.getByRole('heading', { name: 'Evoluir' })).toBeVisible();
 

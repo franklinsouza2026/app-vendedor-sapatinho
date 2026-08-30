@@ -17,7 +17,7 @@ describe('Evoluir', () => {
 
     expect(screen.getByRole('heading', { name: 'Evoluir' })).toBeInTheDocument();
 
-    const coach = screen.getByText('Coach', { exact: true }).closest('a');
+    const coach = screen.getByText('Conselheiro', { exact: true }).closest('a');
     const treinador = screen.getByText('Treinador', { exact: true }).closest('a');
     const simulador = screen.getByText('Simulador', { exact: true }).closest('a');
     const academia = screen.getByText('Academia', { exact: true }).closest('a');

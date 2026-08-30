@@ -67,7 +67,11 @@ export function Ranking() {
                   <span className={souEu ? 'font-semibold text-accentSoft' : 'text-white'}>{linha.nomeVendedor}</span>
                 </div>
                 <span className="text-slate-300">
-                  {formatarNumero(Number(linha.valor), tipo === 'FATURAMENTO' || tipo === 'TICKET' ? 2 : 0)}
+                  {linha.valor === null ? (
+                    <span aria-label="faturamento oculto">R$ •••••</span>
+                  ) : (
+                    formatarNumero(Number(linha.valor), tipo === 'FATURAMENTO' || tipo === 'TICKET' ? 2 : 0)
+                  )}
                   {linha.provisorio && <span className="ml-1 text-xs text-slate-500">(provisório)</span>}
                 </span>
               </div>
@@ -100,10 +104,13 @@ function SuaPosicao({ ranking, vendedorId, tipo }: { ranking: RankingLinha[]; ve
         {eu.provisorio && <span className="text-xs text-slate-500">provisório</span>}
       </div>
       <p className="text-2xl font-bold text-white">{eu.posicao}º</p>
+      {/* gapParaAnterior é sempre a DIFERENÇA (calculada no backend), nunca o
+          valor absoluto de quem está acima — em FATURAMENTO esse valor nunca
+          chega até aqui mascarado (Fatia 7.5A, seção 30). */}
       {acima ? (
         <p className="mt-1 text-sm text-slate-400">
-          Faltam <strong className="text-white">{formatarNumero(Number(acima.valor) - Number(eu.valor), casasDecimais)}</strong> pra
-          alcançar <strong className="text-white">{acima.nomeVendedor}</strong> ({acima.posicao}º).
+          Faltam <strong className="text-white">{formatarNumero(eu.gapParaAnterior ?? 0, casasDecimais)}</strong> pra alcançar{' '}
+          <strong className="text-white">{acima.nomeVendedor}</strong> ({acima.posicao}º).
         </p>
       ) : (
         <p className="mt-1 text-sm text-emerald-400">Você está em 1º lugar! 🏆</p>

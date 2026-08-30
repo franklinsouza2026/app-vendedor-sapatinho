@@ -39,7 +39,7 @@ export function createFechamentoDiaWorker() {
       const ontem = new Date();
       ontem.setDate(ontem.getDate() - 1);
 
-      const vendedores = await prisma.vendedor.findMany({ where: { ativo: true }, select: { id: true } });
+      const vendedores = await prisma.vendedor.findMany({ where: { status: 'ACTIVE' }, select: { id: true } });
 
       let fechados = 0;
       let falhas = 0;

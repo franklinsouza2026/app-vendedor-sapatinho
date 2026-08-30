@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { Card } from '../components/Card';
 
 const MODULOS = [
-  { to: '/coach', emoji: '💬', titulo: 'Coach', descricao: 'Organize seu foco e sua performance.', cor: 'border-coach' },
+  { to: '/coach', emoji: '💬', titulo: 'Conselheiro', descricao: 'Organize seu foco e sua performance.', cor: 'border-coach' },
   { to: '/treinador', emoji: '🎯', titulo: 'Treinador', descricao: 'Aprenda como agir melhor numa situação de venda.', cor: 'border-treinador' },
   { to: '/simulador', emoji: '🎭', titulo: 'Simulador', descricao: 'Pratique um atendimento real com uma cliente virtual.', cor: 'border-simulador' },
   { to: '/academia', emoji: '🎓', titulo: 'Academia', descricao: 'Aprenda através de aulas e exercícios rápidos.', cor: 'border-academia' },

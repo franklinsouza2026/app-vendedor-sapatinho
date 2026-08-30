@@ -15,6 +15,11 @@ import { Simulador } from './screens/Simulador';
 import { Academia } from './screens/Academia';
 import { Evoluir } from './screens/Evoluir';
 import { Missoes } from './screens/Missoes';
+import { Ativacao } from './screens/Ativacao';
+import { AlterarSenha } from './screens/AlterarSenha';
+import { AdminUsuarios } from './screens/admin/AdminUsuarios';
+import { AdminUsuarioDetalhe } from './screens/admin/AdminUsuarioDetalhe';
+import { AdminNovoVendedor } from './screens/admin/AdminNovoVendedor';
 
 export function App() {
   return (
@@ -22,6 +27,33 @@ export function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/ativacao" element={<Ativacao />} />
+          {/* Admin Foundation (Fatia 7.5A) — desktop-first, fora do Layout do
+              vendedor (sem bottom nav), só acessível pra papel ADMIN. */}
+          <Route
+            path="/admin/usuarios"
+            element={
+              <RequireAuth papeis={['ADMIN']}>
+                <AdminUsuarios />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/admin/usuarios/novo"
+            element={
+              <RequireAuth papeis={['ADMIN']}>
+                <AdminNovoVendedor />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/admin/usuarios/:id"
+            element={
+              <RequireAuth papeis={['ADMIN']}>
+                <AdminUsuarioDetalhe />
+              </RequireAuth>
+            }
+          />
           {/* Coach fica fora do Layout (sem bottom nav) — tela de chat ocupa a
               altura inteira, com input fixo embaixo; bottom nav junto quebraria
               esse layout. */}
@@ -64,6 +96,7 @@ export function App() {
             <Route path="/moedas" element={<Carteira />} />
             <Route path="/conquistas" element={<Badges />} />
             <Route path="/perfil" element={<Perfil />} />
+            <Route path="/perfil/senha" element={<AlterarSenha />} />
             <Route path="/academia" element={<Academia />} />
             <Route path="/evoluir" element={<Evoluir />} />
             <Route path="/missoes" element={<Missoes />} />

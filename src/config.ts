@@ -9,6 +9,15 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(32, 'JWT_SECRET deve ter pelo menos 32 chars'),
   JWT_ISSUER: z.string().default('app-vendedor-sapatinho'),
 
+  // Identidade/CPF (Fatia 7.5A) — segredo do HMAC determinístico usado pra
+  // hash de CPF (nunca reversível, ver src/identidade/cpf.ts). Mesma barra
+  // mínima de entropia do JWT_SECRET, nunca deve ter o mesmo valor (rotação
+  // independente: trocar um não deveria invalidar o outro).
+  CPF_HASH_SECRET: z.string().min(32, 'CPF_HASH_SECRET deve ter pelo menos 32 chars'),
+  // Validade do token de ativação enviado pelo Admin ao pré-autorizar um
+  // vendedor — padrão 7 dias (168h), configurável sem deploy de código.
+  ACTIVATION_TOKEN_TTL_HOURS: z.coerce.number().int().positive().default(168),
+
   DATABASE_URL: z.string().url('DATABASE_URL invalido'),
   REDIS_URL: z.string().url(),
 
