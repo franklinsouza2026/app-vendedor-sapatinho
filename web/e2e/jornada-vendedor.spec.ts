@@ -16,7 +16,7 @@ test.describe('Jornada do vendedor', () => {
     await page.getByRole('button', { name: 'Entrar' }).click();
 
     // 2. Home — meta do dia visível com dado real vindo do backend
-    await expect(page.getByText(/Boa (tarde|noite|dia), Vendedor/)).toBeVisible();
+    await expect(page.getByText(/Bo(m|a) (dia|tarde|noite), Vendedor/)).toBeVisible();
     await expect(page.getByText('Meta hoje')).toBeVisible();
     await expect(page.getByText(/Dados atualizados às \d{2}:\d{2}/)).toBeVisible();
 

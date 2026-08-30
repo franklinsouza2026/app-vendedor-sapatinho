@@ -14,6 +14,7 @@ import { treinadorRouter } from './routes/treinador';
 import { playbookRouter } from './routes/playbook';
 import { simuladorRouter } from './routes/simulador';
 import { academiaRouter } from './routes/academia';
+import { missoesRouter } from './routes/missoes';
 import { apiRateLimit } from './middlewares/ratelimit';
 import { errorHandler } from './middlewares/error-handler';
 
@@ -34,5 +35,6 @@ app.use(treinadorRouter);
 app.use(playbookRouter);
 app.use(simuladorRouter);
 app.use(academiaRouter);
+app.use(missoesRouter);
 
 app.use(errorHandler);

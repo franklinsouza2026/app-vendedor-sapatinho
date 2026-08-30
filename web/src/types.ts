@@ -293,3 +293,51 @@ export interface ErroAcademia {
   error: string;
   type?: 'not_found' | 'quiz_obrigatorio';
 }
+
+// --- Missões e Desafios (Fatia 7) ---
+
+export type StatusMissao = 'ASSIGNED' | 'IN_PROGRESS' | 'COMPLETED' | 'EXPIRED' | 'CANCELLED';
+export type CategoriaMissao = 'PERFORMANCE' | 'LEARNING' | 'SIMULATION' | 'CONSISTENCY';
+export type TipoAcaoMissao = 'COACH' | 'TRAINER' | 'SIMULATOR' | 'ACADEMY' | 'PERFORMANCE';
+
+export interface DefinicaoMissao {
+  code: string;
+  title: string;
+  description?: string;
+  category: CategoriaMissao;
+  actionType: TipoAcaoMissao;
+  actionReference: Record<string, string> | null;
+}
+
+export interface Missao {
+  id: string;
+  status: StatusMissao;
+  progressoAtual: number;
+  progressoAlvo: number;
+  startsAt: string;
+  expiresAt: string;
+  completedAt: string | null;
+  missao: DefinicaoMissao;
+}
+
+export interface DefinicaoDesafio {
+  code: string;
+  title: string;
+  description?: string;
+}
+
+export interface Desafio {
+  id: string;
+  status: StatusMissao;
+  progressoAtual: number;
+  progressoAlvo: number;
+  startsAt: string;
+  expiresAt: string;
+  completedAt: string | null;
+  desafio: DefinicaoDesafio;
+}
+
+export interface ErroMissao {
+  error: string;
+  type?: 'not_found';
+}

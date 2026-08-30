@@ -74,6 +74,8 @@ model Vendedor {
   conversasTreinador  TrainerConversation[]
   sessoesSimulacao    SimulationSession[]
   progressoAcademia   AcademyProgress[]
+  missoes             MissionAssignment[]
+  desafios            ChallengeAssignment[]
 
   @@unique([lojaId, matriculaErp])
   @@index([empresaId, lojaId])
@@ -926,4 +928,143 @@ model AcademyProgress {
 
   @@unique([vendedorId, lessonId])
   @@map("academy_progress")
+}
+
+// ===== Fatia 7 — Missões e Desafios =====
+// Missão é uma ação individual, objetiva e verificável — nunca "venda mais"
+// solto. Conclusão SEMPRE por evidência do sistema (ledger/AcademyProgress/
+// SimulationSession/StreakVendedor já existentes) — nunca frontend, nunca
+// LLM. Catálogo (MissionDefinition) é GLOBAL, mesmo raciocínio de
+// SimulationScenario/AcademyTrack — a atribuição (MissionAssignment) é sempre
+// por vendedor.
+enum CategoriaMissao {
+  PERFORMANCE
+  LEARNING
+  SIMULATION
+  CONSISTENCY
+}
+
+enum CriterioMissao {
+  DAILY_GOAL
+  PA_IMPROVEMENT
+  TICKET_IMPROVEMENT
+  COMPLETE_LESSON
+  PASS_QUIZ
+  COMPLETE_SIMULATION
+  STREAK_3
+}
+
+enum PeriodoMissao {
+  DIA
+  SEMANA
+}
+
+enum StatusMissao {
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  EXPIRED
+  CANCELLED
+}
+
+// Onde a ação recomendada leva — referência estruturada, nunca URL livre
+// (seção 17 da Fatia 7: "não persistir URLs arbitrárias vindas de usuário").
+enum TipoAcaoMissao {
+  COACH
+  TRAINER
+  SIMULATOR
+  ACADEMY
+  PERFORMANCE
+}
+
+model MissionDefinition {
+  id              String          @id @default(uuid())
+  code            String          @unique
+  title           String
+  description     String
+  category        CategoriaMissao
+  criterionType   CriterioMissao
+  criterionConfig Json            @default("{}")
+  periodType      PeriodoMissao   @default(DIA)
+  actionType      TipoAcaoMissao
+  actionReference Json?
+  active          Boolean         @default(true)
+  version         Int             @default(1)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  atribuicoes MissionAssignment[]
+
+  @@map("mission_definition")
+}
+
+model MissionAssignment {
+  id                  String       @id @default(uuid())
+  missionDefinitionId String
+  empresaId           String
+  lojaId              String
+  vendedorId          String
+  status              StatusMissao @default(ASSIGNED)
+  assignedAt          DateTime     @default(now())
+  startsAt            DateTime
+  expiresAt           DateTime
+  completedAt         DateTime?
+  progressoAtual      Decimal      @default(0) @db.Decimal(12, 4)
+  progressoAlvo       Decimal      @default(0) @db.Decimal(12, 4)
+  source              String       @default("SYSTEM") // sempre atribuída pelo sistema nesta fatia — nunca pelo vendedor
+  sourceReference     String?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  definicao MissionDefinition @relation(fields: [missionDefinitionId], references: [id])
+  vendedor  Vendedor          @relation(fields: [vendedorId], references: [id])
+
+  // Nunca 2 atribuições da MESMA missão na MESMA janela pro mesmo vendedor —
+  // reprocessar a atribuição diária/semanal é sempre um upsert idempotente,
+  // nunca duplica (mesmo raciocínio de idempotencyKey do ledger, aqui via
+  // constraint única em vez de string).
+  @@unique([vendedorId, missionDefinitionId, startsAt])
+  @@index([vendedorId, status])
+  @@map("mission_assignment")
+}
+
+model ChallengeDefinition {
+  id              String        @id @default(uuid())
+  code            String        @unique
+  title           String
+  description     String
+  criterionType   String
+  criterionConfig Json          @default("{}")
+  periodType      PeriodoMissao @default(SEMANA)
+  active          Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  atribuicoes ChallengeAssignment[]
+
+  @@map("challenge_definition")
+}
+
+model ChallengeAssignment {
+  id                    String       @id @default(uuid())
+  challengeDefinitionId String
+  empresaId             String
+  lojaId                String
+  vendedorId            String
+  status                StatusMissao @default(ASSIGNED)
+  assignedAt            DateTime     @default(now())
+  startsAt              DateTime
+  expiresAt             DateTime
+  completedAt           DateTime?
+  progressoAtual        Decimal      @default(0) @db.Decimal(12, 4)
+  progressoAlvo         Decimal      @default(0) @db.Decimal(12, 4)
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+
+  definicao ChallengeDefinition @relation(fields: [challengeDefinitionId], references: [id])
+  vendedor  Vendedor            @relation(fields: [vendedorId], references: [id])
+
+  @@unique([vendedorId, challengeDefinitionId, startsAt])
+  @@index([vendedorId, status])
+  @@map("challenge_assignment")
 }

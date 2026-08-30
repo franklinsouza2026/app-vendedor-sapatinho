@@ -8,6 +8,7 @@ import { calcularNivel } from '../gamificacao/niveis';
 import { recomputarBaselines } from '../gamificacao/baseline.service';
 import { CoachContext } from './context.types';
 import { getMemoria } from './memory.service';
+import { getMissaoPrioritariaParaCoach } from '../missoes/service';
 
 /** Vendas necessárias pra bater a meta, dado o ticket médio atual — cálculo determinístico, nunca do LLM. */
 function estimarVendasRestantes(amountRemaining: number | null, ticket: number): number | null {
@@ -21,7 +22,7 @@ export async function buildCoachContext(vendedorId: string, agora: Date = new Da
     include: { loja: true },
   });
 
-  const [progresso, xpTotal, baselines, streak, badgesRecentes, memoria, ultimoIndicador] = await Promise.all([
+  const [progresso, xpTotal, baselines, streak, badgesRecentes, memoria, ultimoIndicador, missaoPrioritaria] = await Promise.all([
     getProgressoVendedor(vendedorId, agora),
     getTotalXp(vendedorId),
     recomputarBaselines(vendedorId, inicioDoDia(agora)),
@@ -34,6 +35,9 @@ export async function buildCoachContext(vendedorId: string, agora: Date = new Da
     }),
     getMemoria(vendedorId, agora),
     prisma.indicadorRealizado.findFirst({ where: { vendedorId }, orderBy: { dataHora: 'desc' } }),
+    // Só o mínimo necessário (seção 36 da Fatia 7: "não enviar banco inteiro
+    // de missões") — título + progresso, nunca critério/recompensa/ID interno.
+    getMissaoPrioritariaParaCoach(vendedorId, agora),
   ]);
 
   const dia = progresso.find((p) => p.periodo === 'DIA')!;
@@ -70,7 +74,7 @@ export async function buildCoachContext(vendedorId: string, agora: Date = new Da
     },
     development: {
       currentFocus: memoria.currentFocus,
-      currentMission: null, // missões são Fatia 7 — ainda não existe estrutura determinística pra isso
+      currentMission: missaoPrioritaria ? `${missaoPrioritaria.title} (${missaoPrioritaria.progresso}%)` : null,
       recentTrainings: [], // Academia é Fatia 6
       professionalMemorySummary: memoria.summary,
     },

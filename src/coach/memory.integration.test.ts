@@ -26,8 +26,10 @@ describe('getMemoria', () => {
     for (let i = AMOSTRA_MINIMA_BASELINE; i >= 1; i--) {
       await criarIndicador(vendedor.id, new Date(diasAtras(i).getTime() + 10 * 3600 * 1000), { faturamento: 200, pa: 2, ticketMedio: 100 });
     }
-    // hoje: ticket bem abaixo da baseline (100)
-    await criarIndicador(vendedor.id, new Date(diasAtras(0).getTime() + 10 * 3600 * 1000), { faturamento: 60, pa: 2, ticketMedio: 60, numAtendimentos: 1 });
+    // hoje: ticket bem abaixo da baseline (100) — usa o instante real
+    // (nunca uma hora fixa como "10h de hoje"), senão o teste quebra quando
+    // rodado de madrugada, antes desse horário ainda não ter "acontecido".
+    await criarIndicador(vendedor.id, new Date(), { faturamento: 60, pa: 2, ticketMedio: 60, numAtendimentos: 1 });
 
     const memoria = await getMemoria(vendedor.id);
 

@@ -3,23 +3,27 @@ import { useAuth } from '../auth/AuthContext';
 import { useApi } from '../utils/useApi';
 import { buscarMinhasMetas } from '../api/metas';
 import { buscarCarteira, buscarRanking, buscarStreak } from '../api/gamificacao';
+import { buscarMissoesAtivas } from '../api/missoes';
 import { Card } from '../components/Card';
 import { ProgressBar } from '../components/ProgressBar';
 import { LoadingState } from '../components/LoadingState';
 import { ErrorState } from '../components/ErrorState';
 import { formatarHora, formatarMoeda, formatarNumero, saudacao } from '../utils/format';
 import { vendasNecessarias } from '../utils/calculo';
+import { rotaDaAcaoMissao } from '../utils/missoes';
 
 async function carregarHome(vendedorId: string) {
-  const [metas, carteira, streak, ranking] = await Promise.all([
+  const [metas, carteira, streak, ranking, missoes] = await Promise.all([
     buscarMinhasMetas(),
     buscarCarteira(),
     buscarStreak(),
     buscarRanking('SCORE_GERAL', 'LOJA'),
+    buscarMissoesAtivas(),
   ]);
   const dia = metas.progresso.find((p) => p.periodo === 'DIA')!;
   const posicao = ranking.ranking.find((r) => r.vendedorId === vendedorId)?.posicao ?? null;
-  return { dia, carteira, streak, posicao, totalNoRanking: ranking.ranking.length };
+  const missoesPendentes = missoes.missoes.filter((m) => m.status === 'ASSIGNED' || m.status === 'IN_PROGRESS');
+  return { dia, carteira, streak, posicao, totalNoRanking: ranking.ranking.length, missoesPendentes };
 }
 
 export function Home() {
@@ -31,7 +35,7 @@ export function Home() {
   if (erro) return <ErrorState mensagem={erro} onRetry={recarregar} />;
   if (!dados) return null;
 
-  const { dia, carteira, streak, posicao, totalNoRanking } = dados;
+  const { dia, carteira, streak, posicao, totalNoRanking, missoesPendentes } = dados;
   const percentual = dia.metaFaturamento ? (dia.realizado.faturamento / dia.metaFaturamento) * 100 : 0;
   const vendas = dia.faltaParaMeta !== null && dia.realizado.ticketMedio > 0 ? vendasNecessarias(dia.faltaParaMeta, dia.realizado.ticketMedio) : null;
 
@@ -99,6 +103,42 @@ export function Home() {
           ver ranking
         </Link>
       </p>
+
+      {/* Missões de hoje — objetivo claro do dia, com CTA direto pra onde
+          treinar (seção 29 da Fatia 7). Até MISSOES_MAX_ATIVAS_POR_DIA
+          (hoje 3) — nunca um mural extenso de missões aqui. */}
+      {missoesPendentes.length > 0 && (
+        <div>
+          <div className="mb-2 flex items-baseline justify-between">
+            <p className="text-sm font-medium text-slate-300">Missões de hoje</p>
+            <Link to="/missoes" className="text-xs text-accentSoft">
+              ver todas
+            </Link>
+          </div>
+          <div className="flex flex-col gap-2">
+            {missoesPendentes.map((m) => {
+              const percentual = m.progressoAlvo > 0 ? Math.min(100, (m.progressoAtual / m.progressoAlvo) * 100) : 0;
+              return (
+                <Card key={m.id}>
+                  <p className="font-medium text-white">{m.missao.title}</p>
+                  <div className="mt-2">
+                    <ProgressBar percentual={percentual} />
+                  </div>
+                  <div className="mt-2 flex items-center justify-between">
+                    <span className="text-xs text-slate-400">{Math.round(percentual)}%</span>
+                    <Link
+                      to={rotaDaAcaoMissao(m.missao.actionType)}
+                      className="flex min-h-[44px] items-center rounded-full bg-accent px-4 text-xs font-medium text-white active:opacity-80"
+                    >
+                      Treinar agora
+                    </Link>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Gamificação resumida — nível com progresso, moedas e streak juntos */}
       <Card>

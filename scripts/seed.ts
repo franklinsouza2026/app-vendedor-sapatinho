@@ -5,6 +5,7 @@ import { CATALOGO_BADGES_V1 } from '../src/gamificacao/badges.service';
 import { seedPlaybookInicialSeNaoExistir } from '../src/treinador/playbook-seed';
 import { seedCenariosSimulador } from '../src/simulador/scenario-seed';
 import { seedConteudoAcademia } from '../src/academia/content-seed';
+import { seedMissoesEDesafios } from '../src/missoes/catalogo-seed';
 import { env } from '../src/config';
 
 const prisma = new PrismaClient();
@@ -126,6 +127,7 @@ async function main() {
   const playbook = await seedPlaybookInicialSeNaoExistir(empresa.id, 'seed');
   const totalCenarios = await seedCenariosSimulador();
   const conteudoAcademia = await seedConteudoAcademia();
+  const conteudoMissoes = await seedMissoesEDesafios();
 
   console.log('Seed concluído:');
   console.log(`  Loja: codigoErpLoja=${loja.codigoErp}`);
@@ -136,6 +138,7 @@ async function main() {
   console.log(`  Playbook: "${playbook.nome}" v${playbook.versao} (PUBLISHED)`);
   console.log(`  Simulador: ${totalCenarios} cenários`);
   console.log(`  Academia: ${conteudoAcademia.trilhas} trilhas, ${conteudoAcademia.aulas} aulas`);
+  console.log(`  Missões: ${conteudoMissoes.missoes} definições, Desafios: ${conteudoMissoes.desafios} definições`);
 }
 
 main()

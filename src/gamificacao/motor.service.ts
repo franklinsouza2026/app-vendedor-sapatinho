@@ -26,7 +26,10 @@ const TIERS_META: { limiar: number; evento: TipoEventoGamificacao }[] = [
 // validada" de PA/ticket = pelo menos +5% acima da baseline pessoal. Reversão
 // de melhora PA/ticket não é implementada nesta versão (limitação conhecida:
 // só o tier de meta, que envolve valor financeiro maior, é revertido em resync).
-const LIMIAR_MELHORA_PCT = 5;
+// Exportado (não só usado aqui) — reaproveitado por src/missoes/ pra exibir
+// o "objetivo" das missões PA_IMPROVEMENT/TICKET_IMPROVEMENT sem duplicar o
+// número (Fatia 7, seção 56: "regra de baseline duplicada").
+export const LIMIAR_MELHORA_PCT = 5;
 
 export interface ResultadoAvaliacao {
   vendedorId: string;

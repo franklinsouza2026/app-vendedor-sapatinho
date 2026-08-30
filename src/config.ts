@@ -40,6 +40,11 @@ const envSchema = z.object({
   // da fonte de verdade (não havia regra definida) — v1 documentado, fácil
   // de ajustar via env sem precisar de deploy de código.
   SIMULATION_MIN_TURNS_FOR_REWARD: z.coerce.number().int().positive().default(3),
+
+  // Missões (Fatia 7) — limite de missões diárias ativas por vendedor (seção
+  // 13: "evitar 10 missões simultâneas... começar com limite pequeno"). Não
+  // vem da fonte de verdade — v1 documentado, ajustável via env.
+  MISSOES_MAX_ATIVAS_POR_DIA: z.coerce.number().int().positive().default(3),
 });
 
 export type Env = z.infer<typeof envSchema>;

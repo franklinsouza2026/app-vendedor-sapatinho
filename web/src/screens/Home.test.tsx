@@ -7,10 +7,12 @@ import { RequireAuth } from '../auth/RequireAuth';
 import * as authApi from '../api/auth';
 import * as metasApi from '../api/metas';
 import * as gamificacaoApi from '../api/gamificacao';
+import * as missoesApi from '../api/missoes';
 
 vi.mock('../api/auth');
 vi.mock('../api/metas');
 vi.mock('../api/gamificacao');
+vi.mock('../api/missoes');
 
 const SESSAO = {
   vendedor: { id: 'v1', nome: 'Ana Vendedora', papel: 'VENDEDOR' as const },
@@ -33,6 +35,7 @@ beforeEach(() => {
     escopo: 'LOJA',
     ranking: [{ vendedorId: 'v1', nomeVendedor: 'Ana Vendedora', posicao: 1, valor: '800', provisorio: false }],
   });
+  vi.mocked(missoesApi.buscarMissoesAtivas).mockResolvedValue({ missoes: [] });
 });
 
 // Home só é montada atrás de RequireAuth na aplicação real (App.tsx) — nunca
@@ -89,6 +92,54 @@ describe('Home', () => {
     expect(await screen.findByText('Nenhuma meta de hoje cadastrada ainda.')).toBeInTheDocument();
     expect(screen.queryByText('undefined')).not.toBeInTheDocument();
     expect(screen.queryByText('null')).not.toBeInTheDocument();
+  });
+
+  it('mostra o bloco "Missões de hoje" com CTA pra rota certa quando há missões pendentes', async () => {
+    vi.mocked(metasApi.buscarMinhasMetas).mockResolvedValue({
+      vendedorId: 'v1',
+      progresso: [
+        { periodo: 'DIA', metaFaturamento: null, realizado: { faturamento: 0, ticketMedio: 0, pa: 0, numAtendimentos: 0 }, faltaParaMeta: null },
+        { periodo: 'SEMANA', metaFaturamento: null, realizado: { faturamento: 0, ticketMedio: 0, pa: 0, numAtendimentos: 0 }, faltaParaMeta: null },
+        { periodo: 'MES', metaFaturamento: null, realizado: { faturamento: 0, ticketMedio: 0, pa: 0, numAtendimentos: 0 }, faltaParaMeta: null },
+      ],
+    });
+    vi.mocked(missoesApi.buscarMissoesAtivas).mockResolvedValue({
+      missoes: [
+        {
+          id: 'm1',
+          status: 'ASSIGNED',
+          progressoAtual: 1,
+          progressoAlvo: 3,
+          startsAt: '2026-08-29T00:00:00Z',
+          expiresAt: '2026-08-30T00:00:00Z',
+          completedAt: null,
+          missao: { code: 'COMPLETE_SIMULATION', title: 'Conclua uma simulação de atendimento', category: 'SIMULATION', actionType: 'SIMULATOR', actionReference: null },
+        },
+      ],
+    });
+
+    renderHome();
+
+    expect(await screen.findByText('Missões de hoje')).toBeInTheDocument();
+    expect(screen.getByText('Conclua uma simulação de atendimento')).toBeInTheDocument();
+    const cta = screen.getByRole('link', { name: 'Treinar agora' });
+    expect(cta).toHaveAttribute('href', '/simulador');
+  });
+
+  it('não mostra o bloco de missões quando não há nenhuma pendente', async () => {
+    vi.mocked(metasApi.buscarMinhasMetas).mockResolvedValue({
+      vendedorId: 'v1',
+      progresso: [
+        { periodo: 'DIA', metaFaturamento: null, realizado: { faturamento: 0, ticketMedio: 0, pa: 0, numAtendimentos: 0 }, faltaParaMeta: null },
+        { periodo: 'SEMANA', metaFaturamento: null, realizado: { faturamento: 0, ticketMedio: 0, pa: 0, numAtendimentos: 0 }, faltaParaMeta: null },
+        { periodo: 'MES', metaFaturamento: null, realizado: { faturamento: 0, ticketMedio: 0, pa: 0, numAtendimentos: 0 }, faltaParaMeta: null },
+      ],
+    });
+
+    renderHome();
+
+    await screen.findByText('Nenhuma meta de hoje cadastrada ainda.');
+    expect(screen.queryByText('Missões de hoje')).not.toBeInTheDocument();
   });
 
   it('mostra tela de erro com opção de tentar de novo quando a API falha', async () => {

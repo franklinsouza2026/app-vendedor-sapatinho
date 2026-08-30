@@ -38,6 +38,9 @@ export function formatarContextoParaPrompt(ctx: CoachContext): string {
   if (ctx.development.currentFocus) {
     linhas.push(`Foco sugerido atual: ${ctx.development.currentFocus}`);
   }
+  if (ctx.development.currentMission) {
+    linhas.push(`Missão prioritária de hoje: ${ctx.development.currentMission}`);
+  }
 
   linhas.push(
     ctx.freshness.lastDataSyncAt
