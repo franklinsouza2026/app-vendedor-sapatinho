@@ -37,7 +37,14 @@ export default defineConfig({
       CPF_HASH_SECRET: 'outro-segredo-de-teste-com-pelo-menos-32-chars',
       AI_SECRETS_ENCRYPTION_KEY: 'a'.repeat(64),
       DATABASE_URL: databaseUrlTeste,
-      REDIS_URL: 'redis://localhost:6379',
+      // Mesmo Redis do dev deste projeto (porta 6380 — ver docker-compose),
+      // nunca o 6379 (que aqui coincide com o Redis de OUTRO projeto na
+      // mesma máquina e exige autenticação — só descoberto na Fatia 7.5D,
+      // primeiro teste de integração a de fato enfileirar um job via
+      // BullMQ). Isolamento continua garantido pelo nome da fila
+      // ('training-intelligence'), mesmo raciocínio de isolamento por
+      // DATABASE_URL dedicado no mesmo servidor Postgres, não um servidor à parte.
+      REDIS_URL: 'redis://localhost:6380',
       ERP_MODE: 'mock',
       // Testes de integração de identidade (Fatia 7.5A) chamam /auth/login e
       // /auth/ativacao repetidamente dentro da mesma janela de 1 minuto — bem

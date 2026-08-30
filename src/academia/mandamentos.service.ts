@@ -38,6 +38,20 @@ export async function listarMandamentosPublicados() {
   });
 }
 
+/**
+ * Guard da Training Intelligence Platform (Fatia 7.5D, seção 22/55): só os
+ * mandamentos com conteúdo oficial de fato cadastrado (independente de já
+ * estar PUBLISHED ou ainda em revisão) podem alimentar um agente de IA —
+ * nunca os 13 fixos vazios. Se vier vazio, o chamador NUNCA deve completar a
+ * lacuna nem chamar o provider de IA sobre o tema.
+ */
+export async function listarMandamentosComConteudoAprovado() {
+  const mandamentos = await prisma.mandamentoOficial.findMany({ orderBy: { numero: 'asc' } });
+  return mandamentos
+    .filter((m) => !!m.conteudoOficial && m.conteudoOficial.trim().length > 0)
+    .map((m) => ({ numero: m.numero, titulo: m.titulo, conteudoOficial: m.conteudoOficial as string }));
+}
+
 export async function atualizarMandamento(
   numero: number,
   dados: { titulo?: string; conteudoOficial?: string; explicacaoOpcional?: string; exemploOpcional?: string },

@@ -51,9 +51,16 @@ function validarUrlsAula(dados: { videoUrl?: string | null; materialUrl?: string
 
 // ===== Trilhas =====
 
-export async function criarTrilha(dados: { code: string; title: string; description: string; audience?: PublicoConteudo; sortOrder?: number }, actorId: string) {
+export async function criarTrilha(
+  dados: { code: string; title: string; description: string; audience?: PublicoConteudo; sortOrder?: number },
+  actorId: string,
+  // Só a Training Intelligence Platform (Fatia 7.5D) passa isso — nunca
+  // exposto no schema zod das rotas HTTP manuais (`/admin/training/tracks`),
+  // que sempre criam ADMIN_CURATED. Ver src/training-intelligence/orchestrator.service.ts.
+  origemInterna?: { origemEditorial: 'AI_RESEARCHED' | 'AI_GENERATED' }
+) {
   const trilha = await prisma.academyTrack.create({
-    data: { ...dados, status: 'DRAFT', origemEditorial: 'ADMIN_CURATED', createdBy: actorId },
+    data: { ...dados, status: 'DRAFT', origemEditorial: origemInterna?.origemEditorial ?? 'ADMIN_CURATED', createdBy: actorId },
   });
   await registrarEventoAuditoria({ empresaId: await resolverEmpresaUnica(), acao: 'CONTENT_CREATED', actorId, metadata: { tipo: 'track', id: trilha.id } });
   return trilha;
@@ -105,11 +112,20 @@ export async function criarAula(
     materialUrl?: string;
     sortOrder?: number;
   },
-  actorId: string
+  actorId: string,
+  // Ver comentário equivalente em criarTrilha — só a Training Intelligence
+  // Platform passa isso.
+  origemInterna?: { origemEditorial: 'AI_RESEARCHED' | 'AI_GENERATED'; trainingJobId: string }
 ) {
   validarUrlsAula(dados);
   const aula = await prisma.academyLesson.create({
-    data: { ...dados, status: 'DRAFT', origemEditorial: 'ADMIN_CURATED', createdBy: actorId },
+    data: {
+      ...dados,
+      status: 'DRAFT',
+      origemEditorial: origemInterna?.origemEditorial ?? 'ADMIN_CURATED',
+      trainingJobId: origemInterna?.trainingJobId,
+      createdBy: actorId,
+    },
   });
   await registrarEventoAuditoria({ empresaId: await resolverEmpresaUnica(), acao: 'CONTENT_CREATED', actorId, metadata: { tipo: 'lesson', id: aula.id } });
   return aula;

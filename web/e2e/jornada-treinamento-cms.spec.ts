@@ -96,16 +96,22 @@ test.describe('Jornada CMS de Treinamento — Fatia 7.5C', () => {
     await page.getByRole('link', { name: 'Administração' }).click();
     await page.getByRole('link', { name: 'Treinamento' }).click();
 
+    // Escopado à própria linha (nunca `.first()` solto): outras trilhas/aulas
+    // em DRAFT podem coexistir no ambiente de dev (ex.: rascunhos da
+    // Training Intelligence Platform, Fatia 7.5D) sem que isso deva
+    // interferir neste fluxo.
+    const linhaTrilha = page.locator('div.flex.items-center.justify-between.rounded-lg.border.border-slate-800.p-3').filter({ hasText: 'E2E Trilha CMS' });
     for (const rotulo of ['Enviar pra revisão', 'Aprovar', 'Publicar']) {
-      await page.getByRole('button', { name: rotulo }).first().click();
+      await linhaTrilha.getByRole('button', { name: rotulo }).click();
       await page.waitForTimeout(150);
     }
     await page.getByRole('button', { name: 'Aulas', exact: true }).click();
+    const linhaAulaTransicao = page.locator('div.rounded-lg.border.border-slate-800.p-3').filter({ hasText: 'E2E Aula CMS' });
     for (const rotulo of ['Enviar pra revisão', 'Aprovar', 'Publicar']) {
-      await page.getByRole('button', { name: rotulo }).first().click();
+      await linhaAulaTransicao.getByRole('button', { name: rotulo }).click();
       await page.waitForTimeout(150);
     }
-    await expect(page.getByText('publicado').first()).toBeVisible();
+    await expect(linhaAulaTransicao.getByText('publicado')).toBeVisible();
 
     // 4. Publicado: aparece pro vendedor. Quiz nunca expõe `correct` na rede.
     await page.goto('/perfil');

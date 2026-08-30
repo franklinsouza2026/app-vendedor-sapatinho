@@ -23,6 +23,7 @@ import {
 import { ApiError } from '../../api/client';
 import { LoadingState } from '../../components/LoadingState';
 import { AdminNav } from './AdminNav';
+import { AbaTreinamentoIA } from './AdminTreinamentoIA';
 
 const LABEL_STATUS: Record<StatusConteudo, string> = {
   DRAFT: 'rascunho',
@@ -39,7 +40,7 @@ const PROXIMA_TRANSICAO: Partial<Record<StatusConteudo, { transicao: 'submeter' 
 };
 
 export function AdminTreinamento() {
-  const [aba, setAba] = useState<'trilhas' | 'aulas' | 'mandamentos'>('trilhas');
+  const [aba, setAba] = useState<'trilhas' | 'aulas' | 'mandamentos' | 'ia'>('trilhas');
   const { dados: dashboard, recarregar: recarregarDashboard } = useApi(() => buscarDashboardTreinamento(), []);
 
   return (
@@ -58,13 +59,13 @@ export function AdminTreinamento() {
       )}
 
       <div className="flex gap-2 border-b border-slate-800 pb-2">
-        {(['trilhas', 'aulas', 'mandamentos'] as const).map((t) => (
+        {(['trilhas', 'aulas', 'mandamentos', 'ia'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setAba(t)}
             className={`rounded-full px-3 py-1.5 text-sm font-medium ${aba === t ? 'bg-accent text-white' : 'bg-surface text-slate-400'}`}
           >
-            {t === 'trilhas' ? 'Trilhas' : t === 'aulas' ? 'Aulas' : '13 Mandamentos'}
+            {t === 'trilhas' ? 'Trilhas' : t === 'aulas' ? 'Aulas' : t === 'mandamentos' ? '13 Mandamentos' : 'IA de Treinamento'}
           </button>
         ))}
       </div>
@@ -72,6 +73,7 @@ export function AdminTreinamento() {
       {aba === 'trilhas' && <AbaTrilhas onMudou={recarregarDashboard} />}
       {aba === 'aulas' && <AbaAulas onMudou={recarregarDashboard} />}
       {aba === 'mandamentos' && <AbaMandamentos />}
+      {aba === 'ia' && <AbaTreinamentoIA />}
     </div>
   );
 }

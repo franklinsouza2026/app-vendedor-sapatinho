@@ -176,7 +176,10 @@ export async function testarConexaoProvider(empresaId: string, provider: NomePro
       data: {
         empresaId,
         vendedorId: actorId,
-        specialist: 'COACH' as EspecialistaIA, // teste de conexão não pertence a um especialista real — sem categoria própria nesta fatia
+        // Categoria própria desde a Fatia 7.5D (antes usava 'COACH' — limitação
+        // documentada na Fatia 7.5B, corrigida aqui pra não contaminar mais o
+        // dashboard de uso do Conselheiro com testes administrativos).
+        specialist: 'ADMIN_AI_TEST' as EspecialistaIA,
         provider: resultado.provider,
         model: resultado.model,
         inputTokens: resultado.inputTokens,

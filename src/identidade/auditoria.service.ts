@@ -34,7 +34,21 @@ export type AcaoAuditoria =
   | 'QUESTION_UPDATED'
   | 'QUESTION_ARCHIVED'
   | 'MANDAMENTOS_CONTENT_UPDATED'
-  | 'MANDAMENTOS_PUBLISHED';
+  | 'MANDAMENTOS_PUBLISHED'
+  // Training Intelligence Platform (Fatia 7.5D) — nunca com prompt bruto/secret no metadata.
+  | 'TRAINING_JOB_CREATED'
+  | 'TRAINING_JOB_STARTED'
+  | 'TRAINING_JOB_CANCELLED'
+  | 'TRAINING_JOB_FAILED'
+  | 'RESEARCH_COMPLETED'
+  | 'CURATION_COMPLETED'
+  | 'LESSON_DRAFT_GENERATED'
+  | 'QUIZ_DRAFT_GENERATED'
+  | 'SIMULATION_DRAFT_GENERATED'
+  | 'GOVERNANCE_REVIEW_COMPLETED'
+  | 'AI_CONTENT_APPROVED'
+  | 'AI_CONTENT_REJECTED'
+  | 'AI_CONTENT_PUBLISHED';
 
 export async function registrarEventoAuditoria(params: {
   empresaId: string;

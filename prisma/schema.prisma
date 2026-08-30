@@ -504,6 +504,22 @@ enum EspecialistaIA {
   COACH
   TRAINER
   SIMULATOR
+  // Teste de conexão do Admin (seção 30, Fatia 7.5B) — categoria própria
+  // desde a Fatia 7.5D pra não misturar mais com o uso real do Conselheiro
+  // (limitação documentada na Fatia 7.5B, corrigida aqui por ser barata).
+  ADMIN_AI_TEST
+  // Training Intelligence Platform (Fatia 7.5D) — cada agente lógico é seu
+  // próprio specialist pra permitir atribuição de custo por etapa do
+  // pipeline (seção 43), mesmo todos passando pelo AI Gateway único.
+  RESEARCH_AGENT
+  CURATOR_AGENT
+  INSTRUCTIONAL_DESIGNER
+  QUIZ_AGENT
+  SIMULATION_DESIGNER
+  GOVERNANCE_AGENT
+  CONTENT_UPDATE_AGENT
+  SELLER_TRAINING_AGENT
+  MANAGER_TRAINING_AGENT
 }
 
 // Ledger auditável de cada chamada ao provider de IA — nunca um contador
@@ -1062,6 +1078,10 @@ model AcademyLesson {
   // deliberadamente um link externo (não um arquivo hospedado) — decisão
   // registrada no vault, não um upload fingido.
   materialUrl     String?
+  // Training Intelligence (Fatia 7.5D) — rastreia de qual job este rascunho
+  // veio, quando origemEditorial é AI_RESEARCHED/AI_GENERATED. Sempre null
+  // pra aulas criadas manualmente pelo Admin (imensa maioria).
+  trainingJobId   String?
 
   track     AcademyTrack      @relation(fields: [trackId], references: [id])
   quiz      AcademyQuiz?
@@ -1069,6 +1089,7 @@ model AcademyLesson {
 
   @@index([trackId, sortOrder])
   @@index([status, audience])
+  @@index([trainingJobId])
   @@map("academy_lesson")
 }
 
@@ -1110,12 +1131,19 @@ model AcademyQuestion {
   createdBy       String?
   sourceContentId String?
   updatedAt       DateTime           @updatedAt
+  // Training Intelligence (Fatia 7.5D) — mesma disciplina de origem da
+  // Fatia 7.5C aplicada ao banco de questões: uma questão gerada por IA
+  // nasce `active: false` (nunca no pool publicado) até o Admin revisar e
+  // ativá-la explicitamente. `trainingJobId` rastreia o job de origem.
+  origemEditorial OrigemEditorial    @default(ADMIN_CURATED)
+  trainingJobId   String?
 
   quiz   AcademyQuiz     @relation(fields: [quizId], references: [id])
   opcoes AcademyOption[]
 
   @@index([quizId, sortOrder])
   @@index([quizId, active])
+  @@index([trainingJobId])
   @@map("academy_question")
 }
 
@@ -1186,6 +1214,175 @@ model MandamentoOficial {
   updatedAt          DateTime       @updatedAt
 
   @@map("mandamento_oficial")
+}
+
+// ===== Fatia 7.5D — Training Intelligence Platform =====
+// IA não é autoridade editorial (regra fundamental da fonte de verdade
+// desta fatia): todo output de agente nasce rascunho/revisável, nunca
+// publicado automaticamente. O pipeline reaproveita o CMS da Fatia 7.5C
+// (AcademyTrack/Lesson/Question em DRAFT, `origemEditorial` já preparado
+// desde a Fatia 7.5A) em vez de criar uma abstração "ContentDraft"
+// paralela — só o que não tem onde morar (o job em si, suas fontes de
+// pesquisa e os achados de governança, e o rascunho de cenário de
+// simulação, que exigiria alterar o Simulador ativo pra ganhar lifecycle)
+// vira modelo novo.
+
+enum TipoJobTreinamento {
+  PACOTE_TREINAMENTO
+  ATUALIZACAO_CONTEUDO
+}
+
+enum StatusJobTreinamento {
+  QUEUED
+  RUNNING
+  WAITING_REVIEW
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum ConfiabilidadeFonte {
+  UNKNOWN
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum StatusGovernanca {
+  PASS
+  REVIEW_REQUIRED
+  BLOCKED
+}
+
+enum TipoAchadoGovernanca {
+  OFFICIAL_CONFLICT
+  UNSUPPORTED_CLAIM
+  COPYRIGHT_RISK
+  BRAND_TONE
+  INAPPROPRIATE_ADVICE
+  MISSING_SOURCE
+  LOW_RELIABILITY_SOURCE
+  MANDAMENTO_VIOLATION
+  OTHER
+}
+
+enum StatusRevisaoConteudo {
+  UP_TO_DATE
+  REVIEW_RECOMMENDED
+  UPDATE_DRAFT
+}
+
+// Execução central do Training Orchestrator (seção 4/5) — um job por
+// solicitação do Admin. Transições sempre atômicas (updateMany
+// condicional), nunca ler-então-escrever, mesmo padrão desde a Fatia 4.
+model TrainingIntelligenceJob {
+  id                   String                 @id @default(uuid())
+  empresaId            String
+  requestedBy          String
+  type                 TipoJobTreinamento     @default(PACOTE_TREINAMENTO)
+  topic                String
+  objective            String?                @db.Text
+  targetAudience       PublicoConteudo        @default(SELLER)
+  status               StatusJobTreinamento   @default(QUEUED)
+  currentStep          String?
+  attemptCount         Int                    @default(0)
+  // Chave de idempotência opcional fornecida pelo Admin (double-click/retry
+  // do cliente nunca cria 2 jobs iguais) — única por empresa, não global.
+  idempotencyKey       String?
+  errorMessage         String?                @db.Text
+  governanceStatus     StatusGovernanca?
+  // Resultado da revisão humana (seção 29) — nunca decidido pela IA.
+  reviewOutcome        String?
+  reviewNotes          String?                @db.Text
+  // Só usado quando type = ATUALIZACAO_CONTEUDO (Content Update Agent).
+  targetLessonId       String?
+  updateRecommendation StatusRevisaoConteudo?
+  createdAt            DateTime               @default(now())
+  startedAt            DateTime?
+  completedAt          DateTime?
+  failedAt             DateTime?
+  cancelledAt          DateTime?
+  updatedAt            DateTime               @updatedAt
+
+  sources  TrainingSource[]
+  findings TrainingGovernanceFinding[]
+  cenarios TrainingScenarioDraft[]
+
+  @@unique([empresaId, idempotencyKey])
+  @@index([empresaId, status])
+  @@index([empresaId, createdAt])
+  @@index([empresaId, requestedBy, createdAt])
+  @@map("training_intelligence_job")
+}
+
+// Proveniência (seção 13/15) — nunca cópia de bloco extenso de terceiro,
+// só metadado + resumo/insight (seção 14, Copyright Guard).
+model TrainingSource {
+  id              String              @id @default(uuid())
+  jobId           String
+  type            String              @default("WEB")
+  url             String
+  title           String
+  publisher       String?
+  author          String?
+  publishedAt     DateTime?
+  discoveredAt    DateTime            @default(now())
+  retrievedAt     DateTime?
+  summary         String              @db.Text
+  reliability     ConfiabilidadeFonte @default(UNKNOWN)
+  rightsNotes     String?             @db.Text
+  excludedByAdmin Boolean             @default(false)
+
+  job TrainingIntelligenceJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@map("training_source")
+}
+
+// Achados do Governance Agent (seção 28/64) — persistidos mesmo quando o
+// job segue pra revisão humana, nunca só um retorno efêmero de API.
+model TrainingGovernanceFinding {
+  id        String               @id @default(uuid())
+  jobId     String
+  type      TipoAchadoGovernanca
+  severity  StatusGovernanca
+  message   String               @db.Text
+  createdAt DateTime             @default(now())
+
+  job TrainingIntelligenceJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@map("training_governance_finding")
+}
+
+// Rascunho de cenário do Simulation Designer (seção 24/25) — modelo PRÓPRIO
+// (não o SimulationScenario ativo): dar lifecycle DRAFT/PUBLISHED ao
+// catálogo já em produção do Simulador exigiria tocar `src/simulador/`
+// sem necessidade comprovada (seção 25 permite deixar "contrato pronto" em
+// vez de reconstruir o Simulador). Publicar copia os campos aprovados pra
+// um SimulationScenario real — nunca o contrário.
+model TrainingScenarioDraft {
+  id                  String         @id @default(uuid())
+  jobId               String
+  empresaId           String
+  title               String
+  context             String         @db.Text
+  customerProfile     String         @db.Text
+  sellerObjective     String         @db.Text
+  objections          Json           @default("[]")
+  difficulty          String         @default("MEDIUM")
+  competencies        Json           @default("[]")
+  evaluationCriteria  Json           @default("[]")
+  status              StatusConteudo @default(DRAFT)
+  approvedBy          String?
+  publishedScenarioId String?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  job TrainingIntelligenceJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([empresaId, status])
+  @@map("training_scenario_draft")
 }
 
 // ===== Fatia 7 — Missões e Desafios =====

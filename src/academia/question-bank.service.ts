@@ -40,7 +40,13 @@ export async function criarQuestao(
     sortOrder?: number;
     opcoes: OpcaoInput[];
   },
-  actorId: string
+  actorId: string,
+  // Só a Training Intelligence Platform (Fatia 7.5D) passa isso — nunca
+  // exposto no schema zod de `POST /admin/training/questions`. Questão de
+  // origem IA nasce `active: false` (fora do banco publicado) até o Admin
+  // revisar e ativar explicitamente (seção 21: "nunca direto no banco
+  // publicado").
+  origemInterna?: { origemEditorial: 'AI_RESEARCHED' | 'AI_GENERATED'; trainingJobId: string }
 ) {
   if (dados.opcoes.length < 2) throw new IdentidadeError(400, 'opcoes_insuficientes', 'a questão precisa de pelo menos 2 alternativas');
   if (!dados.opcoes.some((o) => o.correct)) throw new IdentidadeError(400, 'sem_resposta_correta', 'marque ao menos 1 alternativa como correta');
@@ -50,6 +56,9 @@ export async function criarQuestao(
     data: {
       ...resto,
       createdBy: actorId,
+      active: origemInterna ? false : true,
+      origemEditorial: origemInterna?.origemEditorial ?? 'ADMIN_CURATED',
+      trainingJobId: origemInterna?.trainingJobId,
       opcoes: { create: opcoes.map((o, idx) => ({ text: o.text, correct: o.correct, sortOrder: idx })) },
     },
     include: { opcoes: true },
