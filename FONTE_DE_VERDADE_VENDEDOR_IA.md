@@ -1457,7 +1457,8 @@ Playbook inicial semeado com conteúdo real ("13 Mandamentos" oficiais da Sapati
 - respostas contextualizadas;
 - avaliações.
 
-### Fatia 6 — Simulador + Academia
+### Fatia 6 — Simulador + Academia — CONCLUÍDA (2026-08-29, commit `00db709`, 287 testes: 216 backend + 65 frontend + 6 E2E Playwright)
+Simulador de Atendimento (cenários determinísticos, IA só como cliente — nunca avalia durante a conversa, nota final sempre recalculada no backend a partir de scores por critério) e Academia de Vendas (trilhas/aulas/quiz corrigido no backend, frontend nunca envia `correct`/score/completed) — ambos reaproveitando a AI Platform e o Playbook das Fatias 4/5, terceiro especialista (`SIMULATOR`) na mesma infraestrutura, nenhum provider duplicado. Achado de security review corrigido antes do commit: `criarSessao`/`finalizarEAvaliar` disparavam chamadas reais ao provider (abertura da sessão e avaliação) sem checar rate limit/budget — diferente de `enviarMensagem`, que já checava — permitindo contornar a cota do especialista via um loop de criar+encerrar sessão; corrigido aplicando os mesmos checks. Revisitado o LOW aceito da Fatia 4 (janela de corrida estreita na idempotência de `clientMessageId`, entre o check pré-lock e a aquisição do lock): fechado desta vez com um re-check pós-lock, aplicado nos três especialistas (Coach, Treinador, Simulador) — nunca mais um "achado aceito" quando uma correção segura e simples existe.
 - cenários;
 - role-play;
 - avaliação;
@@ -1786,9 +1787,9 @@ Nada disso bloqueia o Gamification Engine determinístico.
 
 ## 57. PRÓXIMA EXECUÇÃO OFICIAL
 
-Fatias 0/1, 2, 3, 4 e 5 concluídas (ver seção 44). Próxima fatia recomendada:
+Fatias 0/1, 2, 3, 4, 5 e 6 concluídas (ver seção 44). Próxima fatia recomendada: **Fatia 6.5 — Frontend Premium / UX 2.0** (redesign visual do produto, apoiado na auditoria de frontend já realizada — ver memória/decisões do projeto). Abaixo, a especificação da Fatia 6 (já executada) permanece como registro histórico:
 
-# FATIA 6 — SIMULADOR DE ATENDIMENTO + ACADEMIA DE VENDAS
+# FATIA 6 — SIMULADOR DE ATENDIMENTO + ACADEMIA DE VENDAS (CONCLUÍDA)
 
 Objetivo:
 role-play estruturado (IA assume papel de cliente, avaliação ao final) e microlearning (cursos/lições/quiz), reaproveitando a infraestrutura de `src/ai-platform/` e o Playbook já construídos nas Fatias 4/5 — sem duplicar essa camada. Este é o primeiro especialista que efetivamente PRECISA de tool-calling-like behavior (a IA "assume um papel"), então a extensão do princípio "zero tool-calling real" merece atenção redobrada: o cliente simulado continua sem poder executar nenhuma ação administrativa real, mesmo dentro do role-play.
