@@ -271,6 +271,9 @@ export interface AulaDetalhada {
   content: string;
   origem: 'OFICIAL' | 'DEMONSTRATIVO';
   estimatedMinutes: number;
+  tipoConteudo: 'TEXT' | 'VIDEO' | 'MATERIAL' | 'MIXED';
+  videoUrl: string | null;
+  materialUrl: string | null;
   hasQuiz: boolean;
   quizPassingScore: number | null;
   status: StatusProgressoAcademia;

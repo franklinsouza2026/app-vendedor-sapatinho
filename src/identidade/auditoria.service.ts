@@ -22,7 +22,19 @@ export type AcaoAuditoria =
   | 'AI_PROVIDER_ACTIVATED'
   | 'AI_PROVIDER_DISABLED'
   | 'AI_MODEL_CHANGED'
-  | 'AI_BUDGET_CHANGED';
+  | 'AI_BUDGET_CHANGED'
+  // CMS de treinamento (Fatia 7.5C) — nunca com conteúdo completo no metadata.
+  | 'CONTENT_CREATED'
+  | 'CONTENT_UPDATED'
+  | 'CONTENT_SUBMITTED_FOR_REVIEW'
+  | 'CONTENT_APPROVED'
+  | 'CONTENT_PUBLISHED'
+  | 'CONTENT_ARCHIVED'
+  | 'QUESTION_CREATED'
+  | 'QUESTION_UPDATED'
+  | 'QUESTION_ARCHIVED'
+  | 'MANDAMENTOS_CONTENT_UPDATED'
+  | 'MANDAMENTOS_PUBLISHED';
 
 export async function registrarEventoAuditoria(params: {
   empresaId: string;

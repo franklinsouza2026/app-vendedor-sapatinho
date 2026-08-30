@@ -7,10 +7,11 @@ import { prisma } from '../db';
 
 describe('getQuizParaResponder', () => {
   it('nunca expõe o campo correct das opções', async () => {
+    const { vendedor } = await criarFixtureEmpresa();
     const trilha = await criarTrilhaTeste();
     const { aula } = await criarAulaComQuizTeste(trilha.id);
 
-    const quiz = await getQuizParaResponder(aula.id);
+    const quiz = await getQuizParaResponder(aula.id, vendedor.id);
 
     expect(quiz.perguntas).toHaveLength(1);
     for (const pergunta of quiz.perguntas) {
@@ -21,9 +22,10 @@ describe('getQuizParaResponder', () => {
   });
 
   it('lança not_found quando a aula não tem quiz', async () => {
+    const { vendedor } = await criarFixtureEmpresa();
     const trilha = await criarTrilhaTeste();
     const aula = await criarAulaTeste(trilha.id);
-    await expect(getQuizParaResponder(aula.id)).rejects.toMatchObject({ type: 'not_found' } satisfies Partial<AcademyError>);
+    await expect(getQuizParaResponder(aula.id, vendedor.id)).rejects.toMatchObject({ type: 'not_found' } satisfies Partial<AcademyError>);
   });
 });
 

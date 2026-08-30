@@ -4,6 +4,7 @@ import { AulaDetalhada, QuizParaResponder, ResultadoQuiz, TrilhaResumo } from '.
 import { LoadingState } from '../components/LoadingState';
 import { ErrorState } from '../components/ErrorState';
 import { Card } from '../components/Card';
+import { urlDeEmbedSegura } from '../utils/video';
 
 const LABEL_STATUS: Record<string, string> = { NOT_STARTED: 'não iniciada', IN_PROGRESS: 'em andamento', COMPLETED: 'concluída' };
 
@@ -195,10 +196,29 @@ export function Academia() {
           {aula.estimatedMinutes} min · {LABEL_STATUS[aula.status]}
         </p>
 
+        {aula.videoUrl && urlDeEmbedSegura(aula.videoUrl) && (
+          <Card className="mb-4 p-0">
+            {/* Só YouTube/Vimeo, sempre validado no backend antes de salvar
+                (seção 7/61 da Fatia 7.5C) — nunca embed/HTML arbitrário. */}
+            <iframe
+              src={urlDeEmbedSegura(aula.videoUrl)!}
+              title={aula.title}
+              className="aspect-video w-full rounded-lg"
+              allow="accelerometer; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+          </Card>
+        )}
+
         <Card className="mb-4">
           <p className="whitespace-pre-wrap text-sm text-slate-200">{aula.content}</p>
           {aula.origem === 'DEMONSTRATIVO' && (
             <p className="mt-3 text-xs italic text-slate-500">Conteúdo de referência geral — não é política oficial da sua loja.</p>
+          )}
+          {aula.materialUrl && (
+            <a href={aula.materialUrl} target="_blank" rel="noopener noreferrer" className="mt-3 inline-block text-xs text-accentSoft underline">
+              Ver material complementar ↗
+            </a>
           )}
         </Card>
 

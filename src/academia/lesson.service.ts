@@ -1,6 +1,9 @@
 // Aulas da Academia (Fatia 6). Progresso sempre por (vendedorId, lessonId) —
 // nunca confiar em sellerId/tenantId vindo do corpo da requisição (seção
-// "conclusão de aula": "Seller é derivado do JWT").
+// "conclusão de aula": "Seller é derivado do JWT"). CMS (Fatia 7.5C): só
+// aula PUBLISHED é acessível ao vendedor — DRAFT/REVIEW_PENDING/APPROVED/
+// ARCHIVED nunca aparecem, mesmo direto por ID (IDOR-safe por design: 404
+// genérico, nunca 403, pra não confirmar que um id de rascunho existe).
 import { prisma } from '../db';
 import { getSecoesPorCategorias } from '../treinador/playbook.service';
 import { concederRecompensaTreinamento, recompensaTreinamentoJaConcedida } from '../gamificacao/treinamento.service';
@@ -22,7 +25,7 @@ export async function getAulaDetalhada(lessonId: string, vendedorId: string) {
     where: { id: lessonId },
     include: { quiz: { select: { id: true, passingScore: true } }, progresso: { where: { vendedorId } } },
   });
-  if (!aula || !aula.active) throw new AcademyError('not_found', 'aula não encontrada');
+  if (!aula || !aula.active || aula.status !== 'PUBLISHED') throw new AcademyError('not_found', 'aula não encontrada');
 
   const vendedor = await prisma.vendedor.findUniqueOrThrow({ where: { id: vendedorId } });
   const playbookInfo = aula.playbookCategoria
@@ -37,6 +40,9 @@ export async function getAulaDetalhada(lessonId: string, vendedorId: string) {
     content: aula.content,
     origem: aula.origem,
     estimatedMinutes: aula.estimatedMinutes,
+    tipoConteudo: aula.tipoConteudo,
+    videoUrl: aula.videoUrl,
+    materialUrl: aula.materialUrl,
     hasQuiz: !!aula.quiz,
     quizPassingScore: aula.quiz?.passingScore ?? null,
     status: aula.progresso[0]?.status ?? 'NOT_STARTED',
@@ -47,7 +53,7 @@ export async function getAulaDetalhada(lessonId: string, vendedorId: string) {
 /** Marca a aula como iniciada (idempotente — reabrir não duplica progresso). */
 export async function iniciarAula(lessonId: string, vendedorId: string) {
   const aula = await prisma.academyLesson.findUnique({ where: { id: lessonId } });
-  if (!aula || !aula.active) throw new AcademyError('not_found', 'aula não encontrada');
+  if (!aula || !aula.active || aula.status !== 'PUBLISHED') throw new AcademyError('not_found', 'aula não encontrada');
 
   const vendedor = await prisma.vendedor.findUniqueOrThrow({ where: { id: vendedorId } });
 
@@ -72,7 +78,7 @@ export async function iniciarAula(lessonId: string, vendedorId: string) {
  */
 export async function concluirAula(lessonId: string, vendedorId: string) {
   const aula = await prisma.academyLesson.findUnique({ where: { id: lessonId }, include: { quiz: true } });
-  if (!aula || !aula.active) throw new AcademyError('not_found', 'aula não encontrada');
+  if (!aula || !aula.active || aula.status !== 'PUBLISHED') throw new AcademyError('not_found', 'aula não encontrada');
   if (aula.quiz) throw new AcademyError('quiz_obrigatorio', 'esta aula exige aprovação no quiz pra ser concluída');
 
   const vendedor = await prisma.vendedor.findUniqueOrThrow({ where: { id: vendedorId } });

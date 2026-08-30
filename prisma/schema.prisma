@@ -942,10 +942,63 @@ model SimulationEvaluation {
 
 // ---------- Academia de Vendas ----------
 
+// ===== Fatia 7.5C — CMS de treinamento (lifecycle editorial) =====
+// Reaproveita o MESMO raciocínio 3→5 estados já usado no Playbook
+// (StatusPlaybook: DRAFT/PUBLISHED/ARCHIVED, Fatia 5) — só que mais rico
+// aqui porque a fonte de verdade desta fatia pede etapas intermediárias
+// explícitas (REVIEW_PENDING/APPROVED). Nesta fatia o Admin acumula os
+// papéis de criador e revisor (seção 55) — nada impede o mesmo Admin de
+// chamar submeter→aprovar→publicar em sequência, mas os 5 estados existem
+// como transições distintas e auditadas, nunca puladas silenciosamente.
+enum StatusConteudo {
+  DRAFT
+  REVIEW_PENDING
+  APPROVED
+  PUBLISHED
+  ARCHIVED
+}
+
+// Distinto de OrigemConteudoPlaybook (que já existia e significa "grounded
+// em material real da empresa" vs. "boa prática genérica") — este novo eixo
+// é sobre PROVENIÊNCIA EDITORIAL (quem/o quê produziu o conteúdo), pedido
+// explicitamente pela fonte de verdade desta fatia. AI_RESEARCHED/
+// AI_GENERATED existem só como destino futuro da Fatia 7.5D — nenhuma rota
+// desta fatia cria conteúdo com essas origens.
+enum OrigemEditorial {
+  OFFICIAL_COMPANY
+  ADMIN_CURATED
+  AI_RESEARCHED
+  AI_GENERATED
+}
+
+enum PublicoConteudo {
+  SELLER
+  MANAGER
+  BOTH
+}
+
+enum TipoConteudoAula {
+  TEXT
+  VIDEO
+  MATERIAL
+  MIXED
+}
+
+// BASICA/INTERMEDIARIA existem pra dar ao Admin um jeito de sinalizar peso
+// da questão; SITUACIONAL é o tipo "aplicação prática" pedido na seção 28.
+enum DificuldadeQuestao {
+  BASICA
+  INTERMEDIARIA
+  SITUACIONAL
+}
+
 // Catálogo GLOBAL (mesmo raciocínio de SimulationScenario/Badge). Conteúdo
 // específico da empresa nunca é duplicado aqui — a aula só referencia uma
 // categoria do Playbook (playbookCategoria); o texto oficial da empresa
-// continua vivendo só em PlaybookSection.
+// continua vivendo só em PlaybookSection. Permanece global mesmo após a
+// Fatia 7.5C (decisão: este produto roda como 1 empresa por deployment —
+// ver Decisão 1 do vault — então tenant-scoping de conteúdo de treinamento
+// seria especulativo sem necessidade real hoje; documentado no vault).
 model AcademyTrack {
   id          String   @id @default(uuid())
   code        String   @unique
@@ -956,8 +1009,20 @@ model AcademyTrack {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  // CMS (Fatia 7.5C) — default PUBLISHED/SELLER/ADMIN_CURATED/versão 1
+  // preserva 100% a visibilidade do catálogo seedado pré-existente (nenhuma
+  // trilha some da Academia por causa desta migração).
+  status          StatusConteudo  @default(PUBLISHED)
+  audience        PublicoConteudo @default(SELLER)
+  origemEditorial OrigemEditorial @default(ADMIN_CURATED)
+  version         Int             @default(1)
+  createdBy       String?
+  approvedBy      String?
+  publishedAt     DateTime?
+
   aulas AcademyLesson[]
 
+  @@index([status, audience])
   @@map("academy_track")
 }
 
@@ -979,22 +1044,47 @@ model AcademyLesson {
   createdAt         DateTime               @default(now())
   updatedAt         DateTime               @updatedAt
 
+  // CMS (Fatia 7.5C) — mesmos defaults não-destrutivos do AcademyTrack.
+  // tipoConteudo/videoUrl/materialUrl são aditivos: aulas existentes
+  // continuam TEXT com `content` normal, sem nenhum vídeo/material.
+  status          StatusConteudo   @default(PUBLISHED)
+  audience        PublicoConteudo  @default(SELLER)
+  origemEditorial OrigemEditorial  @default(ADMIN_CURATED)
+  version         Int              @default(1)
+  createdBy       String?
+  approvedBy      String?
+  publishedAt     DateTime?
+  tipoConteudo    TipoConteudoAula @default(TEXT)
+  // Só URL de provider allowlisted (YouTube/Vimeo) — nunca embed/iframe
+  // bruto (seção 7). Validado em src/academia/media-seguranca.ts.
+  videoUrl        String?
+  // Seção 8: sem storage de upload maduro nesta fatia, MATERIAL é
+  // deliberadamente um link externo (não um arquivo hospedado) — decisão
+  // registrada no vault, não um upload fingido.
+  materialUrl     String?
+
   track     AcademyTrack      @relation(fields: [trackId], references: [id])
   quiz      AcademyQuiz?
   progresso AcademyProgress[]
 
   @@index([trackId, sortOrder])
+  @@index([status, audience])
   @@map("academy_lesson")
 }
 
 model AcademyQuiz {
-  id           String   @id @default(uuid())
-  lessonId     String   @unique
+  id                  String   @id @default(uuid())
+  lessonId            String   @unique
   // 70% documentado como default v1 (sem regra anterior na fonte de
   // verdade) — configurável por quiz, não hardcoded no motor.
-  passingScore Int      @default(70)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  passingScore        Int      @default(70)
+  // Blueprint do "quiz dinâmico" (seção 30-32): null preserva o
+  // comportamento legado (mostra TODAS as perguntas do quiz, como sempre
+  // foi) — só quizzes novos que o Admin configurar explicitamente com um
+  // banco maior que o quiz ganham seleção aleatória por tentativa.
+  questionsPerAttempt Int?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   aula      AcademyLesson     @relation(fields: [lessonId], references: [id])
   perguntas AcademyQuestion[]
@@ -1009,10 +1099,23 @@ model AcademyQuestion {
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
 
+  // Banco de questões (seção 27-29, Fatia 7.5C) — `active=false` some do
+  // pool de seleção sem apagar histórico; `sourceContentId` amarra a questão
+  // à sua fonte (ex.: id de um MandamentoOficial) pra nunca ficar
+  // semanticamente órfã.
+  active          Boolean            @default(true)
+  difficulty      DificuldadeQuestao @default(BASICA)
+  topic           String?
+  version         Int                @default(1)
+  createdBy       String?
+  sourceContentId String?
+  updatedAt       DateTime           @updatedAt
+
   quiz   AcademyQuiz     @relation(fields: [quizId], references: [id])
   opcoes AcademyOption[]
 
   @@index([quizId, sortOrder])
+  @@index([quizId, active])
   @@map("academy_question")
 }
 
@@ -1040,23 +1143,49 @@ enum StatusProgressoAcademia {
 // vendedor de fato inicia a aula. @@unique garante 1 progresso por
 // (vendedor, aula), nunca duplicado mesmo sob reentrância.
 model AcademyProgress {
-  id          String                  @id @default(uuid())
-  empresaId   String
-  lojaId      String
-  vendedorId  String
-  lessonId    String
-  status      StatusProgressoAcademia @default(IN_PROGRESS)
-  startedAt   DateTime                @default(now())
-  completedAt DateTime?
-  quizScore   Int?
-  quizPassed  Boolean?
-  updatedAt   DateTime                @updatedAt
+  id                         String                  @id @default(uuid())
+  empresaId                  String
+  lojaId                     String
+  vendedorId                 String
+  lessonId                   String
+  status                     StatusProgressoAcademia @default(IN_PROGRESS)
+  startedAt                  DateTime                @default(now())
+  completedAt                DateTime?
+  quizScore                  Int?
+  quizPassed                 Boolean?
+  // Quiz dinâmico (seção 33): ids das perguntas mostradas na tentativa mais
+  // recente — usado só pra evitar repetir exatamente o mesmo conjunto na
+  // tentativa seguinte, nunca como histórico completo de tentativas.
+  ultimaTentativaQuestoesIds Json?
+  updatedAt                  DateTime                @updatedAt
 
   vendedor Vendedor      @relation(fields: [vendedorId], references: [id])
   aula     AcademyLesson @relation(fields: [lessonId], references: [id])
 
   @@unique([vendedorId, lessonId])
   @@map("academy_progress")
+}
+
+// 13 Mandamentos das Vendas Sapatinho de Luxo (Fatia 7.5C, seção 23) —
+// estrutura sempre presente (13 linhas, numero 1-13), conteúdo real
+// PENDENTE até o Admin cadastrar (nunca inventado por código ou por IA,
+// seção 24). Global, como o resto do catálogo da Academia.
+model MandamentoOficial {
+  id                 String         @id @default(uuid())
+  numero             Int            @unique
+  titulo             String
+  conteudoOficial    String?        @db.Text
+  explicacaoOpcional String?        @db.Text
+  exemploOpcional    String?        @db.Text
+  versao             Int            @default(1)
+  status             StatusConteudo @default(DRAFT)
+  createdBy          String?
+  approvedBy         String?
+  publishedAt        DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  @@map("mandamento_oficial")
 }
 
 // ===== Fatia 7 — Missões e Desafios =====

@@ -21,6 +21,7 @@ import { AdminUsuarios } from './screens/admin/AdminUsuarios';
 import { AdminUsuarioDetalhe } from './screens/admin/AdminUsuarioDetalhe';
 import { AdminNovoVendedor } from './screens/admin/AdminNovoVendedor';
 import { AdminIA } from './screens/admin/AdminIA';
+import { AdminTreinamento } from './screens/admin/AdminTreinamento';
 
 export function App() {
   return (
@@ -60,6 +61,14 @@ export function App() {
             element={
               <RequireAuth papeis={['ADMIN']}>
                 <AdminIA />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/admin/treinamento"
+            element={
+              <RequireAuth papeis={['ADMIN']}>
+                <AdminTreinamento />
               </RequireAuth>
             }
           />

@@ -28,7 +28,7 @@ academiaRouter.get(
   '/academia/trilhas',
   requireAuth(),
   asyncHandler(async (req, res) => {
-    const trilhas = await listarTrilhas(req.auth!.vendedorId);
+    const trilhas = await listarTrilhas(req.auth!.vendedorId, req.auth!.papel);
     res.json({ trilhas });
   })
 );
@@ -37,7 +37,7 @@ academiaRouter.get(
   '/academia/trilhas/:id',
   requireAuth(),
   asyncHandler(async (req, res) => {
-    const trilha = await getTrilhaDetalhada(req.params.id, req.auth!.vendedorId);
+    const trilha = await getTrilhaDetalhada(req.params.id, req.auth!.vendedorId, req.auth!.papel);
     if (!trilha) return res.status(404).json({ error: 'trilha não encontrada' });
     res.json(trilha);
   })
@@ -96,7 +96,7 @@ academiaRouter.get(
   requireAuth(),
   asyncHandler(async (req, res) => {
     try {
-      const quiz = await getQuizParaResponder(req.params.id);
+      const quiz = await getQuizParaResponder(req.params.id, req.auth!.vendedorId);
       res.json(quiz);
     } catch (err) {
       if (!tratarAcademyError(err, res)) throw err;

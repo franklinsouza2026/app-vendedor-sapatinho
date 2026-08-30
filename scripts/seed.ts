@@ -6,6 +6,7 @@ import { seedPlaybookInicialSeNaoExistir } from '../src/treinador/playbook-seed'
 import { seedCenariosSimulador } from '../src/simulador/scenario-seed';
 import { seedConteudoAcademia } from '../src/academia/content-seed';
 import { seedMissoesEDesafios } from '../src/missoes/catalogo-seed';
+import { seedEstruturaMandamentos } from '../src/academia/mandamentos.service';
 import { env } from '../src/config';
 
 const prisma = new PrismaClient();
@@ -128,6 +129,7 @@ async function main() {
   const totalCenarios = await seedCenariosSimulador();
   const conteudoAcademia = await seedConteudoAcademia();
   const conteudoMissoes = await seedMissoesEDesafios();
+  const totalMandamentos = await seedEstruturaMandamentos();
 
   console.log('Seed concluído:');
   console.log(`  Loja: codigoErpLoja=${loja.codigoErp}`);
@@ -139,6 +141,7 @@ async function main() {
   console.log(`  Simulador: ${totalCenarios} cenários`);
   console.log(`  Academia: ${conteudoAcademia.trilhas} trilhas, ${conteudoAcademia.aulas} aulas`);
   console.log(`  Missões: ${conteudoMissoes.missoes} definições, Desafios: ${conteudoMissoes.desafios} definições`);
+  console.log(`  13 Mandamentos: estrutura garantida (${totalMandamentos} linhas, conteúdo oficial pendente de cadastro pelo Admin)`);
 }
 
 main()

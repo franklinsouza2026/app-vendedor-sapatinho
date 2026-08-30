@@ -1,14 +1,22 @@
 // Trilhas da Academia — catálogo GLOBAL (mesmo raciocínio de SimulationScenario/
 // Badge). Progresso é sempre por vendedor (AcademyProgress), nunca global.
+// CMS (Fatia 7.5C, seção 10/21): só conteúdo PUBLISHED chega ao vendedor —
+// DRAFT/REVIEW_PENDING/APPROVED/ARCHIVED nunca aparecem aqui, mesmo por ID
+// direto (getTrilhaDetalhada usa o mesmo filtro).
+import { Papel } from '@prisma/client';
 import { prisma } from '../db';
 
-export async function listarTrilhas(vendedorId: string) {
+function publicoPermitido(papel: Papel) {
+  return papel === 'GERENTE' ? ['MANAGER' as const, 'BOTH' as const] : ['SELLER' as const, 'BOTH' as const];
+}
+
+export async function listarTrilhas(vendedorId: string, papel: Papel = 'VENDEDOR') {
   const trilhas = await prisma.academyTrack.findMany({
-    where: { active: true },
+    where: { active: true, status: 'PUBLISHED', audience: { in: publicoPermitido(papel) } },
     orderBy: { sortOrder: 'asc' },
     include: {
       aulas: {
-        where: { active: true },
+        where: { active: true, status: 'PUBLISHED', audience: { in: publicoPermitido(papel) } },
         orderBy: { sortOrder: 'asc' },
         include: { quiz: { select: { id: true } }, progresso: { where: { vendedorId } } },
       },
@@ -31,12 +39,12 @@ export async function listarTrilhas(vendedorId: string) {
   }));
 }
 
-export async function getTrilhaDetalhada(trackId: string, vendedorId: string) {
-  const trilha = await prisma.academyTrack.findUnique({
-    where: { id: trackId },
+export async function getTrilhaDetalhada(trackId: string, vendedorId: string, papel: Papel = 'VENDEDOR') {
+  const trilha = await prisma.academyTrack.findFirst({
+    where: { id: trackId, active: true, status: 'PUBLISHED', audience: { in: publicoPermitido(papel) } },
     include: {
       aulas: {
-        where: { active: true },
+        where: { active: true, status: 'PUBLISHED', audience: { in: publicoPermitido(papel) } },
         orderBy: { sortOrder: 'asc' },
         include: { quiz: { select: { id: true } }, progresso: { where: { vendedorId } } },
       },

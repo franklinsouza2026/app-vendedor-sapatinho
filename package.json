@@ -20,6 +20,7 @@
     "reset:missoes-e2e": "tsx scripts/reset-missoes-e2e.ts",
     "reset:identidade-e2e": "tsx scripts/reset-identidade-e2e.ts",
     "reset:admin-ia-e2e": "tsx scripts/reset-admin-ia-e2e.ts",
+    "reset:admin-training-e2e": "tsx scripts/reset-admin-training-e2e.ts",
     "test": "vitest run",
     "lint": "tsc --noEmit"
   },
