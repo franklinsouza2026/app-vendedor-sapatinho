@@ -54,6 +54,16 @@ const envSchema = z.object({
   // 13: "evitar 10 missões simultâneas... começar com limite pequeno"). Não
   // vem da fonte de verdade — v1 documentado, ajustável via env.
   MISSOES_MAX_ATIVAS_POR_DIA: z.coerce.number().int().positive().default(3),
+
+  // Admin AI Control Plane (Fatia 7.5B) — chave mestre de criptografia das
+  // credenciais de provider por empresa (AES-256-GCM, ver src/ai-platform/
+  // secrets.ts). OPCIONAL de propósito (seção 24): sua ausência nunca derruba
+  // o processo — só impede salvar uma credencial real de provider até
+  // existir, MOCK continua 100% funcional em dev/test/CI sem ela.
+  AI_SECRETS_ENCRYPTION_KEY: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/i, 'AI_SECRETS_ENCRYPTION_KEY deve ter exatamente 64 caracteres hex (32 bytes)')
+    .optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

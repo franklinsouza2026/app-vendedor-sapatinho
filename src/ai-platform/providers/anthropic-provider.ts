@@ -10,26 +10,36 @@ import Anthropic from '@anthropic-ai/sdk';
 import { env } from '../../config';
 import { AIProvider, AIProviderError, GenerateResponseInput, GenerateResponseResult } from './ai-provider.interface';
 
-let clienteCache: Anthropic | null = null;
-function getCliente(): Anthropic {
-  if (!clienteCache) {
-    if (!env.ANTHROPIC_API_KEY) {
-      throw new AIProviderError('auth', 'ANTHROPIC_API_KEY não configurada — AnthropicProvider não pode ser usado');
-    }
-    clienteCache = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
-  }
-  return clienteCache;
-}
+// Cache só do caminho legado (sem apiKey própria — usa env.ANTHROPIC_API_KEY,
+// comportamento pré-Fatia-7.5B intacto). Quando o AIGateway resolve uma
+// credencial por empresa (Fatia 7.5B), passa a apiKey no construtor e um
+// cliente novo é criado por chamada — sem cache, já que a credencial pode
+// mudar a qualquer momento sem redeploy (seção 31).
+let clienteCachePadrao: Anthropic | null = null;
 
 export class AnthropicProvider implements AIProvider {
+  constructor(private apiKeyPropria?: string) {}
+
+  private getCliente(): Anthropic {
+    if (this.apiKeyPropria) return new Anthropic({ apiKey: this.apiKeyPropria });
+
+    if (!clienteCachePadrao) {
+      if (!env.ANTHROPIC_API_KEY) {
+        throw new AIProviderError('auth', 'ANTHROPIC_API_KEY não configurada — AnthropicProvider não pode ser usado');
+      }
+      clienteCachePadrao = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+    }
+    return clienteCachePadrao;
+  }
+
   async generateResponse(input: GenerateResponseInput): Promise<GenerateResponseResult> {
     const inicio = Date.now();
-    const cliente = getCliente();
+    const cliente = this.getCliente();
 
     try {
       const response = await cliente.messages.create(
         {
-          model: env.AI_MODEL,
+          model: input.model ?? env.AI_MODEL,
           max_tokens: env.AI_MAX_OUTPUT_TOKENS,
           system: input.systemPrompt,
           messages: input.messages.map((m) => ({ role: m.role, content: m.content })),

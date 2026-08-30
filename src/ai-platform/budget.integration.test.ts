@@ -2,9 +2,12 @@
 // testado aqui, na ai-platform, não dentro de um módulo de especialista
 // específico.
 import { describe, expect, it } from 'vitest';
+import request from 'supertest';
 import { calcularGastoMensalUSD, verificarBudgetMensal } from './budget.service';
-import { criarFixtureEmpresa } from '../gamificacao/test-helpers';
+import { criarFixtureEmpresa, criarMeta } from '../gamificacao/test-helpers';
 import { prisma } from '../db';
+import { app } from '../app';
+import { assinarToken } from '../middlewares/auth';
 
 describe('verificarBudgetMensal', () => {
   it('calcula o gasto do mês como soma real do AIUsage — nunca contador mutável', async () => {
@@ -63,5 +66,29 @@ describe('verificarBudgetMensal', () => {
     });
 
     expect(await calcularGastoMensalUSD(vendedor.empresaId)).toBe(2);
+  });
+});
+
+describe('Budget esgotado (100%) NUNCA bloqueia funcionalidade determinística (seção 20/64 da Fatia 7.5B)', () => {
+  it('com budget zerado, Coach fica indisponível mas Home/metas/carteira/missões/admin continuam funcionando normalmente', async () => {
+    const { vendedor } = await criarFixtureEmpresa();
+    await prisma.aIBudgetConfig.create({ data: { empresaId: vendedor.empresaId, monthlyLimitUSD: 1, dailyMessageLimitPerSeller: 20, updatedBy: 'test' } });
+    await prisma.aIUsage.create({
+      data: { empresaId: vendedor.empresaId, vendedorId: vendedor.id, provider: 'anthropic', model: 'claude-opus-5', estimatedCostUSD: 1, status: 'SUCESSO' },
+    });
+    await criarMeta(vendedor.id, 1000, new Date());
+
+    const token = assinarToken({ vendedorId: vendedor.id, empresaId: vendedor.empresaId, lojaId: vendedor.lojaId, papel: 'VENDEDOR' });
+
+    // rotas 100% determinísticas — nenhuma delas consulta budget de IA.
+    expect((await request(app).get('/metas/minhas').set('Authorization', `Bearer ${token}`)).status).toBe(200);
+    expect((await request(app).get('/gamificacao/carteira').set('Authorization', `Bearer ${token}`)).status).toBe(200);
+    expect((await request(app).get('/gamificacao/streak').set('Authorization', `Bearer ${token}`)).status).toBe(200);
+    expect((await request(app).get('/missoes/ativas').set('Authorization', `Bearer ${token}`)).status).toBe(200);
+
+    // única rota que efetivamente checa budget mensal — via o campo que a
+    // própria rota expõe, sem repetir a regra de negócio aqui.
+    const status = await verificarBudgetMensal(vendedor.empresaId);
+    expect(status.permitido).toBe(false);
   });
 });

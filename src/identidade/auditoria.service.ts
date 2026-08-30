@@ -14,7 +14,15 @@ export type AcaoAuditoria =
   | 'USER_REACTIVATED'
   | 'PASSWORD_CHANGED'
   | 'ERP_IDENTITY_LINKED'
-  | 'ERP_IDENTITY_UNLINKED';
+  | 'ERP_IDENTITY_UNLINKED'
+  // Admin AI Control Plane (Fatia 7.5B) — nunca com o valor da credencial no metadata.
+  | 'AI_PROVIDER_CREDENTIAL_SET'
+  | 'AI_PROVIDER_CREDENTIAL_UPDATED'
+  | 'AI_PROVIDER_CREDENTIAL_REMOVED'
+  | 'AI_PROVIDER_ACTIVATED'
+  | 'AI_PROVIDER_DISABLED'
+  | 'AI_MODEL_CHANGED'
+  | 'AI_BUDGET_CHANGED';
 
 export async function registrarEventoAuditoria(params: {
   empresaId: string;

@@ -16,6 +16,7 @@ import { simuladorRouter } from './routes/simulador';
 import { academiaRouter } from './routes/academia';
 import { missoesRouter } from './routes/missoes';
 import { adminRouter } from './routes/admin';
+import { adminAiRouter } from './routes/admin-ai';
 import { apiRateLimit } from './middlewares/ratelimit';
 import { errorHandler } from './middlewares/error-handler';
 
@@ -38,5 +39,6 @@ app.use(simuladorRouter);
 app.use(academiaRouter);
 app.use(missoesRouter);
 app.use(adminRouter);
+app.use(adminAiRouter);
 
 app.use(errorHandler);

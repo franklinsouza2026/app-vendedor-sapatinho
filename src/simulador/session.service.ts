@@ -7,8 +7,8 @@
 import { DificuldadeSimulacao, Prisma, RoleMensagemSimulacao, StatusSimulacao } from '@prisma/client';
 import { prisma } from '../db';
 import { env } from '../config';
-import { aiProvider, AIProviderError } from '../ai-platform/providers';
-import { calcularCustoEstimadoUSD } from '../ai-platform/custo';
+import { AIProviderError } from '../ai-platform/providers';
+import { gerarViaGateway, providerEModeloParaTelemetria } from '../ai-platform/gateway.service';
 import { verificarBudgetMensal } from '../ai-platform/budget.service';
 import { resolverCenario } from './scenario.service';
 import { buildSimulationContext, buildEvaluationContext } from './context-builder.service';
@@ -108,20 +108,19 @@ export async function criarSessao(vendedorId: string, scenarioId: string, dificu
   const contexto = await buildSimulationContext(vendedorId, cenario, dificuldade);
   const systemPrompt = `${getSystemPromptCliente()}\n\n${formatarContextoCliente(contexto)}`;
 
-  let resultado;
+  let resultado, custoUSD;
   try {
-    resultado = await aiProvider.generateResponse({
+    ({ resultado, custoUSD } = await gerarViaGateway({
+      empresaId: vendedor.empresaId,
       systemPrompt,
       messages: [{ role: 'user', content: '(início da simulação — gere sua primeira fala como cliente)' }],
       metadata: { specialist: 'simulator', mode: 'client', context: { scenario: contexto.scenario, persona: contexto.customerPersona, turnCount: 0 } },
-    });
+    }));
   } catch (err) {
     log.error({ err, sessionId: sessao.id }, 'falha ao gerar a primeira fala da cliente simulada');
     await prisma.simulationSession.update({ where: { id: sessao.id }, data: { status: 'FAILED', reasonEnded: 'FALHA_PROVIDER_ABERTURA' } });
     throw new SimulationError('provider_unavailable', 'o simulador está indisponível no momento — tente de novo em instantes');
   }
-
-  const custoUSD = resultado.provider === 'mock' ? 0 : calcularCustoEstimadoUSD(resultado.model, resultado.inputTokens, resultado.outputTokens);
   await prisma.simulationMessage.create({
     data: {
       sessionId: sessao.id,
@@ -233,19 +232,18 @@ export async function enviarMensagem(input: EnviarMensagemInput) {
     const historico = await prisma.simulationMessage.findMany({ where: { sessionId }, orderBy: { createdAt: 'asc' } });
     const mensagensParaProvider = historico.map((m) => ({ role: mapRole(m.role), content: m.content }));
 
-    let resultado;
+    let resultado, custoUSD;
     try {
-      resultado = await aiProvider.generateResponse({
+      ({ resultado, custoUSD } = await gerarViaGateway({
+        empresaId: vendedor.empresaId,
         systemPrompt,
         messages: mensagensParaProvider,
         metadata: { specialist: 'simulator', mode: 'client', context: { scenario: contexto.scenario, persona: contexto.customerPersona, turnCount: novoTurnCount } },
-      });
+      }));
     } catch (err) {
       await registrarUso(vendedor.empresaId, vendedorId, sessionId, undefined, 0, err instanceof AIProviderError && err.type === 'timeout' ? 'TIMEOUT' : 'ERRO');
       throw new SimulationError('provider_unavailable', 'o simulador está indisponível no momento — tente de novo em instantes');
     }
-
-    const custoUSD = resultado.provider === 'mock' ? 0 : calcularCustoEstimadoUSD(resultado.model, resultado.inputTokens, resultado.outputTokens);
     const mensagemCliente = await prisma.simulationMessage.create({
       data: {
         sessionId,
@@ -341,13 +339,14 @@ async function finalizarEAvaliar(sessionId: string, motivo: string, apenasRetryA
   const evalContext = await buildEvaluationContext(vendedor.empresaId, cenario, cenario.criteriosAvaliacao, transcript);
   const systemPrompt = `${getSystemPromptAvaliador()}\n\n${formatarContextoAvaliacao(evalContext)}`;
 
-  let resultado;
+  let resultado, custoUSD;
   try {
-    resultado = await aiProvider.generateResponse({
+    ({ resultado, custoUSD } = await gerarViaGateway({
+      empresaId: vendedor.empresaId,
       systemPrompt,
       messages: [{ role: 'user', content: 'Avalie esta simulação conforme o schema pedido.' }],
       metadata: { specialist: 'simulator', mode: 'evaluator', context: evalContext },
-    });
+    }));
   } catch (err) {
     log.error({ err, sessionId }, 'falha ao gerar avaliação da simulação');
     return prisma.simulationSession.update({ where: { id: sessionId }, data: { status: 'EVALUATION_PENDING' } });
@@ -358,8 +357,6 @@ async function finalizarEAvaliar(sessionId: string, motivo: string, apenasRetryA
     log.error({ sessionId }, 'provider retornou avaliação em formato inválido — nunca persistindo nota falsa');
     return prisma.simulationSession.update({ where: { id: sessionId }, data: { status: 'EVALUATION_PENDING' } });
   }
-
-  const custoUSD = resultado.provider === 'mock' ? 0 : calcularCustoEstimadoUSD(resultado.model, resultado.inputTokens, resultado.outputTokens);
 
   try {
     await prisma.simulationEvaluation.create({
@@ -452,14 +449,18 @@ async function registrarUso(
   status: 'SUCESSO' | 'ERRO' | 'TIMEOUT'
 ) {
   try {
+    // Sem resultado (falha antes de chamar o provider com sucesso) — reflete
+    // o provider/modelo REALMENTE configurado pra esta empresa (Fatia 7.5B),
+    // nunca mais sempre env.AI_PROVIDER/env.AI_MODEL.
+    const fallback = resultado ? null : await providerEModeloParaTelemetria(empresaId);
     await prisma.aIUsage.create({
       data: {
         empresaId,
         vendedorId,
         specialist: 'SIMULATOR',
         conversationId: sessionId,
-        provider: resultado?.provider ?? env.AI_PROVIDER,
-        model: resultado?.model ?? env.AI_MODEL,
+        provider: resultado?.provider ?? fallback!.provider,
+        model: resultado?.model ?? fallback!.model,
         inputTokens: resultado?.inputTokens ?? 0,
         outputTokens: resultado?.outputTokens ?? 0,
         estimatedCostUSD: custoUSD,

@@ -22,6 +22,10 @@ model Empresa {
   aiBudgetConfig AIBudgetConfig?
   playbooks      Playbook[]
 
+  aiConfiguration CompanyAIConfiguration?
+  aiCredenciais   AIProviderCredential[]
+  aiHealth        AIProviderHealth[]
+
   @@map("empresa")
 }
 
@@ -549,6 +553,94 @@ model AIBudgetConfig {
   empresa Empresa @relation(fields: [empresaId], references: [id])
 
   @@map("ai_budget_config")
+}
+
+// ============================================================================
+// FATIA 7.5B — Admin AI Control Plane (AI Gateway, providers, credenciais)
+// ============================================================================
+
+enum NomeProviderIA {
+  MOCK
+  ANTHROPIC
+  OPENAI
+  GEMINI
+}
+
+// Só MANUAL nesta fatia (seção 6/84) — AUTO_CHEAPEST/FALLBACK_CHAIN ficam
+// registrados como evolução futura, não implementados.
+enum ModoProviderIA {
+  MANUAL
+}
+
+// Configuração de IA por empresa — 1 linha por empresa, UM ÚNICO campo
+// `activeProvider` (não uma lista de providers cada um com isActive). Isso
+// satisfaz "exatamente um provider ativo" por construção de schema (nunca 0,
+// nunca 2 — não existe uma tabela de providers pra ficar fora de sincronia),
+// eliminando toda a categoria de corrida "duas ativações concorrentes" sem
+// precisar de lock/transação especial: é sempre um único UPDATE numa única
+// linha (seção 29/51 da fonte de verdade). Ausência de linha pra uma empresa
+// = comportamento legado (env AI_PROVIDER/ANTHROPIC_API_KEY/AI_MODEL,
+// idêntico ao pré-Fatia-7.5B) — nunca quebra dev/test/CI sem configuração.
+model CompanyAIConfiguration {
+  id             String         @id @default(uuid())
+  empresaId      String         @unique
+  mode           ModoProviderIA @default(MANUAL)
+  activeProvider NomeProviderIA @default(MOCK)
+  // Null = usa o default do provider (env.AI_MODEL pra Anthropic, ou o
+  // default hardcoded do provider) — nunca uma string arbitrária sem
+  // validação (seção 44): o Admin só escolhe entre os modelos permitidos
+  // por provider, checados em `src/ai-platform/modelos-permitidos.ts`.
+  activeModel    String?
+  enabled        Boolean        @default(true)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  updatedBy      String
+
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
+  @@map("company_ai_configuration")
+}
+
+// Credencial de provider real, cifrada em repouso (AES-256-GCM, seção 23) —
+// NUNCA em claro. `ivBase64`/`authTagBase64` são únicos por linha (nonce
+// aleatório a cada escrita); `keyVersion` prepara rotação futura da chave
+// mestre sem exigir migração de schema. Nenhuma rota de leitura devolve
+// `ciphertextBase64` pro cliente — só um booleano "configurado" (seção 25).
+model AIProviderCredential {
+  id               String         @id @default(uuid())
+  empresaId        String
+  provider         NomeProviderIA
+  ciphertextBase64 String         @db.Text
+  ivBase64         String
+  authTagBase64    String
+  keyVersion       Int            @default(1)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  updatedBy        String
+
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
+  @@unique([empresaId, provider])
+  @@map("ai_provider_credential")
+}
+
+// Estado operacional observado (seção 39) — nunca "UP" inventado a partir só
+// da configuração; só atualizado depois de uma chamada REAL (sucesso ou
+// falha) ao provider, seja de um especialista ou do botão "Testar conexão".
+model AIProviderHealth {
+  id            String         @id @default(uuid())
+  empresaId     String
+  provider      NomeProviderIA
+  lastCallAt    DateTime?
+  lastCallOk    Boolean?
+  lastErrorType String?
+  lastLatencyMs Int?
+  updatedAt     DateTime       @updatedAt
+
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
+  @@unique([empresaId, provider])
+  @@map("ai_provider_health")
 }
 
 // ============================================================

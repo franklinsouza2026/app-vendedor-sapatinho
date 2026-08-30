@@ -6,6 +6,7 @@ import { LoadingState } from '../../components/LoadingState';
 import { ErrorState } from '../../components/ErrorState';
 import { EmptyState } from '../../components/EmptyState';
 import { StatusConta } from '../../types';
+import { AdminNav } from './AdminNav';
 
 const LABEL_STATUS: Record<StatusConta, string> = {
   PENDING_ACTIVATION: 'pendente de ativação',
@@ -31,6 +32,7 @@ export function AdminUsuarios() {
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-4 p-6">
+      <AdminNav />
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-white">Usuários</h1>
         <Link to="/admin/usuarios/novo" className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white active:opacity-80">

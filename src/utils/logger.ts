@@ -25,6 +25,14 @@ const CAMINHOS_REDACT = [
   '*.cpfHash',
   '*.tokenHash',
   '*.tokenAtivacao',
+  // Admin AI Control Plane (Fatia 7.5B) — credenciais de provider nunca
+  // devem chegar a um log, cifradas ou não.
+  '*.credential',
+  '*.ciphertextBase64',
+  '*.authTagBase64',
+  '*.OPENAI_API_KEY',
+  '*.GEMINI_API_KEY',
+  '*.AI_SECRETS_ENCRYPTION_KEY',
 ];
 
 export function createLogger(name: string) {

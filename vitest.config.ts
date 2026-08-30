@@ -35,6 +35,7 @@ export default defineConfig({
       JWT_SECRET: 'segredo-de-teste-com-pelo-menos-32-caracteres',
       JWT_ISSUER: 'app-vendedor-sapatinho',
       CPF_HASH_SECRET: 'outro-segredo-de-teste-com-pelo-menos-32-chars',
+      AI_SECRETS_ENCRYPTION_KEY: 'a'.repeat(64),
       DATABASE_URL: databaseUrlTeste,
       REDIS_URL: 'redis://localhost:6379',
       ERP_MODE: 'mock',

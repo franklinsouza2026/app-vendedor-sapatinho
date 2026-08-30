@@ -1,9 +1,7 @@
-import { AIProvider } from './ai-provider.interface';
-import { MockAIProvider } from './mock-ai-provider';
-import { AnthropicProvider } from './anthropic-provider';
-import { env } from '../../config';
-
-export const aiProvider: AIProvider = env.AI_PROVIDER === 'anthropic' ? new AnthropicProvider() : new MockAIProvider();
-
+// Nenhum provider é instanciado aqui como singleton global — desde a Fatia
+// 7.5B, resolver QUAL provider usar (e com qual credencial/modelo) é
+// responsabilidade exclusiva do AIGateway (`../gateway.service`), nunca de
+// um import direto. Isso torna estruturalmente impossível um especialista
+// novo "esquecer" de passar pelo Gateway: não existe mais um atalho aqui.
 export type { AIProvider, AIMessage, GenerateResponseInput, GenerateResponseResult } from './ai-provider.interface';
 export { AIProviderError } from './ai-provider.interface';

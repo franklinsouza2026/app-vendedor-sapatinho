@@ -20,6 +20,7 @@ import { AlterarSenha } from './screens/AlterarSenha';
 import { AdminUsuarios } from './screens/admin/AdminUsuarios';
 import { AdminUsuarioDetalhe } from './screens/admin/AdminUsuarioDetalhe';
 import { AdminNovoVendedor } from './screens/admin/AdminNovoVendedor';
+import { AdminIA } from './screens/admin/AdminIA';
 
 export function App() {
   return (
@@ -51,6 +52,14 @@ export function App() {
             element={
               <RequireAuth papeis={['ADMIN']}>
                 <AdminUsuarioDetalhe />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/admin/ai"
+            element={
+              <RequireAuth papeis={['ADMIN']}>
+                <AdminIA />
               </RequireAuth>
             }
           />

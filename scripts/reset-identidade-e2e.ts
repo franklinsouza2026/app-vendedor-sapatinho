@@ -17,11 +17,25 @@ async function main() {
   await prisma.auditEvent.deleteMany({ where: { OR: [{ actorId: { in: ids } }, { targetId: { in: ids } }] } });
   await prisma.activationToken.deleteMany({ where: { vendedorId: { in: ids } } });
   await prisma.externalIdentity.deleteMany({ where: { vendedorId: { in: ids } } });
-  // Visitar a Home já atribui missões/desafios do dia (efeito colateral de
-  // GET /missoes/ativas) — precisa limpar antes de apagar o vendedor, senão
-  // a FK de mission_assignment/challenge_assignment barra o delete.
+  // Um vendedor de teste ativado fica "vivo" pro worker de sync do ERP e pro
+  // fechamento diário em background (rodando durante a sessão inteira) —
+  // qualquer um desses jobs pode ter criado IndicadorRealizado/Meta/
+  // XpTransacao/StreakVendedor/RankingSnapshot/AIUsage pra ele antes deste
+  // reset rodar. Limpa tudo que referencia vendedorId antes do delete final,
+  // senão a FK de qualquer uma dessas tabelas barra o `vendedor.deleteMany`.
   await prisma.missionAssignment.deleteMany({ where: { vendedorId: { in: ids } } });
   await prisma.challengeAssignment.deleteMany({ where: { vendedorId: { in: ids } } });
+  await prisma.indicadorRealizado.deleteMany({ where: { vendedorId: { in: ids } } });
+  await prisma.meta.deleteMany({ where: { vendedorId: { in: ids } } });
+  await prisma.xpTransacao.deleteMany({ where: { vendedorId: { in: ids } } });
+  await prisma.moedaTransacao.deleteMany({ where: { vendedorId: { in: ids } } });
+  await prisma.streakChecagem.deleteMany({ where: { vendedorId: { in: ids } } });
+  await prisma.streakVendedor.deleteMany({ where: { vendedorId: { in: ids } } });
+  await prisma.badgeConcessao.deleteMany({ where: { vendedorId: { in: ids } } });
+  await prisma.rankingSnapshot.deleteMany({ where: { vendedorId: { in: ids } } });
+  await prisma.aIUsage.deleteMany({ where: { vendedorId: { in: ids } } });
+  await prisma.coachCheckIn.deleteMany({ where: { vendedorId: { in: ids } } });
+  await prisma.professionalMemory.deleteMany({ where: { vendedorId: { in: ids } } });
   await prisma.vendedor.deleteMany({ where: { id: { in: ids } } });
 
   // VEND002 é reaproveitado pelo E2E de bloqueio — garante que começa ACTIVE.

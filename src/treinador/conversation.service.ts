@@ -8,8 +8,8 @@
 import { ModoTreinador, Prisma, RoleMensagemTreinador } from '@prisma/client';
 import { prisma } from '../db';
 import { env } from '../config';
-import { aiProvider, AIProviderError } from '../ai-platform/providers';
-import { calcularCustoEstimadoUSD } from '../ai-platform/custo';
+import { AIProviderError } from '../ai-platform/providers';
+import { gerarViaGateway, providerEModeloParaTelemetria } from '../ai-platform/gateway.service';
 import { verificarBudgetMensal } from '../ai-platform/budget.service';
 import { buildTrainerContext } from './context-builder.service';
 import { getSystemPrompt } from './prompts/system-prompt';
@@ -192,19 +192,18 @@ export async function enviarMensagem(input: EnviarMensagemInput) {
     });
     const mensagensParaProvider = historico.reverse().map((m) => ({ role: mapRole(m.role), content: m.content }));
 
-    let resultado;
+    let resultado, custoUSD;
     try {
-      resultado = await aiProvider.generateResponse({
+      ({ resultado, custoUSD } = await gerarViaGateway({
+        empresaId: vendedor.empresaId,
         systemPrompt,
         messages: mensagensParaProvider,
         metadata: { specialist: 'trainer', context: contexto },
-      });
+      }));
     } catch (err) {
       await registrarFalhaUso(vendedor.empresaId, vendedorId, conversationId, err);
       throw new TrainerError('provider_unavailable', 'o Treinador está indisponível no momento — tente de novo em instantes');
     }
-
-    const custoUSD = resultado.provider === 'mock' ? 0 : calcularCustoEstimadoUSD(resultado.model, resultado.inputTokens, resultado.outputTokens);
 
     const mensagemAssistente = await prisma.trainerMessage.create({
       data: {
@@ -253,14 +252,15 @@ async function registrarFalhaUso(empresaId: string, vendedorId: string, conversa
   const status = err instanceof AIProviderError && err.type === 'timeout' ? 'TIMEOUT' : 'ERRO';
   log.error({ err, vendedorId, conversationId }, 'falha ao gerar resposta do Treinador');
   try {
+    const { provider, model } = await providerEModeloParaTelemetria(empresaId);
     await prisma.aIUsage.create({
       data: {
         empresaId,
         vendedorId,
         specialist: 'TRAINER',
         conversationId,
-        provider: env.AI_PROVIDER,
-        model: env.AI_MODEL,
+        provider,
+        model,
         estimatedCostUSD: 0,
         status,
       },
