@@ -1468,6 +1468,9 @@ Simulador de Atendimento (cenários determinísticos, IA só como cliente — nu
 - progresso;
 - recompensas.
 
+### Fatia 6.5 — Frontend Premium / UX 2.0 — CONCLUÍDA (2026-08-29, commit `6c44f25`, 289 testes: 216 backend + 66 frontend + 7 E2E Playwright)
+Redesign de UX/visual puro, zero mudança de backend e zero mudança de regra de negócio (mesmos números, mesmas rotas de API, mesmo comportamento de cada especialista). Achado CRÍTICO corrigido: nenhuma tela tinha largura máxima — inputs, botões e bolhas de chat esticavam até a borda da janela em qualquer viewport acima de ~450px (inclusive desktop 1440px), confirmado visualmente no Login e no Coach antes da correção; resolvido com um componente `Screen`/`max-w-md mx-auto` aplicado em toda tela. Navegação reestruturada de 4 para 5 itens no bottom nav (Início/Performance/Evoluir/Ranking/Perfil) com um novo hub `/evoluir` reunindo Coach/Treinador/Simulador/Academia (antes eram 4 cards de peso igual espalhados pela Home); Home redesenhada com hero de meta do dia, desempenho do dia consolidado (ticket/PA/posição), gamificação resumida (nível com progresso + moedas + streak) e um único card de entrada pro hub Evoluir. Ranking ganhou um resumo "sua posição" (derivado do ranking já carregado, nunca um cálculo novo do motor). Identidade visual por módulo (cores `coach`/`treinador`/`simulador`/`academia` no tailwind.config) aplicada nos headers e nas bolhas/botões de cada chat — corrigida também uma inconsistência pré-existente (Simulador usava a mesma cor do Treinador pro botão/bolha do vendedor). Bundle: 214,08kB→217,54kB (gzip 65,21kB→65,91kB), aumento desprezível. Todos os 206 testes anteriores à Fatia 6 mais os da própria Fatia 6 continuam verdes; E2E das 4 jornadas de especialista + a jornada do vendedor foram atualizados pra navegar via `/evoluir` (a Home não tem mais link direto pro Coach/Treinador); 1 E2E novo cobrindo a navegação completa pós-redesign.
+
 ### Fatia 7 — Missões e desafios
 - pessoal;
 - gestor;
@@ -1787,7 +1790,7 @@ Nada disso bloqueia o Gamification Engine determinístico.
 
 ## 57. PRÓXIMA EXECUÇÃO OFICIAL
 
-Fatias 0/1, 2, 3, 4, 5 e 6 concluídas (ver seção 44). Próxima fatia recomendada: **Fatia 6.5 — Frontend Premium / UX 2.0** (redesign visual do produto, apoiado na auditoria de frontend já realizada — ver memória/decisões do projeto). Abaixo, a especificação da Fatia 6 (já executada) permanece como registro histórico:
+Fatias 0/1, 2, 3, 4, 5, 6 e 6.5 concluídas (ver seção 44). Próxima fatia recomendada: **Fatia 7 — Missões e desafios** (ver roadmap da seção 44) — a menos que o usuário peça outra prioridade. Abaixo, as especificações das Fatias 6 e 6.5 (já executadas) permanecem como registro histórico:
 
 # FATIA 6 — SIMULADOR DE ATENDIMENTO + ACADEMIA DE VENDAS (CONCLUÍDA)
 
