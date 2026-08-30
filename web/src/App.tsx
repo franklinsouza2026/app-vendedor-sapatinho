@@ -11,6 +11,8 @@ import { Badges } from './screens/Badges';
 import { Perfil } from './screens/Perfil';
 import { Coach } from './screens/Coach';
 import { Treinador } from './screens/Treinador';
+import { Simulador } from './screens/Simulador';
+import { Academia } from './screens/Academia';
 
 export function App() {
   return (
@@ -37,6 +39,16 @@ export function App() {
               </RequireAuth>
             }
           />
+          {/* Simulador também fica fora do Layout — mesma razão do Coach/Treinador:
+              a tela de sessão ocupa a altura inteira, com input fixo embaixo. */}
+          <Route
+            path="/simulador"
+            element={
+              <RequireAuth>
+                <Simulador />
+              </RequireAuth>
+            }
+          />
           <Route
             element={
               <RequireAuth>
@@ -50,6 +62,7 @@ export function App() {
             <Route path="/moedas" element={<Carteira />} />
             <Route path="/conquistas" element={<Badges />} />
             <Route path="/perfil" element={<Perfil />} />
+            <Route path="/academia" element={<Academia />} />
           </Route>
         </Routes>
       </BrowserRouter>

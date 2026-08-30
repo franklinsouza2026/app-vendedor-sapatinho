@@ -34,6 +34,12 @@ const envSchema = z.object({
   // cadência de um humano real) sem alterar o valor padrão de produção.
   API_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(120),
   LOGIN_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(10),
+
+  // Simulador (Fatia 6) — mínimo de turnos do vendedor pra uma sessão ser
+  // elegível a recompensa (anti-farm de "abrir e fechar na hora"). Não vem
+  // da fonte de verdade (não havia regra definida) — v1 documentado, fácil
+  // de ajustar via env sem precisar de deploy de código.
+  SIMULATION_MIN_TURNS_FOR_REWARD: z.coerce.number().int().positive().default(3),
 });
 
 export type Env = z.infer<typeof envSchema>;

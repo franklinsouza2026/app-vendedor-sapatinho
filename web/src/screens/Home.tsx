@@ -129,6 +129,26 @@ export function Home() {
         </Card>
       </Link>
 
+      <div>
+        <p className="mb-2 text-sm font-medium text-slate-300">Evoluir</p>
+        <div className="grid grid-cols-2 gap-3">
+          <Link to="/simulador">
+            <Card className="flex flex-col items-center gap-1 text-center">
+              <span className="text-2xl">🎭</span>
+              <p className="text-sm font-medium text-white">Simulador</p>
+              <p className="text-xs text-slate-400">Treine com uma cliente simulada</p>
+            </Card>
+          </Link>
+          <Link to="/academia">
+            <Card className="flex flex-col items-center gap-1 text-center">
+              <span className="text-2xl">🎓</span>
+              <p className="text-sm font-medium text-white">Academia</p>
+              <p className="text-xs text-slate-400">Trilhas curtas e quiz</p>
+            </Card>
+          </Link>
+        </div>
+      </div>
+
       {atualizadoEm && <p className="text-center text-xs text-slate-600">Dados atualizados às {formatarHora(atualizadoEm)}</p>}
     </div>
   );

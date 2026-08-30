@@ -106,3 +106,25 @@ export async function getSecoesRelevantes(
     sections: secoes.map((s) => ({ category: s.categoria, title: s.titulo, content: s.conteudo, origin: s.origem })),
   };
 }
+
+// Igual a getSecoesRelevantes, mas recebendo as categorias diretamente em vez
+// de mapear por ModoTreinador — usado pelo Simulador (SimulationScenario.
+// playbookCategorias) e pela Academia (AcademyLesson.playbookCategoria), que
+// não têm o conceito de "modo" do Treinador.
+export async function getSecoesPorCategorias(
+  empresaId: string,
+  categorias: CategoriaPlaybook[]
+): Promise<{ id: string | null; version: number | null; sections: PlaybookSectionContexto[] }> {
+  if (categorias.length === 0) return { id: null, version: null, sections: [] };
+
+  const playbook = await getPlaybookAtivo(empresaId);
+  if (!playbook) return { id: null, version: null, sections: [] };
+
+  const secoes = playbook.secoes.filter((s) => categorias.includes(s.categoria));
+
+  return {
+    id: playbook.id,
+    version: playbook.versao,
+    sections: secoes.map((s) => ({ category: s.categoria, title: s.titulo, content: s.conteudo, origin: s.origem })),
+  };
+}

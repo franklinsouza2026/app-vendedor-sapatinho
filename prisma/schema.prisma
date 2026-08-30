@@ -72,6 +72,8 @@ model Vendedor {
   memoriaProfissional ProfessionalMemory?
   usosIA              AIUsage[]
   conversasTreinador  TrainerConversation[]
+  sessoesSimulacao    SimulationSession[]
+  progressoAcademia   AcademyProgress[]
 
   @@unique([lojaId, matriculaErp])
   @@index([empresaId, lojaId])
@@ -458,6 +460,7 @@ enum StatusUsoIA {
 enum EspecialistaIA {
   COACH
   TRAINER
+  SIMULATOR
 }
 
 // Ledger auditável de cada chamada ao provider de IA — nunca um contador
@@ -493,12 +496,13 @@ model AIBudgetConfig {
   empresaId                  String   @unique
   monthlyLimitUSD            Decimal  @db.Decimal(10, 2)
   // Aplicado de forma INDEPENDENTE por especialista (Coach conta CoachMessage,
-  // Treinador conta TrainerMessage — decisão explícita da Fatia 5, não um
-  // descuido: achado de security review, confiança 4/10, considerado aceito
-  // porque o teto de custo real é monthlyLimitUSD, que É agregado entre os
-  // dois especialistas em ai-platform/budget.service.ts). Ou seja, um
-  // vendedor pode enviar até este número de mensagens em CADA especialista
-  // por dia, não um total compartilhado entre os dois.
+  // Treinador conta TrainerMessage, Simulator conta SimulationMessage —
+  // decisão explícita da Fatia 5, não um descuido: achado de security
+  // review, confiança 4/10, considerado aceito porque o teto de custo real é
+  // monthlyLimitUSD, que É agregado entre todos os especialistas em
+  // ai-platform/budget.service.ts). Ou seja, um vendedor pode enviar até
+  // este número de mensagens em CADA especialista por dia, não um total
+  // compartilhado entre eles.
   dailyMessageLimitPerSeller Int      @default(20)
   updatedAt                  DateTime @updatedAt
   updatedBy                  String
@@ -659,4 +663,267 @@ model TrainerMessage {
   @@unique([conversationId, clientMessageId])
   @@index([conversationId, createdAt])
   @@map("trainer_message")
+}
+
+// ============================================================
+// FATIA 6 — SIMULADOR DE ATENDIMENTO IA + ACADEMIA DE VENDAS
+// ============================================================
+
+enum DificuldadeSimulacao {
+  EASY
+  MEDIUM
+  HARD
+}
+
+// Catálogo GLOBAL (não por empresa) — mesmo padrão de Badge: são situações
+// genéricas de atendimento de varejo, não política de uma empresa específica
+// (a política específica entra em tempo real via playbookCategorias, que
+// aponta pro Playbook JÁ tenant-scoped do vendedor que está simulando).
+model SimulationScenario {
+  id                     String   @id @default(uuid())
+  code                   String   @unique
+  title                  String
+  description            String   @db.Text
+  category               String
+  objective              String
+  active                 Boolean  @default(true)
+  // Categorias do Playbook relevantes pra este cenário (ex.: ["OBJECOES"]) —
+  // usado pelo SimulationContextBuilder pra buscar só as seções pertinentes,
+  // igual ao Treinador (nunca o playbook inteiro).
+  playbookCategorias     Json     @default("[]")
+  // Critérios da rubrica relevantes pra este cenário (subconjunto de
+  // ABORDAGEM/SONDAGEM/ESCUTA/ARGUMENTACAO/USO_DO_PLAYBOOK/
+  // TRATAMENTO_DE_OBJECOES/VENDA_COMPLEMENTAR/FECHAMENTO/CLAREZA/
+  // EXPERIENCIA_DO_CLIENTE) — nem todo cenário avalia todos.
+  criteriosAvaliacao     Json     @default("[]")
+  // Persona determinística por dificuldade — o LLM interpreta, não inventa.
+  // Estrutura por chave EASY/MEDIUM/HARD: { profile, initialNeed,
+  // hiddenNeeds[], objections[], behavior, successCondition }.
+  personasPorDificuldade Json
+  maxTurnsPorDificuldade Json     @default("{\"EASY\":8,\"MEDIUM\":11,\"HARD\":15}")
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  sessoes SimulationSession[]
+
+  @@map("simulation_scenario")
+}
+
+enum StatusSimulacao {
+  CREATED
+  ACTIVE
+  COMPLETED
+  EVALUATION_PENDING
+  EVALUATED
+  FAILED
+}
+
+// Invariante "no máximo 1 sessão CREATED/ACTIVE por vendedor" garantida por
+// índice único parcial (migração desta fatia) — mesma lição das Fatias 4/5:
+// sem isso, chamadas concorrentes de criação de sessão poderiam abrir várias
+// sessões simultâneas, cada uma com seu próprio lock de geração, furando
+// rate limit/budget via mensagens em paralelo em sessões diferentes.
+model SimulationSession {
+  id                 String               @id @default(uuid())
+  empresaId          String
+  lojaId             String
+  vendedorId         String
+  scenarioId         String
+  difficulty         DificuldadeSimulacao
+  // Snapshot da persona usada nesta sessão — se o cenário for editado depois
+  // (futuro CMS), uma sessão antiga preserva o que foi realmente usado
+  // (mesmo raciocínio do playbookVersionId no Treinador).
+  personaSnapshot    Json
+  maxTurns           Int
+  status             StatusSimulacao      @default(CREATED)
+  turnCount          Int                  @default(0)
+  reasonEnded        String?
+  geracaoEmAndamento Boolean              @default(false)
+  startedAt          DateTime             @default(now())
+  endedAt            DateTime?
+  evaluatedAt        DateTime?
+  updatedAt          DateTime             @updatedAt
+
+  vendedor   Vendedor               @relation(fields: [vendedorId], references: [id])
+  cenario    SimulationScenario     @relation(fields: [scenarioId], references: [id])
+  mensagens  SimulationMessage[]
+  avaliacoes SimulationEvaluation[]
+
+  @@index([empresaId, lojaId, vendedorId])
+  @@index([vendedorId, status])
+  @@map("simulation_session")
+}
+
+enum RoleMensagemSimulacao {
+  VENDEDOR
+  CLIENTE
+}
+
+model SimulationMessage {
+  id               String                @id @default(uuid())
+  sessionId        String
+  role             RoleMensagemSimulacao
+  content          String                @db.Text
+  clientMessageId  String?
+  provider         String?
+  model            String?
+  inputTokens      Int?
+  outputTokens     Int?
+  estimatedCostUSD Decimal?              @db.Decimal(10, 6)
+  latencyMs        Int?
+  createdAt        DateTime              @default(now())
+
+  sessao SimulationSession @relation(fields: [sessionId], references: [id])
+
+  @@unique([sessionId, clientMessageId])
+  @@index([sessionId, createdAt])
+  @@map("simulation_message")
+}
+
+// Uma avaliação por (sessionId, versao) — v1 sempre versao=1; o campo existe
+// pra permitir reavaliação futura sem migration (seção "idempotência" da
+// Fatia 6 já prevê `simulationId + evaluationVersion` como chave).
+model SimulationEvaluation {
+  id                  String   @id @default(uuid())
+  sessionId           String
+  versao              Int      @default(1)
+  criteriosAvaliados  Json
+  scores              Json
+  scoreFinal          Int
+  strengths           Json     @default("[]")
+  improvements        Json     @default("[]")
+  missedOpportunities Json     @default("[]")
+  betterExample       String   @db.Text
+  summary             String   @db.Text
+  provider            String
+  model               String
+  inputTokens         Int      @default(0)
+  outputTokens        Int      @default(0)
+  estimatedCostUSD    Decimal  @db.Decimal(10, 6)
+  latencyMs           Int      @default(0)
+  createdAt           DateTime @default(now())
+
+  sessao SimulationSession @relation(fields: [sessionId], references: [id])
+
+  @@unique([sessionId, versao])
+  @@map("simulation_evaluation")
+}
+
+// ---------- Academia de Vendas ----------
+
+// Catálogo GLOBAL (mesmo raciocínio de SimulationScenario/Badge). Conteúdo
+// específico da empresa nunca é duplicado aqui — a aula só referencia uma
+// categoria do Playbook (playbookCategoria); o texto oficial da empresa
+// continua vivendo só em PlaybookSection.
+model AcademyTrack {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  title       String
+  description String   @db.Text
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  aulas AcademyLesson[]
+
+  @@map("academy_track")
+}
+
+model AcademyLesson {
+  id                String                 @id @default(uuid())
+  trackId           String
+  code              String                 @unique
+  title             String
+  description       String
+  content           String                 @db.Text
+  // OFICIAL = extraído de material real da empresa; DEMONSTRATIVO = boa
+  // prática genérica, claramente não-oficial (mesmo enum e mesmo raciocínio
+  // do Playbook — seção 10 da Fatia 5, reaplicada aqui).
+  origem            OrigemConteudoPlaybook @default(DEMONSTRATIVO)
+  estimatedMinutes  Int
+  sortOrder         Int                    @default(0)
+  active            Boolean                @default(true)
+  playbookCategoria CategoriaPlaybook?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  track     AcademyTrack      @relation(fields: [trackId], references: [id])
+  quiz      AcademyQuiz?
+  progresso AcademyProgress[]
+
+  @@index([trackId, sortOrder])
+  @@map("academy_lesson")
+}
+
+model AcademyQuiz {
+  id           String   @id @default(uuid())
+  lessonId     String   @unique
+  // 70% documentado como default v1 (sem regra anterior na fonte de
+  // verdade) — configurável por quiz, não hardcoded no motor.
+  passingScore Int      @default(70)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  aula      AcademyLesson     @relation(fields: [lessonId], references: [id])
+  perguntas AcademyQuestion[]
+
+  @@map("academy_quiz")
+}
+
+model AcademyQuestion {
+  id        String   @id @default(uuid())
+  quizId    String
+  question  String   @db.Text
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  quiz   AcademyQuiz     @relation(fields: [quizId], references: [id])
+  opcoes AcademyOption[]
+
+  @@index([quizId, sortOrder])
+  @@map("academy_question")
+}
+
+model AcademyOption {
+  id         String  @id @default(uuid())
+  questionId String
+  text       String
+  // Nunca exposto ao frontend antes da resposta ser submetida — ver
+  // src/academia/quiz.service.ts.
+  correct    Boolean @default(false)
+  sortOrder  Int     @default(0)
+
+  pergunta AcademyQuestion @relation(fields: [questionId], references: [id])
+
+  @@index([questionId, sortOrder])
+  @@map("academy_option")
+}
+
+enum StatusProgressoAcademia {
+  IN_PROGRESS
+  COMPLETED
+}
+
+// Sem linha = NOT_STARTED (nunca materializado) — só cria linha quando o
+// vendedor de fato inicia a aula. @@unique garante 1 progresso por
+// (vendedor, aula), nunca duplicado mesmo sob reentrância.
+model AcademyProgress {
+  id          String                  @id @default(uuid())
+  empresaId   String
+  lojaId      String
+  vendedorId  String
+  lessonId    String
+  status      StatusProgressoAcademia @default(IN_PROGRESS)
+  startedAt   DateTime                @default(now())
+  completedAt DateTime?
+  quizScore   Int?
+  quizPassed  Boolean?
+  updatedAt   DateTime                @updatedAt
+
+  vendedor Vendedor      @relation(fields: [vendedorId], references: [id])
+  aula     AcademyLesson @relation(fields: [lessonId], references: [id])
+
+  @@unique([vendedorId, lessonId])
+  @@map("academy_progress")
 }

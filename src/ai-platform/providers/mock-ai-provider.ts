@@ -31,6 +31,26 @@ interface ContextoTreinadorMinimo {
   request: { mode: string; objection: string | null; situation: string | null };
 }
 
+interface PersonaSimuladorMinima {
+  profile: string;
+  initialNeed: string;
+  hiddenNeeds: string[];
+  objections: string[];
+  behavior: string;
+}
+
+interface ContextoSimuladorClienteMinimo {
+  scenario: { title: string; objective: string };
+  persona: PersonaSimuladorMinima;
+  turnCount: number;
+}
+
+interface ContextoSimuladorAvaliacaoMinimo {
+  scenario: { title: string; objective: string };
+  criteria: string[];
+  transcript: { role: string; content: string }[];
+}
+
 export class MockAIProvider implements AIProvider {
   async generateResponse(input: GenerateResponseInput): Promise<GenerateResponseResult> {
     const inicio = Date.now();
@@ -46,11 +66,18 @@ export class MockAIProvider implements AIProvider {
       await new Promise((resolve) => setTimeout(resolve, 200));
     }
 
-    const especialista = input.metadata?.specialist as 'coach' | 'trainer' | undefined;
-    const content =
-      especialista === 'trainer'
-        ? gerarRespostaTreinador(ultimaMensagem, input.metadata?.context as ContextoTreinadorMinimo | undefined)
-        : gerarRespostaCoach(ultimaMensagem, input.metadata?.context as ContextoCoachMinimo | undefined);
+    const especialista = input.metadata?.specialist as 'coach' | 'trainer' | 'simulator' | undefined;
+    const modo = input.metadata?.mode as 'client' | 'evaluator' | undefined;
+    let content: string;
+    if (especialista === 'simulator' && modo === 'evaluator') {
+      content = gerarAvaliacaoSimulador(input.metadata?.context as ContextoSimuladorAvaliacaoMinimo | undefined);
+    } else if (especialista === 'simulator') {
+      content = gerarFalaClienteSimulador(input.metadata?.context as ContextoSimuladorClienteMinimo | undefined);
+    } else if (especialista === 'trainer') {
+      content = gerarRespostaTreinador(ultimaMensagem, input.metadata?.context as ContextoTreinadorMinimo | undefined);
+    } else {
+      content = gerarRespostaCoach(ultimaMensagem, input.metadata?.context as ContextoCoachMinimo | undefined);
+    }
 
     return {
       content,
@@ -146,4 +173,60 @@ function gerarRespostaTreinador(mensagemUsuario: string, contexto?: ContextoTrei
 
 function resumirConteudo(conteudo: string): string {
   return conteudo.length > 140 ? `${conteudo.slice(0, 140)}...` : conteudo;
+}
+
+// Fala do cliente simulado — determinística a partir da persona estruturada
+// (nunca inventada pelo mock): turno 0 é a abertura (initialNeed/behavior),
+// turnos seguintes percorrem as objeções cadastradas e, no final, uma
+// necessidade oculta — igual ao roteiro que o prompt real pede ao LLM pra
+// seguir (seção "personas determinísticas" da Fatia 6).
+function gerarFalaClienteSimulador(contexto?: ContextoSimuladorClienteMinimo): string {
+  if (!contexto) return 'Oi, será que vocês têm o que eu preciso?';
+
+  const { persona, turnCount } = contexto;
+  if (turnCount <= 0) return persona.initialNeed || persona.behavior || 'Oi, só estou dando uma olhada.';
+
+  const idxObjecao = turnCount - 1;
+  if (idxObjecao < persona.objections.length) return persona.objections[idxObjecao];
+
+  if (persona.hiddenNeeds.length > 0) return `Na verdade, o que eu realmente preciso é ${persona.hiddenNeeds[0]}.`;
+
+  return 'Entendi, faz sentido o que você está dizendo.';
+}
+
+// Avaliação determinística — nunca "dê uma nota final" livre: cada critério
+// relevante recebe um score derivado do tamanho real do transcript (prova
+// de grounding testável), nunca um número fixo arbitrário. O backend ainda
+// recalcula scoreFinal a partir destes critérios — o provider nunca decide
+// a nota final sozinho (seção "nota" da Fatia 6).
+function gerarAvaliacaoSimulador(contexto?: ContextoSimuladorAvaliacaoMinimo): string {
+  if (!contexto) {
+    return JSON.stringify({
+      scores: {},
+      strengths: [],
+      improvements: ['Sessão sem transcript suficiente para avaliar.'],
+      missedOpportunities: [],
+      betterExample: '',
+      summary: 'Não foi possível avaliar esta sessão.',
+    });
+  }
+
+  const turnosVendedor = contexto.transcript.filter((m) => m.role === 'VENDEDOR').length;
+  // Base 60 + até +30 conforme número de turnos (prática mais longa),
+  // limitado a 90 — nunca 100 automático, deixa espaço pro julgamento real.
+  const baseScore = Math.min(90, 60 + turnosVendedor * 6);
+
+  const scores: Record<string, number> = {};
+  for (const criterio of contexto.criteria) {
+    scores[criterio] = baseScore;
+  }
+
+  return JSON.stringify({
+    scores,
+    strengths: turnosVendedor >= 2 ? ['Manteve a conversa fluindo com a cliente'] : [],
+    improvements: ['Investigar mais a necessidade antes de argumentar'],
+    missedOpportunities: turnosVendedor < 3 ? ['Poderia ter oferecido um produto complementar'] : [],
+    betterExample: 'Entendi — me conta um pouco mais sobre o que você está buscando, assim consigo te ajudar melhor.',
+    summary: `Simulação "${contexto.scenario.title}" concluída com ${turnosVendedor} interações do vendedor.`,
+  });
 }

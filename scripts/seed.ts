@@ -3,6 +3,8 @@ import { PrismaClient } from '@prisma/client';
 import { REGUA_V1 } from '../src/gamificacao/regras.service';
 import { CATALOGO_BADGES_V1 } from '../src/gamificacao/badges.service';
 import { seedPlaybookInicialSeNaoExistir } from '../src/treinador/playbook-seed';
+import { seedCenariosSimulador } from '../src/simulador/scenario-seed';
+import { seedConteudoAcademia } from '../src/academia/content-seed';
 import { env } from '../src/config';
 
 const prisma = new PrismaClient();
@@ -122,6 +124,8 @@ async function main() {
   });
 
   const playbook = await seedPlaybookInicialSeNaoExistir(empresa.id, 'seed');
+  const totalCenarios = await seedCenariosSimulador();
+  const conteudoAcademia = await seedConteudoAcademia();
 
   console.log('Seed concluído:');
   console.log(`  Loja: codigoErpLoja=${loja.codigoErp}`);
@@ -130,6 +134,8 @@ async function main() {
   console.log('  Vendedor: matriculaErp=VEND002  senha=vendedor123');
   console.log('  Meta diária de VEND001: R$ 1000');
   console.log(`  Playbook: "${playbook.nome}" v${playbook.versao} (PUBLISHED)`);
+  console.log(`  Simulador: ${totalCenarios} cenários`);
+  console.log(`  Academia: ${conteudoAcademia.trilhas} trilhas, ${conteudoAcademia.aulas} aulas`);
 }
 
 main()

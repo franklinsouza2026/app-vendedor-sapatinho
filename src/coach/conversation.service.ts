@@ -160,6 +160,20 @@ export async function enviarMensagem(conversationId: string, vendedorId: string,
         })
       : await prisma.coachMessage.create({ data: { conversationId, role: 'USER', content } });
 
+    // Fecha uma janela de corrida estreita (achado LOW aceito na Fatia 4,
+    // revisitado na Fatia 6): entre o check de idempotência acima (antes do
+    // lock) e agora, outra chamada concorrente com a MESMA clientMessageId
+    // pode ter terminado de gerar a resposta — sem este re-check, esta
+    // chamada chamaria o provider de novo (custo duplicado) mesmo já
+    // existindo uma resposta pronta pra essa mensagem.
+    if (clientMessageId) {
+      const respostaJaGerada = await prisma.coachMessage.findFirst({
+        where: { conversationId, role: 'ASSISTANT', createdAt: { gt: mensagemUsuario.createdAt } },
+        orderBy: { createdAt: 'asc' },
+      });
+      if (respostaJaGerada) return respostaJaGerada;
+    }
+
     const contexto = await buildCoachContext(vendedorId);
     const systemPrompt = `${getSystemPrompt()}\n\n${formatarContextoParaPrompt(contexto)}`;
 

@@ -139,3 +139,157 @@ export interface MensagemTreinador {
   objection?: string | null;
   createdAt: string;
 }
+
+// --- Simulador de Atendimento (Fatia 6) ---
+
+export type DificuldadeSimulacao = 'EASY' | 'MEDIUM' | 'HARD';
+export type StatusSimulacao = 'CREATED' | 'ACTIVE' | 'COMPLETED' | 'EVALUATION_PENDING' | 'EVALUATED' | 'FAILED';
+export type RoleMensagemSimulacao = 'VENDEDOR' | 'CLIENTE';
+
+export interface CenarioSimulador {
+  id: string;
+  code: string;
+  title: string;
+  description: string;
+  category: string;
+  objective: string;
+  availableDifficulties: DificuldadeSimulacao[];
+}
+
+export interface SessaoSimulador {
+  id: string;
+  vendedorId: string;
+  scenarioId: string;
+  difficulty: DificuldadeSimulacao;
+  maxTurns: number;
+  status: StatusSimulacao;
+  turnCount: number;
+  reasonEnded?: string | null;
+  startedAt: string;
+  endedAt?: string | null;
+  evaluatedAt?: string | null;
+}
+
+export interface MensagemSimulador {
+  id: string;
+  sessionId: string;
+  role: RoleMensagemSimulacao;
+  content: string;
+  createdAt: string;
+}
+
+export interface AvaliacaoSimulador {
+  scoreFinal: number;
+  scores: Record<string, number>;
+  strengths: string[];
+  improvements: string[];
+  missedOpportunities: string[];
+  betterExample: string;
+  summary: string;
+}
+
+export interface SessaoDetalhadaSimulador {
+  sessao: SessaoSimulador;
+  mensagens: MensagemSimulador[];
+  avaliacao: AvaliacaoSimulador | null;
+}
+
+export interface HistoricoSimuladorItem {
+  id: string;
+  scenarioTitle: string;
+  category: string;
+  difficulty: DificuldadeSimulacao;
+  status: StatusSimulacao;
+  startedAt: string;
+  scoreFinal: number | null;
+}
+
+export interface EnviarMensagemSimuladorResultado {
+  mensagem: MensagemSimulador;
+  sessao: SessaoSimulador;
+}
+
+export interface ErroSimulador {
+  error: string;
+  type?: 'not_found' | 'message_too_long' | 'rate_limited' | 'budget_exceeded' | 'generation_in_progress' | 'invalid_state' | 'provider_unavailable';
+}
+
+// --- Academia de Vendas (Fatia 6) ---
+
+export type StatusProgressoAcademia = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
+
+export interface AulaResumo {
+  id: string;
+  code: string;
+  title: string;
+  estimatedMinutes: number;
+  hasQuiz: boolean;
+  status: StatusProgressoAcademia;
+}
+
+export interface TrilhaResumo {
+  id: string;
+  code: string;
+  title: string;
+  description: string;
+  aulas: AulaResumo[];
+}
+
+export interface PlaybookSecaoResumo {
+  category: string;
+  title: string;
+  content: string;
+  origin: 'OFICIAL' | 'DEMONSTRATIVO';
+}
+
+export interface AulaDetalhada {
+  id: string;
+  code: string;
+  title: string;
+  description: string;
+  content: string;
+  origem: 'OFICIAL' | 'DEMONSTRATIVO';
+  estimatedMinutes: number;
+  hasQuiz: boolean;
+  quizPassingScore: number | null;
+  status: StatusProgressoAcademia;
+  playbookRelacionado: PlaybookSecaoResumo[];
+}
+
+export interface QuizPergunta {
+  id: string;
+  question: string;
+  opcoes: { id: string; text: string }[];
+}
+
+export interface QuizParaResponder {
+  id: string;
+  passingScore: number;
+  perguntas: QuizPergunta[];
+}
+
+export interface ResultadoQuiz {
+  score: number;
+  passingScore: number;
+  passed: boolean;
+}
+
+export interface ProgressoTrilha {
+  id: string;
+  title: string;
+  totalAulas: number;
+  aulasConcluidas: number;
+  percentual: number;
+}
+
+export interface ProgressoGeral {
+  trilhas: ProgressoTrilha[];
+  totalAulas: number;
+  totalConcluidas: number;
+  percentualGeral: number;
+}
+
+export interface ErroAcademia {
+  error: string;
+  type?: 'not_found' | 'quiz_obrigatorio';
+}

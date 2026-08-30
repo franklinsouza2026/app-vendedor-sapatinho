@@ -12,6 +12,8 @@ import { gamificacaoRouter } from './routes/gamificacao';
 import { coachRouter } from './routes/coach';
 import { treinadorRouter } from './routes/treinador';
 import { playbookRouter } from './routes/playbook';
+import { simuladorRouter } from './routes/simulador';
+import { academiaRouter } from './routes/academia';
 import { apiRateLimit } from './middlewares/ratelimit';
 import { errorHandler } from './middlewares/error-handler';
 
@@ -30,5 +32,7 @@ app.use(gamificacaoRouter);
 app.use(coachRouter);
 app.use(treinadorRouter);
 app.use(playbookRouter);
+app.use(simuladorRouter);
+app.use(academiaRouter);
 
 app.use(errorHandler);
