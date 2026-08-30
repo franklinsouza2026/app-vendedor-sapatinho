@@ -21,7 +21,7 @@ test.describe('Jornada do vendedor', () => {
     await expect(page.getByText(/Dados atualizados às \d{2}:\d{2}/)).toBeVisible();
 
     // 3. Ranking
-    await page.getByRole('link', { name: 'Ranking' }).click();
+    await page.getByRole('link', { name: 'Ranking', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Ranking' })).toBeVisible();
     await expect(page.getByText('Vendedor Piloto')).toBeVisible();
 

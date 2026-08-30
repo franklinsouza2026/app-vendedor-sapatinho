@@ -27,8 +27,9 @@ test.describe('Jornada do Coach IA', () => {
     await page.getByRole('button', { name: 'Entrar' }).click();
     await expect(page.getByText('Meta hoje')).toBeVisible();
 
-    // 2. Home → abrir Coach
-    await page.getByText('Falar com o Coach').click();
+    // 2. Home → Evoluir → abrir Coach
+    await page.getByRole('link', { name: 'Evoluir', exact: true }).click();
+    await page.getByText('Coach', { exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Coach' })).toBeVisible();
 
     // 3. Check-in — mood não-negativo, sem disparar o fluxo especial de NOT_GOOD
@@ -64,9 +65,10 @@ test.describe('Jornada do Coach IA', () => {
     await page.getByLabel('Matrícula').fill('VEND002');
     await page.getByLabel('Senha').fill('vendedor123');
     await page.getByRole('button', { name: 'Entrar' }).click();
-    await expect(page.getByText('Falar com o Coach')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Evoluir', exact: true })).toBeVisible(); // landmark universal — VEND002 pode não ter meta cadastrada
 
-    await page.getByText('Falar com o Coach').click();
+    await page.getByRole('link', { name: 'Evoluir', exact: true }).click();
+    await page.getByText('Coach', { exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Coach' })).toBeVisible();
     await expect(page.getByText('Como você está chegando pra trabalhar hoje?')).toBeVisible(); // check-in ainda não feito por este vendedor hoje
     await expect(page.getByText(/Vamos organizar seu foco/)).not.toBeVisible();

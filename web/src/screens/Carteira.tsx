@@ -24,7 +24,11 @@ export function Carteira() {
 
       <Card className="text-center">
         <p className="text-sm text-slate-400">Saldo atual</p>
-        <p className="text-4xl font-bold text-accentSoft">🪙 {dados.carteira.saldoMoedas}</p>
+        <p className="mt-1 flex items-center justify-center gap-2 text-4xl font-bold text-accentSoft">
+          <span aria-hidden="true">🪙</span>
+          {dados.carteira.saldoMoedas}
+        </p>
+        <p className="mt-1 text-xs text-slate-500">VendaCoins</p>
       </Card>
 
       <h2 className="text-sm font-medium text-slate-400">Extrato</h2>
@@ -32,9 +36,9 @@ export function Carteira() {
       {dados.extrato.transacoes.length === 0 ? (
         <EmptyState texto="Nenhuma movimentação ainda." />
       ) : (
-        <Card className="divide-y divide-slate-700 p-0">
+        <div className="flex flex-col gap-2">
           {dados.extrato.transacoes.map((t) => (
-            <div key={t.id} className="flex items-center justify-between px-4 py-3">
+            <div key={t.id} className="flex items-center justify-between rounded-xl bg-surfaceRaised px-4 py-3">
               <div>
                 <p className="text-white">{labelEvento(t.tipoEvento)}</p>
                 <p className="text-xs text-slate-500">{formatarDataCurta(t.ocorridoEm)}</p>
@@ -45,7 +49,7 @@ export function Carteira() {
               </span>
             </div>
           ))}
-        </Card>
+        </div>
       )}
     </div>
   );

@@ -22,9 +22,10 @@ test.describe('Jornada da Academia de Vendas', () => {
     await page.getByLabel('Matrícula').fill('VEND001');
     await page.getByLabel('Senha').fill('vendedor123');
     await page.getByRole('button', { name: 'Entrar' }).click();
-    await expect(page.getByText('Falar com o Coach')).toBeVisible();
+    await expect(page.getByText('Meta hoje')).toBeVisible();
 
-    // 2. Home → abrir Academia
+    // 2. Home → Evoluir → abrir Academia
+    await page.getByRole('link', { name: 'Evoluir', exact: true }).click();
     await page.getByText('Academia', { exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Academia de Vendas' })).toBeVisible();
 
@@ -77,8 +78,9 @@ test.describe('Jornada da Academia de Vendas', () => {
     await page.getByLabel('Matrícula').fill('VEND002');
     await page.getByLabel('Senha').fill('vendedor123');
     await page.getByRole('button', { name: 'Entrar' }).click();
-    await expect(page.getByText('Falar com o Coach')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Evoluir', exact: true })).toBeVisible(); // landmark universal — VEND002 pode não ter meta cadastrada
 
+    await page.getByRole('link', { name: 'Evoluir', exact: true }).click();
     await page.getByText('Academia', { exact: true }).click();
     await expect(page.getByRole('button', { name: /Sondar antes de argumentar/ })).toContainText('não iniciada');
   });

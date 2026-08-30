@@ -13,6 +13,7 @@ import { Coach } from './screens/Coach';
 import { Treinador } from './screens/Treinador';
 import { Simulador } from './screens/Simulador';
 import { Academia } from './screens/Academia';
+import { Evoluir } from './screens/Evoluir';
 
 export function App() {
   return (
@@ -63,6 +64,7 @@ export function App() {
             <Route path="/conquistas" element={<Badges />} />
             <Route path="/perfil" element={<Perfil />} />
             <Route path="/academia" element={<Academia />} />
+            <Route path="/evoluir" element={<Evoluir />} />
           </Route>
         </Routes>
       </BrowserRouter>

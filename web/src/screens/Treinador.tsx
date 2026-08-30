@@ -98,9 +98,12 @@ export function Treinador() {
   if (erroCarregamento) return <ErrorState mensagem={erroCarregamento} onRetry={carregarTudo} />;
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="mx-auto flex h-full w-full max-w-md flex-col">
       <div className="flex-1 overflow-y-auto p-4 pb-4">
-        <h1 className="text-xl font-semibold text-white">Treinador de Vendas</h1>
+        <div className="flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-treinador" aria-hidden="true" />
+          <h1 className="text-xl font-semibold text-white">Treinador de Vendas</h1>
+        </div>
         <p className="mb-4 text-xs text-slate-400">Técnica de abordagem, objeções e o playbook da sua loja</p>
 
         {mensagens.length === 0 && (

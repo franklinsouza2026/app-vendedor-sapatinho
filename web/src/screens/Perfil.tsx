@@ -18,10 +18,15 @@ export function Perfil() {
 
   return (
     <div className="flex flex-col gap-4 p-4 pb-24">
-      <div>
-        <h1 className="text-xl font-semibold text-white">{sessao!.vendedor.nome}</h1>
-        <p className="text-sm text-slate-400">{sessao!.loja.nome}</p>
-        <p className="text-xs text-slate-600">{sessao!.empresa.nome}</p>
+      <div className="flex items-center gap-3">
+        <span className="flex h-14 w-14 items-center justify-center rounded-full bg-accent/20 text-xl font-bold text-accentSoft" aria-hidden="true">
+          {sessao!.vendedor.nome.charAt(0).toUpperCase()}
+        </span>
+        <div>
+          <h1 className="text-xl font-semibold text-white">{sessao!.vendedor.nome}</h1>
+          <p className="text-sm text-slate-400">{sessao!.loja.nome}</p>
+          <p className="text-xs text-slate-600">{sessao!.empresa.nome}</p>
+        </div>
       </div>
 
       {carregando && !dados && <LoadingState />}

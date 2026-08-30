@@ -29,7 +29,7 @@ export function Badges() {
       ) : (
         <div className="grid grid-cols-2 gap-3">
           {dados.map((b) => (
-            <Card key={b.id} className="text-center">
+            <Card key={b.id} className="border border-accentSoft/20 text-center">
               <p className="text-3xl">{ICONE_BADGE[b.codigo] ?? '🏅'}</p>
               <p className="mt-1 font-semibold text-white">{b.titulo}</p>
               <p className="text-xs text-slate-400">{b.descricao}</p>

@@ -46,7 +46,7 @@ export function Login() {
   }
 
   return (
-    <div className="flex min-h-full flex-col justify-center px-6 py-12">
+    <div className="mx-auto flex min-h-full w-full max-w-md flex-col justify-center px-6 py-12">
       <h1 className="mb-1 text-3xl font-bold text-white">Vendedor IA</h1>
       <p className="mb-8 text-slate-400">Sua meta, seu ranking, sua evolução — todo dia.</p>
 

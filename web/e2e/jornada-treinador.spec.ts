@@ -22,10 +22,11 @@ test.describe('Jornada do Treinador de Vendas', () => {
     await page.getByLabel('Matrícula').fill('VEND001');
     await page.getByLabel('Senha').fill('vendedor123');
     await page.getByRole('button', { name: 'Entrar' }).click();
-    await expect(page.getByText('Falar com o Coach')).toBeVisible();
+    await expect(page.getByText('Meta hoje')).toBeVisible();
 
-    // 2. Home → abrir Treinador
-    await page.getByText('Treinador de Vendas').click();
+    // 2. Home → Evoluir → abrir Treinador
+    await page.getByRole('link', { name: 'Evoluir', exact: true }).click();
+    await page.getByText('Treinador', { exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Treinador de Vendas' })).toBeVisible();
 
     // 3. Selecionar objeção "Está caro" — resposta deve citar a objeção real
@@ -42,7 +43,7 @@ test.describe('Jornada do Treinador de Vendas', () => {
 
     // 5. Navegar pra Home e voltar — histórico da conversa continua
     await page.goto('/');
-    await expect(page.getByText('Falar com o Coach')).toBeVisible();
+    await expect(page.getByText('Meta hoje')).toBeVisible();
     await page.goto('/treinador');
     await expect(page.getByText(/a cliente disse "Está caro"/)).toBeVisible();
     await expect(page.getByText(/Seu PA hoje está em/)).toBeVisible();
@@ -57,9 +58,10 @@ test.describe('Jornada do Treinador de Vendas', () => {
     await page.getByLabel('Matrícula').fill('VEND002');
     await page.getByLabel('Senha').fill('vendedor123');
     await page.getByRole('button', { name: 'Entrar' }).click();
-    await expect(page.getByText('Falar com o Coach')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Evoluir', exact: true })).toBeVisible(); // landmark universal — VEND002 pode não ter meta cadastrada
 
-    await page.getByText('Treinador de Vendas').click();
+    await page.getByRole('link', { name: 'Evoluir', exact: true }).click();
+    await page.getByText('Treinador', { exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Treinador de Vendas' })).toBeVisible();
     await expect(page.getByText('A cliente disse...')).toBeVisible(); // sem histórico -> mostra objeções/quick actions
     await expect(page.getByText(/a cliente disse "Está caro"/)).not.toBeVisible();

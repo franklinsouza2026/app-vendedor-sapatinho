@@ -44,7 +44,9 @@ export function Home() {
         <p className="text-xs text-slate-500">{sessao!.loja.nome}</p>
       </div>
 
-      <Card>
+      {/* Meta do dia — hero da Home: primeira coisa que o vendedor precisa
+          entender em segundos (seções 7/8 da auditoria de UX). */}
+      <Card className="border border-accent/20 shadow-lg shadow-accent/5">
         {dia.metaFaturamento === null ? (
           <p className="text-slate-400">Nenhuma meta de hoje cadastrada ainda.</p>
         ) : (
@@ -53,8 +55,8 @@ export function Home() {
               <span className="text-sm text-slate-400">Meta hoje</span>
               <span className="text-sm text-slate-400">{formatarPercentualCompacto(percentual)}</span>
             </div>
-            <p className="text-3xl font-bold text-white">{formatarMoeda(dia.realizado.faturamento)}</p>
-            <p className="mb-2 text-sm text-slate-400">de {formatarMoeda(dia.metaFaturamento)}</p>
+            <p className="text-4xl font-bold tracking-tight text-white">{formatarMoeda(dia.realizado.faturamento)}</p>
+            <p className="mb-3 text-sm text-slate-400">de {formatarMoeda(dia.metaFaturamento)}</p>
             <ProgressBar percentual={percentual} />
             {dia.faltaParaMeta !== null && dia.faltaParaMeta > 0 && (
               <p className="mt-3 text-sm text-slate-300">
@@ -73,81 +75,71 @@ export function Home() {
         )}
       </Card>
 
-      <div className="grid grid-cols-2 gap-3">
-        <Card>
-          <p className="text-xs text-slate-400">Ticket médio</p>
-          <p className="text-xl font-semibold text-white">{formatarMoeda(dia.realizado.ticketMedio)}</p>
-        </Card>
-        <Card>
-          <p className="text-xs text-slate-400">PA</p>
-          <p className="text-xl font-semibold text-white">{formatarNumero(dia.realizado.pa)}</p>
-        </Card>
-      </div>
-
-      <Card>
-        <p className="text-xs text-slate-400">Sua posição na loja hoje</p>
-        <p className="text-xl font-semibold text-white">
-          {posicao === null ? 'Ainda sem ranking hoje' : `${posicao}º de ${totalNoRanking}`}
-        </p>
-      </Card>
-
+      {/* Desempenho de hoje — PA, ticket e posição juntos, como uma unidade
+          de leitura só (antes eram 2 grids + 1 card separados). */}
       <div className="grid grid-cols-3 gap-3">
         <Card className="text-center">
-          <p className="text-lg">🔥</p>
-          <p className="font-semibold text-white">{streak.streakAtual}</p>
-          <p className="text-xs text-slate-400">dias seguidos</p>
+          <p className="text-xs text-slate-400">Ticket</p>
+          <p className="text-lg font-semibold text-white">{formatarMoeda(dia.realizado.ticketMedio)}</p>
         </Card>
         <Card className="text-center">
-          <p className="text-lg">⭐</p>
-          <p className="font-semibold text-white">{carteira.nivel.nome}</p>
-          <p className="text-xs text-slate-400">nível {carteira.nivel.nivel}</p>
+          <p className="text-xs text-slate-400">PA</p>
+          <p className="text-lg font-semibold text-white">{formatarNumero(dia.realizado.pa)}</p>
         </Card>
         <Card className="text-center">
-          <p className="text-lg">🪙</p>
-          <p className="font-semibold text-white">{carteira.saldoMoedas}</p>
-          <p className="text-xs text-slate-400">moedas</p>
+          <p className="text-xs text-slate-400">Posição</p>
+          <p className="text-lg font-semibold text-white">{posicao === null ? '—' : `${posicao}º`}</p>
         </Card>
       </div>
+      {/* texto de apoio pro teste/leitor de tela — mantém a frase completa
+          "1º de N"/"Ainda sem ranking hoje" sem duplicar o número grande acima */}
+      <p className="-mt-2 text-center text-xs text-slate-500">
+        <span>{posicao === null ? 'Ainda sem ranking hoje' : `${posicao}º de ${totalNoRanking}`}</span> na loja hoje ·{' '}
+        <Link to="/ranking" className="text-accentSoft">
+          ver ranking
+        </Link>
+      </p>
 
-      <Link to="/coach">
-        <Card className="flex items-center gap-3">
-          <span className="text-2xl">💬</span>
-          <div>
-            <p className="font-medium text-white">Falar com o Coach</p>
-            <p className="text-xs text-slate-400">Foco, evolução e como você está chegando hoje</p>
-          </div>
-        </Card>
-      </Link>
-
-      <Link to="/treinador">
-        <Card className="flex items-center gap-3 border border-emerald-800/50">
-          <span className="text-2xl">🎯</span>
-          <div>
-            <p className="font-medium text-white">Treinador de Vendas</p>
-            <p className="text-xs text-slate-400">Objeções, abordagem e técnica — com o playbook da loja</p>
-          </div>
-        </Card>
-      </Link>
-
-      <div>
-        <p className="mb-2 text-sm font-medium text-slate-300">Evoluir</p>
-        <div className="grid grid-cols-2 gap-3">
-          <Link to="/simulador">
-            <Card className="flex flex-col items-center gap-1 text-center">
-              <span className="text-2xl">🎭</span>
-              <p className="text-sm font-medium text-white">Simulador</p>
-              <p className="text-xs text-slate-400">Treine com uma cliente simulada</p>
-            </Card>
-          </Link>
-          <Link to="/academia">
-            <Card className="flex flex-col items-center gap-1 text-center">
-              <span className="text-2xl">🎓</span>
-              <p className="text-sm font-medium text-white">Academia</p>
-              <p className="text-xs text-slate-400">Trilhas curtas e quiz</p>
-            </Card>
-          </Link>
+      {/* Gamificação resumida — nível com progresso, moedas e streak juntos */}
+      <Card>
+        <div className="flex items-center justify-between">
+          <span className="font-semibold text-white">{carteira.nivel.nome}</span>
+          <span className="text-sm text-slate-400">Nível {carteira.nivel.nivel}</span>
         </div>
-      </div>
+        {carteira.nivel.xpProximoNivel !== null && (
+          <div className="mt-2">
+            <ProgressBar percentual={(carteira.nivel.xpAtual / carteira.nivel.xpProximoNivel) * 100} />
+          </div>
+        )}
+        <div className="mt-3 flex justify-between text-center">
+          <div className="flex-1">
+            <p className="text-lg">🪙</p>
+            <p className="font-semibold text-white">{carteira.saldoMoedas}</p>
+            <p className="text-xs text-slate-400">moedas</p>
+          </div>
+          <div className="flex-1">
+            <p className="text-lg">🔥</p>
+            <p className="font-semibold text-white">{streak.streakAtual}</p>
+            <p className="text-xs text-slate-400">dias seguidos</p>
+          </div>
+        </div>
+      </Card>
+
+      {/* Ponto único de entrada pro Coach/Treinador/Simulador/Academia —
+          detalhe fica no hub /evoluir (também acessível pelo bottom nav),
+          evitando repetir 4 cards de peso igual aqui na Home. */}
+      <Link to="/evoluir">
+        <Card className="flex items-center gap-3">
+          <span className="text-2xl">🚀</span>
+          <div className="flex-1">
+            <p className="font-medium text-white">Evoluir</p>
+            <p className="text-xs text-slate-400">Coach · Treinador · Simulador · Academia</p>
+          </div>
+          <span className="text-slate-500" aria-hidden="true">
+            →
+          </span>
+        </Card>
+      </Link>
 
       {atualizadoEm && <p className="text-center text-xs text-slate-600">Dados atualizados às {formatarHora(atualizadoEm)}</p>}
     </div>

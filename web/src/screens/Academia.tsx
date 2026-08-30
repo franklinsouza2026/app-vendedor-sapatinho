@@ -121,7 +121,7 @@ export function Academia() {
     const todasRespondidas = quiz.perguntas.every((p) => respostas[p.id]);
 
     return (
-      <div className="flex h-full flex-col overflow-y-auto p-4 pb-24">
+      <div className="flex flex-col p-4 pb-24">
         <button onClick={() => setView('aula')} className="mb-3 self-start text-sm text-slate-400">
           ← Voltar
         </button>
@@ -186,7 +186,7 @@ export function Academia() {
 
   if (view === 'aula' && aula) {
     return (
-      <div className="flex h-full flex-col overflow-y-auto p-4 pb-24">
+      <div className="flex flex-col p-4 pb-24">
         <button onClick={voltarParaTrilhas} className="mb-3 self-start text-sm text-slate-400">
           ← Voltar
         </button>
@@ -237,8 +237,11 @@ export function Academia() {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto p-4 pb-24">
-      <h1 className="text-xl font-semibold text-white">Academia de Vendas</h1>
+    <div className="flex flex-col p-4 pb-24">
+      <div className="flex items-center gap-2">
+        <span className="h-2 w-2 rounded-full bg-academia" aria-hidden="true" />
+        <h1 className="text-xl font-semibold text-white">Academia de Vendas</h1>
+      </div>
       <p className="mb-4 text-xs text-slate-400">Trilhas curtas de técnica de venda, com quiz pra fixar</p>
 
       <div className="flex flex-col gap-4">

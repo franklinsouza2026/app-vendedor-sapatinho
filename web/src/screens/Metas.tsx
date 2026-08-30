@@ -32,7 +32,7 @@ export function Metas() {
 
   return (
     <div className="flex flex-col gap-4 p-4 pb-24">
-      <h1 className="text-xl font-semibold text-white">Minhas Metas</h1>
+      <h1 className="text-xl font-semibold text-white">Performance</h1>
 
       <div className="flex gap-2" role="tablist">
         {ABAS.map((aba) => (

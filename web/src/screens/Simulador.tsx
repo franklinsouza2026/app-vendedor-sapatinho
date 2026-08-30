@@ -155,7 +155,7 @@ export function Simulador() {
 
   if (view === 'historico') {
     return (
-      <div className="flex h-full flex-col overflow-y-auto p-4 pb-24">
+      <div className="mx-auto flex h-full w-full max-w-md flex-col overflow-y-auto p-4 pb-24">
         <button onClick={voltarParaLista} className="mb-3 self-start text-sm text-slate-400">
           ← Voltar
         </button>
@@ -182,7 +182,7 @@ export function Simulador() {
 
   if (view === 'dificuldade' && cenarioEscolhido) {
     return (
-      <div className="flex h-full flex-col p-4 pb-24">
+      <div className="mx-auto flex h-full w-full max-w-md flex-col p-4 pb-24">
         <button onClick={() => setView('lista')} className="mb-3 self-start text-sm text-slate-400">
           ← Voltar
         </button>
@@ -208,7 +208,7 @@ export function Simulador() {
     const encerrada = sessao.status !== 'ACTIVE' && sessao.status !== 'CREATED';
 
     return (
-      <div className="flex h-full flex-col">
+      <div className="mx-auto flex h-full w-full max-w-md flex-col">
         <div className="flex-1 overflow-y-auto p-4 pb-4">
           <div className="mb-1 flex items-center justify-between">
             <span className="rounded-full bg-amber-900/40 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300">
@@ -227,7 +227,7 @@ export function Simulador() {
               <div key={m.id} className={`flex ${m.role === 'VENDEDOR' ? 'justify-end' : 'justify-start'}`}>
                 <div
                   className={`max-w-[85%] rounded-2xl px-4 py-2 ${
-                    m.role === 'VENDEDOR' ? 'bg-emerald-700 text-white' : 'bg-surface text-slate-100'
+                    m.role === 'VENDEDOR' ? 'bg-simulador text-white' : 'bg-surface text-slate-100'
                   }`}
                 >
                   <p className="whitespace-pre-wrap break-words">{m.content}</p>
@@ -281,7 +281,7 @@ export function Simulador() {
               <button
                 type="submit"
                 disabled={enviando || !texto.trim()}
-                className="rounded-full bg-emerald-700 px-4 py-2 font-medium text-white disabled:opacity-50"
+                className="rounded-full bg-simulador px-4 py-2 font-medium text-white disabled:opacity-50"
               >
                 Enviar
               </button>
@@ -300,8 +300,11 @@ export function Simulador() {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto p-4 pb-24">
-      <h1 className="text-xl font-semibold text-white">Simulador de Atendimento</h1>
+    <div className="mx-auto flex h-full w-full max-w-md flex-col overflow-y-auto p-4 pb-24">
+      <div className="flex items-center gap-2">
+        <span className="h-2 w-2 rounded-full bg-simulador" aria-hidden="true" />
+        <h1 className="text-xl font-semibold text-white">Simulador de Atendimento</h1>
+      </div>
       <p className="mb-4 text-xs text-slate-400">Pratique com uma cliente simulada e receba uma avaliação ao final</p>
 
       <button onClick={abrirHistorico} className="mb-4 self-start text-sm text-accent">
