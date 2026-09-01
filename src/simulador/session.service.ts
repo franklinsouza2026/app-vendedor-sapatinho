@@ -18,6 +18,8 @@ import { formatarContextoCliente, formatarContextoAvaliacao } from './prompts/co
 import { normalizarAvaliacao } from './evaluation.service';
 import { verificarRateLimitDiario } from './limites.service';
 import { concederRecompensaTreinamento } from '../gamificacao/treinamento.service';
+import { gerarEvidenciaDeSimulacao } from '../universidade/evidence.service';
+import { concluirItemPDIPorConteudo } from '../universidade/pdi.service';
 import { createLogger } from '../utils/logger';
 
 const log = createLogger('simulador:sessao');
@@ -402,6 +404,13 @@ async function finalizarEAvaliar(sessionId: string, motivo: string, apenasRetryA
       idempotencyKey: `treinamento-simulacao-${sessionId}`,
     });
   }
+
+  // Universidade (Fatia 7.5E) — evidência de competência com o scoreFinal
+  // já calculado acima (nunca a nota "achada" pelo LLM sem validação,
+  // seção 24); best-effort, e PDI conclui independente do mínimo de turnos
+  // da recompensa (é um domínio separado, seção 23).
+  await gerarEvidenciaDeSimulacao(sessao.vendedorId, sessao.scenarioId, sessionId, normalizada.scoreFinal);
+  await concluirItemPDIPorConteudo(sessao.vendedorId, 'SIMULATION', sessao.scenarioId);
 
   return sessaoEvaluated;
 }

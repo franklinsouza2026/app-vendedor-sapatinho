@@ -19,6 +19,9 @@ import { adminRouter } from './routes/admin';
 import { adminAiRouter } from './routes/admin-ai';
 import { adminTrainingRouter } from './routes/admin-training';
 import { adminTrainingAiRouter } from './routes/admin-training-ai';
+import { universidadeSellerRouter } from './routes/universidade-seller';
+import { universidadeManagerRouter } from './routes/universidade-manager';
+import { universidadeAdminRouter } from './routes/universidade-admin';
 import { apiRateLimit } from './middlewares/ratelimit';
 import { errorHandler } from './middlewares/error-handler';
 
@@ -44,5 +47,8 @@ app.use(adminRouter);
 app.use(adminAiRouter);
 app.use(adminTrainingRouter);
 app.use(adminTrainingAiRouter);
+app.use(universidadeSellerRouter);
+app.use(universidadeManagerRouter);
+app.use(universidadeAdminRouter);
 
 app.use(errorHandler);

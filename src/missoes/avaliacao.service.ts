@@ -19,6 +19,8 @@ import { prisma } from '../db';
 import { avaliarCriterio, avaliarCriterioDesafio } from './criterio.service';
 import { concederBonusMissao } from './recompensa.service';
 import { createLogger } from '../utils/logger';
+import { gerarEvidenciaDeMissao } from '../universidade/evidence.service';
+import { concluirItemPDIPorConteudo } from '../universidade/pdi.service';
 
 const log = createLogger('missoes:avaliacao');
 
@@ -67,6 +69,12 @@ export async function avaliarMissoesDoVendedor(vendedorId: string, agora: Date =
       referenciaId: assignment.id,
       idempotencyKey: `missao-${assignment.id}`,
     });
+
+    // Universidade (Fatia 7.5E, seção 25) — só gera evidência se a missão
+    // foi explicitamente mapeada a alguma competência; reward e evidence
+    // continuam domínios separados (seção 23).
+    await gerarEvidenciaDeMissao(vendedorId, assignment.definicao.id, assignment.id);
+    await concluirItemPDIPorConteudo(vendedorId, 'MISSION', assignment.definicao.id);
   }
 }
 

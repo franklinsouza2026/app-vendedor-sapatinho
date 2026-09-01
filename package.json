@@ -22,6 +22,7 @@
     "reset:admin-ia-e2e": "tsx scripts/reset-admin-ia-e2e.ts",
     "reset:admin-training-e2e": "tsx scripts/reset-admin-training-e2e.ts",
     "reset:training-ia-e2e": "tsx scripts/reset-training-ia-e2e.ts",
+    "reset:universidade-e2e": "tsx scripts/reset-universidade-e2e.ts",
     "test": "vitest run",
     "lint": "tsc --noEmit"
   },

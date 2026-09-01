@@ -8,6 +8,8 @@ import { prisma } from '../db';
 import { getSecoesPorCategorias } from '../treinador/playbook.service';
 import { concederRecompensaTreinamento, recompensaTreinamentoJaConcedida } from '../gamificacao/treinamento.service';
 import { createLogger } from '../utils/logger';
+import { gerarEvidenciaDeConclusao } from '../universidade/evidence.service';
+import { concluirItemPDIPorConteudo } from '../universidade/pdi.service';
 
 const log = createLogger('academia:aula');
 
@@ -110,6 +112,13 @@ export async function concluirAula(lessonId: string, vendedorId: string) {
       idempotencyKey,
     });
     log.info({ vendedorId, lessonId }, 'aula da Academia concluída — recompensa concedida (1ª vez)');
+
+    // Universidade (Fatia 7.5E) — evidência de competência (best-effort,
+    // nunca bloqueia a conclusão) + progresso de PDI, só na 1ª conclusão
+    // real (mesmo idempotencyKey da recompensa — reward e evidence são
+    // domínios separados, mas ambos só fazem sentido "na primeira vez").
+    await gerarEvidenciaDeConclusao(vendedorId, lessonId);
+    await concluirItemPDIPorConteudo(vendedorId, 'LESSON', lessonId);
   }
 
   return progresso;

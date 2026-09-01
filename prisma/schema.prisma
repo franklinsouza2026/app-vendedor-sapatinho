@@ -850,6 +850,10 @@ model SimulationScenario {
   maxTurnsPorDificuldade Json     @default("{\"EASY\":8,\"MEDIUM\":11,\"HARD\":15}")
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
+  // Universidade (Fatia 7.5E, seção 21) — competências que este cenário mede;
+  // gera CompetencyEvidence (sourceType SIMULATION) quando a avaliação
+  // termina, usando o scoreFinal já calculado pelo backend.
+  competencyIds          Json     @default("[]")
 
   sessoes SimulationSession[]
 
@@ -1008,6 +1012,11 @@ enum DificuldadeQuestao {
   SITUACIONAL
 }
 
+enum TipoQuiz {
+  REGULAR
+  DIAGNOSTIC
+}
+
 // Catálogo GLOBAL (mesmo raciocínio de SimulationScenario/Badge). Conteúdo
 // específico da empresa nunca é duplicado aqui — a aula só referencia uma
 // categoria do Playbook (playbookCategoria); o texto oficial da empresa
@@ -1035,10 +1044,22 @@ model AcademyTrack {
   createdBy       String?
   approvedBy      String?
   publishedAt     DateTime?
+  // Universidade (Fatia 7.5E) — vínculo opcional a uma Escola (seção 4);
+  // scalar solto (sem @relation), mesmo padrão de `trainingJobId` da Fatia
+  // 7.5D, pra não acoplar o modelo do CMS ao da Universidade. Trilha sem
+  // escolaId continua funcionando normalmente (nunca obrigatório).
+  escolaId        String?
+  // Onboarding (seção 51) — trilha marcada aparece priorizada em "Para Você"
+  // pro vendedor recém-ativado, nunca bloqueia login nem é atribuída à força.
+  onboarding      Boolean         @default(false)
+  // Content → Competency mapping (seção 19) — array de ids de Competency,
+  // validados pelo service ao gravar (nunca um id solto sem checagem).
+  competencyIds   Json            @default("[]")
 
   aulas AcademyLesson[]
 
   @@index([status, audience])
+  @@index([escolaId])
   @@map("academy_track")
 }
 
@@ -1082,6 +1103,10 @@ model AcademyLesson {
   // veio, quando origemEditorial é AI_RESEARCHED/AI_GENERATED. Sempre null
   // pra aulas criadas manualmente pelo Admin (imensa maioria).
   trainingJobId   String?
+  // Content → Competency mapping (Fatia 7.5E, seção 19) — usado pra gerar
+  // CompetencyEvidence quando o vendedor conclui a aula (seção 22: score
+  // conservador, peso baixo — concluir nunca significa "dominar").
+  competencyIds   Json             @default("[]")
 
   track     AcademyTrack      @relation(fields: [trackId], references: [id])
   quiz      AcademyQuiz?
@@ -1104,6 +1129,10 @@ model AcademyQuiz {
   // foi) — só quizzes novos que o Admin configurar explicitamente com um
   // banco maior que o quiz ganham seleção aleatória por tentativa.
   questionsPerAttempt Int?
+  // Universidade (Fatia 7.5E, seção 53) — quiz DIAGNOSTIC gera evidence
+  // sourceType DIAGNOSTIC_ASSESSMENT (baseline) em vez de QUIZ regular;
+  // mesmo cálculo de score, só a proveniência da evidência muda.
+  tipo                TipoQuiz @default(REGULAR)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
@@ -1137,6 +1166,10 @@ model AcademyQuestion {
   // ativá-la explicitamente. `trainingJobId` rastreia o job de origem.
   origemEditorial OrigemEditorial    @default(ADMIN_CURATED)
   trainingJobId   String?
+  // Universidade (Fatia 7.5E, seção 20) — usado pelo Spaced Repetition
+  // (seção 41): errar esta questão agenda revisão pro(s) conceito(s)/
+  // competência(s) ligados a ela, nunca pra competência inteira do quiz.
+  competencyIds   Json               @default("[]")
 
   quiz   AcademyQuiz     @relation(fields: [quizId], references: [id])
   opcoes AcademyOption[]
@@ -1447,6 +1480,11 @@ model MissionDefinition {
   version         Int             @default(1)
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
+  // Universidade (Fatia 7.5E, seção 25) — só gera CompetencyEvidence quando
+  // explicitamente mapeada (nunca qualquer missão vira "evidência de
+  // competência" por padrão); score conservador, peso baixo (mesma lógica
+  // de TRAINING_COMPLETION, seção 22).
+  competencyIds   Json            @default("[]")
 
   atribuicoes MissionAssignment[]
 
@@ -1619,4 +1657,291 @@ model AuditEvent {
   @@index([empresaId, createdAt])
   @@index([targetId])
   @@map("audit_event")
+}
+
+// ===== Fatia 7.5E — Universidade de Vendas e Liderança =====
+// Catálogo global (sem empresaId), mesmo raciocínio de AcademyTrack/
+// SimulationScenario/MissionDefinition/MandamentoOficial — reafirma a
+// Decisão 1 do vault ("1 empresa por deployment"). Referências a
+// Vendedor.id (subjectUserId/userId/authorId) são SEMPRE scalars soltos,
+// sem `@relation` formal — mesmo padrão de `trainingJobId` (Fatia 7.5D):
+// evita inflar o modelo Vendedor com mais um `@relation` por tabela nova de
+// alto volume/append-only; a integridade é garantida pelo service, nunca
+// pela FK do banco.
+
+model EscolaUniversidade {
+  id          String          @id @default(uuid())
+  code        String          @unique
+  name        String
+  description String          @db.Text
+  audience    PublicoConteudo @default(BOTH)
+  sortOrder   Int             @default(0)
+  active      Boolean         @default(true)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@map("escola_universidade")
+}
+
+enum StatusCompetencia {
+  ACTIVE
+  ARCHIVED
+}
+
+// Taxonomia administrável (seção 5) — nunca hardcoded na lógica de negócio;
+// os catálogos iniciais de vendedor/gerente (seções 6/7) são seed, não um
+// universo fechado no código.
+model Competency {
+  id          String            @id @default(uuid())
+  code        String            @unique
+  name        String
+  description String            @db.Text
+  audience    PublicoConteudo   @default(SELLER)
+  category    String?
+  status      StatusCompetencia @default(ACTIVE)
+  version     Int               @default(1)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  targets    CompetencyTarget[]
+  evidences  CompetencyEvidence[]
+  planos     DevelopmentPlan[]
+  avaliacoes ManagerAssessment[]
+
+  @@map("competency")
+}
+
+// Target por papel (seção 16) — default conservador documentado (70), nunca
+// tratado como verdade de negócio absoluta; Admin ajusta por competência.
+model CompetencyTarget {
+  id           String   @id @default(uuid())
+  competencyId String
+  papel        Papel
+  targetScore  Int      @default(70)
+  version      Int      @default(1)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  competencia Competency @relation(fields: [competencyId], references: [id])
+
+  @@unique([competencyId, papel])
+  @@map("competency_target")
+}
+
+enum TipoFonteEvidencia {
+  QUIZ
+  SIMULATION
+  TRAINING_COMPLETION
+  MISSION
+  PERFORMANCE
+  MANAGER_ASSESSMENT
+  CERTIFICATION
+  RECERTIFICATION
+  DIAGNOSTIC_ASSESSMENT
+}
+
+// Evidência é IMUTÁVEL por convenção de serviço (seção 9) — nenhuma função
+// de update é exposta; uma correção sempre nasce como uma NOVA linha, nunca
+// sobrescreve uma existente. Score 0-100 (seção 10) — nunca confundir com o
+// Score Geral 0-1000 da Gamificação (motor totalmente diferente).
+model CompetencyEvidence {
+  id                   String             @id @default(uuid())
+  subjectUserId        String
+  competencyId         String
+  sourceType           TipoFonteEvidencia
+  sourceId             String?
+  normalizedScore      Int
+  weightProfileVersion Int                @default(1)
+  occurredAt           DateTime           @default(now())
+  validUntil           DateTime?
+  metadata             Json?
+  createdAt            DateTime           @default(now())
+
+  competencia Competency @relation(fields: [competencyId], references: [id])
+
+  @@index([subjectUserId, competencyId])
+  @@index([competencyId])
+  @@map("competency_evidence")
+}
+
+enum StatusPDI {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+model DevelopmentPlan {
+  id            String    @id @default(uuid())
+  subjectUserId String
+  competencyId  String
+  baselineScore Int?
+  targetScore   Int
+  status        StatusPDI @default(ACTIVE)
+  createdBy     String
+  startedAt     DateTime  @default(now())
+  targetDate    DateTime?
+  completedAt   DateTime?
+  version       Int       @default(1)
+  updatedAt     DateTime  @updatedAt
+
+  competencia Competency            @relation(fields: [competencyId], references: [id])
+  itens       DevelopmentPlanItem[]
+
+  @@index([subjectUserId, status])
+  @@map("development_plan")
+}
+
+enum TipoItemPDI {
+  LESSON
+  TRACK
+  QUIZ
+  SIMULATION
+  MISSION
+  PRACTICE
+  MANAGER_ACTION
+  REVIEW
+}
+
+enum StatusItemPDI {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  SKIPPED
+}
+
+model DevelopmentPlanItem {
+  id          String        @id @default(uuid())
+  planId      String
+  tipo        TipoItemPDI
+  sourceId    String?
+  sortOrder   Int           @default(0)
+  required    Boolean       @default(true)
+  status      StatusItemPDI @default(PENDING)
+  completedAt DateTime?
+  createdAt   DateTime      @default(now())
+
+  plano DevelopmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([planId])
+  @@map("development_plan_item")
+}
+
+// Nunca atualizada (seção 28) — uma correção é sempre uma nova avaliação
+// (version incrementada), a anterior nunca é sobrescrita/apagada.
+model ManagerAssessment {
+  id            String   @id @default(uuid())
+  subjectUserId String
+  competencyId  String
+  authorId      String
+  rating        Int
+  evidenceNote  String?  @db.Text
+  version       Int      @default(1)
+  createdAt     DateTime @default(now())
+
+  competencia Competency @relation(fields: [competencyId], references: [id])
+
+  @@index([subjectUserId, competencyId])
+  @@map("manager_assessment")
+}
+
+enum StatusRevisao {
+  PENDING
+  DONE
+  SKIPPED
+}
+
+// Spaced Repetition (seção 40-44) — hoje só sourceType 'QUESTION'
+// (AcademyQuestion.id); algoritmo determinístico simples (seção 42),
+// documentado em spaced-repetition.service.ts.
+model ReviewSchedule {
+  id            String        @id @default(uuid())
+  userId        String
+  competencyId  String?
+  sourceType    String        @default("QUESTION")
+  sourceId      String
+  nextReviewAt  DateTime
+  intervalStage Int           @default(0)
+  status        StatusRevisao @default(PENDING)
+  lastResult    Boolean?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@unique([userId, sourceType, sourceId])
+  @@index([userId, status, nextReviewAt])
+  @@map("review_schedule")
+}
+
+// Lifecycle reaproveita StatusConteudo (mesma disciplina do CMS, Fatia
+// 7.5C) — certificação é conteúdo administrável como qualquer outro.
+model CertificationDefinition {
+  id             String          @id @default(uuid())
+  code           String          @unique
+  name           String
+  description    String          @db.Text
+  audience       PublicoConteudo @default(SELLER)
+  status         StatusConteudo  @default(DRAFT)
+  version        Int             @default(1)
+  validityMonths Int?
+  createdBy      String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  requisitos CertificationRequirement[]
+  emissoes   UserCertification[]
+
+  @@map("certification_definition")
+}
+
+enum TipoRequisitoCertificacao {
+  TRACK
+  LESSON
+  QUIZ_MIN_SCORE
+  SIMULATION
+  COMPETENCY_TARGET
+  MANDAMENTOS_COMPLETOS
+}
+
+model CertificationRequirement {
+  id           String                    @id @default(uuid())
+  definitionId String
+  tipo         TipoRequisitoCertificacao
+  refId        String?
+  minScore     Int?
+  createdAt    DateTime                  @default(now())
+
+  definicao CertificationDefinition @relation(fields: [definitionId], references: [id], onDelete: Cascade)
+
+  @@index([definitionId])
+  @@map("certification_requirement")
+}
+
+enum StatusUserCertificacao {
+  VALID
+  EXPIRING
+  EXPIRED
+}
+
+// Idempotência da emissão (seção 48): @@unique garante 1 emissão por
+// (usuário, definição, versão) — 2 requests concorrentes nunca duplicam
+// (create + catch P2002, mesmo padrão desde a Fatia 4). Recertificação
+// (seção 49) é uma NOVA linha (nova definitionVersion), histórico nunca
+// apagado.
+model UserCertification {
+  id                String                 @id @default(uuid())
+  userId            String
+  definitionId      String
+  definitionVersion Int
+  issuedAt          DateTime               @default(now())
+  expiresAt         DateTime?
+  status            StatusUserCertificacao @default(VALID)
+  evidenceSnapshot  Json
+  createdAt         DateTime               @default(now())
+
+  definicao CertificationDefinition @relation(fields: [definitionId], references: [id])
+
+  @@unique([userId, definitionId, definitionVersion])
+  @@index([userId])
+  @@map("user_certification")
 }

@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 const ITENS = [
   { to: '/admin/usuarios', label: 'Usuários' },
   { to: '/admin/treinamento', label: 'Treinamento' },
+  { to: '/admin/universidade', label: 'Universidade' },
   { to: '/admin/ai', label: 'IA' },
 ];
 

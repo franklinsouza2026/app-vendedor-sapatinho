@@ -14,6 +14,9 @@ import { Treinador } from './screens/Treinador';
 import { Simulador } from './screens/Simulador';
 import { Academia } from './screens/Academia';
 import { Evoluir } from './screens/Evoluir';
+import { Universidade } from './screens/Universidade';
+import { Revisao } from './screens/Revisao';
+import { Equipe } from './screens/Equipe';
 import { Missoes } from './screens/Missoes';
 import { Ativacao } from './screens/Ativacao';
 import { AlterarSenha } from './screens/AlterarSenha';
@@ -22,6 +25,7 @@ import { AdminUsuarioDetalhe } from './screens/admin/AdminUsuarioDetalhe';
 import { AdminNovoVendedor } from './screens/admin/AdminNovoVendedor';
 import { AdminIA } from './screens/admin/AdminIA';
 import { AdminTreinamento } from './screens/admin/AdminTreinamento';
+import { AdminUniversidade } from './screens/admin/AdminUniversidade';
 
 export function App() {
   return (
@@ -72,6 +76,14 @@ export function App() {
               </RequireAuth>
             }
           />
+          <Route
+            path="/admin/universidade"
+            element={
+              <RequireAuth papeis={['ADMIN']}>
+                <AdminUniversidade />
+              </RequireAuth>
+            }
+          />
           {/* Coach fica fora do Layout (sem bottom nav) — tela de chat ocupa a
               altura inteira, com input fixo embaixo; bottom nav junto quebraria
               esse layout. */}
@@ -118,6 +130,9 @@ export function App() {
             <Route path="/academia" element={<Academia />} />
             <Route path="/evoluir" element={<Evoluir />} />
             <Route path="/missoes" element={<Missoes />} />
+            <Route path="/universidade" element={<Universidade />} />
+            <Route path="/universidade/revisao" element={<Revisao />} />
+            <Route path="/equipe" element={<Equipe />} />
           </Route>
         </Routes>
       </BrowserRouter>

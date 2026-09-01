@@ -1,7 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { Evoluir } from './Evoluir';
+import * as universidadeApi from '../api/universidade';
+
+vi.mock('../api/universidade');
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.mocked(universidadeApi.buscarParaVoce).mockResolvedValue({ itens: [] });
+});
 
 function renderEvoluir() {
   return render(
@@ -26,5 +34,19 @@ describe('Evoluir', () => {
     expect(treinador).toHaveAttribute('href', '/treinador');
     expect(simulador).toHaveAttribute('href', '/simulador');
     expect(academia).toHaveAttribute('href', '/academia');
+  });
+
+  it('mostra o módulo Universidade', () => {
+    renderEvoluir();
+    const universidade = screen.getByText('Universidade', { exact: true }).closest('a');
+    expect(universidade).toHaveAttribute('href', '/universidade');
+  });
+
+  it('mostra a seção "Para você" só quando há itens', async () => {
+    vi.mocked(universidadeApi.buscarParaVoce).mockResolvedValue({
+      itens: [{ tipo: 'REVIEW', titulo: 'Revisar objeções', descricao: 'Você errou uma questão recentemente', refId: 'review', href: '/universidade/revisao' }],
+    });
+    renderEvoluir();
+    expect(await screen.findByText('Revisar objeções')).toBeInTheDocument();
   });
 });

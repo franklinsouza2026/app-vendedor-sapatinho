@@ -100,6 +100,16 @@ export function Perfil() {
         </Link>
       )}
 
+      {sessao!.vendedor.papel === 'GERENTE' && (
+        <Link
+          to="/equipe"
+          className="flex min-h-[44px] items-center justify-between rounded-lg bg-surface px-4 py-3 text-sm text-slate-300 active:opacity-80"
+        >
+          <span>Minha Equipe</span>
+          <span aria-hidden="true">→</span>
+        </Link>
+      )}
+
       <button
         onClick={() => logout()}
         className="mt-4 rounded-lg border border-slate-700 py-3 font-medium text-slate-300 active:opacity-80"

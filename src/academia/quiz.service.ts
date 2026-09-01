@@ -5,6 +5,9 @@ import { prisma } from '../db';
 import { AcademyError } from './lesson.service';
 import { concederRecompensaTreinamento, recompensaTreinamentoJaConcedida } from '../gamificacao/treinamento.service';
 import { createLogger } from '../utils/logger';
+import { gerarEvidenciaDeQuiz } from '../universidade/evidence.service';
+import { concluirItemPDIPorConteudo } from '../universidade/pdi.service';
+import { registrarResultadoQuestao } from '../universidade/spaced-repetition.service';
 
 const log = createLogger('academia:quiz');
 
@@ -131,7 +134,18 @@ export async function responderQuiz(lessonId: string, vendedorId: string, respos
     const resposta = respostas.find((r) => r.questionId === pergunta.id);
     if (!resposta) continue; // pergunta não respondida — conta como erro
     const opcaoEscolhida = pergunta.opcoes.find((o) => o.id === resposta.optionId);
-    if (opcaoEscolhida?.correct) acertos += 1;
+    const acertou = !!opcaoEscolhida?.correct;
+    if (acertou) acertos += 1;
+
+    // Universidade (Fatia 7.5E, seção 41) — spaced repetition por questão,
+    // sempre (independente de aprovar o quiz inteiro); best-effort, nunca
+    // bloqueia a resposta do quiz.
+    try {
+      const competencyIds = Array.isArray(pergunta.competencyIds) ? (pergunta.competencyIds as string[]) : [];
+      await registrarResultadoQuestao(vendedorId, pergunta.id, acertou, competencyIds[0] ?? null);
+    } catch (err) {
+      log.error({ err, vendedorId, questionId: pergunta.id }, 'falha ao agendar revisão da questão — não bloqueia a resposta do quiz');
+    }
   }
 
   const score = Math.round((acertos / perguntasEsperadas.length) * 100);
@@ -158,6 +172,11 @@ export async function responderQuiz(lessonId: string, vendedorId: string, respos
       completedAt: passou ? new Date() : null,
     },
   });
+
+  // Universidade (Fatia 7.5E) — evidência sempre, aprovado ou não (um score
+  // real de tentativa reprovada ainda é evidência real da competência
+  // atual, seção 23: reward e evidence são domínios separados).
+  await gerarEvidenciaDeQuiz(vendedorId, lessonId, quiz.id, score, quiz.tipo === 'DIAGNOSTIC');
 
   if (passou) {
     const idempotencyKeyQuiz = `academia-quiz-${vendedorId}-${lessonId}`;
@@ -189,6 +208,12 @@ export async function responderQuiz(lessonId: string, vendedorId: string, respos
         referenciaId: lessonId,
         idempotencyKey: idempotencyKeyAula,
       });
+    }
+
+    // Universidade (Fatia 7.5E) — só na 1ª aprovação real (mesma proteção
+    // de idempotência da recompensa) evita duplicar o item de PDI.
+    if (!quizJaConcedido) {
+      await concluirItemPDIPorConteudo(vendedorId, 'QUIZ', quiz.id);
     }
     log.info({ vendedorId, lessonId, score }, 'quiz aprovado');
   }
