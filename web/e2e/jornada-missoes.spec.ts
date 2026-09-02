@@ -6,9 +6,13 @@
 import { execSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { randomUUID } from 'node:crypto';
+import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 import { expect, test } from '@playwright/test';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const prisma = new PrismaClient();
 
 test.describe('Jornada de Missões', () => {
   test.beforeAll(() => {
@@ -17,9 +21,22 @@ test.describe('Jornada de Missões', () => {
   });
 
   test('login → Home → missão de hoje → CTA → concluir aula → missão concluída → sem duplicar ao atualizar', async ({ page }) => {
+    // Vendedor de fixture DEDICADO (não reusa VEND001): sem meta cadastrada,
+    // sem baseline de PA/ticket, sem streak — garante deterministicamente
+    // que COMPLETE_LESSON é a 1ª missão elegível na ordem de prioridade
+    // (recomendacao.service.ts), em vez de depender de VEND001 nunca ter
+    // batido meta/ticket/streak "por acaso" no momento em que o E2E roda
+    // (o sync-erp horário real muda esse estado ao longo do dia).
+    const vend001 = await prisma.vendedor.findFirstOrThrow({ where: { matriculaErp: 'VEND001' } });
+    const senhaHash = await bcrypt.hash('missoes123', 10);
+    const matricula = `MISSAO-E2E-${randomUUID().slice(0, 8)}`;
+    await prisma.vendedor.create({
+      data: { empresaId: vend001.empresaId, lojaId: vend001.lojaId, matriculaErp: matricula, nome: 'Vendedor Missões E2E', senhaHash, status: 'ACTIVE' },
+    });
+
     await page.goto('/login');
-    await page.getByLabel('Matrícula').fill('VEND001');
-    await page.getByLabel('Senha').fill('vendedor123');
+    await page.getByLabel('Matrícula').fill(matricula);
+    await page.getByLabel('Senha').fill('missoes123');
     await page.getByRole('button', { name: 'Entrar' }).click();
 
     // 1. Home mostra o bloco "Missões de hoje" com a missão de Academia
@@ -59,5 +76,7 @@ test.describe('Jornada de Missões', () => {
     await expect(page.getByText('Concluída ✓')).toBeVisible();
     await page.goto('/moedas');
     await expect(page.getByText('Treinamento concluído')).toHaveCount(1);
+
+    await prisma.$disconnect();
   });
 });
