@@ -3,6 +3,7 @@ import { useApi } from '../../utils/useApi';
 import { AdminNav } from './AdminNav';
 import { LoadingState } from '../../components/LoadingState';
 import { ApiError } from '../../api/client';
+import { listarTrilhasAdmin } from '../../api/adminTraining';
 import {
   atualizarCompetenciaAdmin,
   atualizarEscolaAdmin,
@@ -17,12 +18,13 @@ import {
   listarCompetenciasAdmin,
   listarEscolasAdmin,
   listarPDIsAdmin,
+  mapearCompetenciasAdmin,
   transicionarCertificacaoAdmin,
   CompetenciaAdmin,
 } from '../../api/universidade';
 
 export function AdminUniversidade() {
-  const [aba, setAba] = useState<'escolas' | 'competencias' | 'certificacoes' | 'pdi'>('escolas');
+  const [aba, setAba] = useState<'escolas' | 'competencias' | 'mapeamento' | 'certificacoes' | 'pdi'>('escolas');
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6 p-6">
@@ -30,19 +32,20 @@ export function AdminUniversidade() {
       <h1 className="text-2xl font-semibold text-white">Universidade</h1>
 
       <div className="flex gap-2 border-b border-slate-800 pb-2">
-        {(['escolas', 'competencias', 'certificacoes', 'pdi'] as const).map((t) => (
+        {(['escolas', 'competencias', 'mapeamento', 'certificacoes', 'pdi'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setAba(t)}
             className={`rounded-full px-3 py-1.5 text-sm font-medium ${aba === t ? 'bg-accent text-white' : 'bg-surface text-slate-400'}`}
           >
-            {t === 'escolas' ? 'Escolas' : t === 'competencias' ? 'Competências' : t === 'certificacoes' ? 'Certificações' : 'PDI'}
+            {t === 'escolas' ? 'Escolas' : t === 'competencias' ? 'Competências' : t === 'mapeamento' ? 'Mapeamento' : t === 'certificacoes' ? 'Certificações' : 'PDI'}
           </button>
         ))}
       </div>
 
       {aba === 'escolas' && <AbaEscolas />}
       {aba === 'competencias' && <AbaCompetencias />}
+      {aba === 'mapeamento' && <AbaMapeamento />}
       {aba === 'certificacoes' && <AbaCertificacoes />}
       {aba === 'pdi' && <AbaPDI />}
     </div>
@@ -191,6 +194,114 @@ function FormTargets({ competencyId }: { competencyId: string }) {
       </button>
       {salvo && <span className="text-xs text-emerald-400">Salvo ✓</span>}
     </div>
+  );
+}
+
+// Mapeamento competência↔conteúdo (seção 20-22): trilha/aula têm listagem
+// real (reaproveita a mesma API do CMS, Fatia 7.5C — nunca duplicar
+// listagem); quiz/questão/simulação/missão ainda não têm uma tela admin
+// dedicada nesta fatia, então aceitam o id direto (o backend sempre valida
+// existência/tenant/status antes de gravar o mapeamento).
+function AbaMapeamento() {
+  const { dados: trilhas } = useApi(() => listarTrilhasAdmin(), []);
+  const { dados: competenciasDados } = useApi(() => listarCompetenciasAdmin(), []);
+  const [tipo, setTipo] = useState<'track' | 'lesson' | 'question' | 'simulation' | 'mission'>('lesson');
+  const [contentId, setContentId] = useState('');
+  const [competenciasSelecionadas, setCompetenciasSelecionadas] = useState<string[]>([]);
+  const [mensagem, setMensagem] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
+
+  const opcoesConteudo =
+    tipo === 'track'
+      ? trilhas?.trilhas.map((t) => ({ id: t.id, label: `${t.title} (${t.status})` })) ?? []
+      : tipo === 'lesson'
+        ? trilhas?.trilhas.flatMap((t) => t.aulas.map((a) => ({ id: a.id, label: `${a.title} — ${t.title} (${a.status})` }))) ?? []
+        : [];
+
+  function toggleCompetencia(id: string) {
+    setCompetenciasSelecionadas((atual) => (atual.includes(id) ? atual.filter((c) => c !== id) : [...atual, id]));
+  }
+
+  async function handleMapear(e: FormEvent) {
+    e.preventDefault();
+    setMensagem(null);
+    if (!contentId || competenciasSelecionadas.length === 0) {
+      setMensagem({ tipo: 'erro', texto: 'escolha o conteúdo e ao menos 1 competência' });
+      return;
+    }
+    try {
+      await mapearCompetenciasAdmin(tipo, contentId, competenciasSelecionadas);
+      setMensagem({ tipo: 'ok', texto: 'mapeamento salvo ✓' });
+      setContentId('');
+      setCompetenciasSelecionadas([]);
+    } catch (err) {
+      setMensagem({ tipo: 'erro', texto: err instanceof ApiError ? err.message : 'não foi possível mapear' });
+    }
+  }
+
+  return (
+    <form onSubmit={handleMapear} className="flex flex-col gap-4 rounded-lg border border-slate-800 p-4">
+      <p className="text-sm text-slate-400">Associe uma competência a um conteúdo já existente — questões alimentam a revisão espaçada, aulas alimentam quiz/evidência de conclusão.</p>
+
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="flex flex-col gap-1 text-xs text-slate-400">
+          Tipo de conteúdo
+          <select
+            value={tipo}
+            onChange={(e) => {
+              setTipo(e.target.value as typeof tipo);
+              setContentId('');
+            }}
+            className="rounded-lg bg-surface px-3 py-2 text-sm text-white"
+          >
+            <option value="lesson">Aula</option>
+            <option value="track">Trilha</option>
+            <option value="question">Questão</option>
+            <option value="simulation">Cenário de simulação</option>
+            <option value="mission">Missão</option>
+          </select>
+        </label>
+
+        {tipo === 'track' || tipo === 'lesson' ? (
+          <label className="flex flex-1 flex-col gap-1 text-xs text-slate-400">
+            Conteúdo
+            <select value={contentId} onChange={(e) => setContentId(e.target.value)} className="rounded-lg bg-surface px-3 py-2 text-sm text-white">
+              <option value="">Selecione...</option>
+              {opcoesConteudo.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <label className="flex flex-1 flex-col gap-1 text-xs text-slate-400">
+            ID do conteúdo ({tipo})
+            <input value={contentId} onChange={(e) => setContentId(e.target.value)} placeholder="uuid" className="rounded-lg bg-surface px-3 py-2 text-sm text-white" />
+          </label>
+        )}
+      </div>
+
+      <div>
+        <p className="mb-2 text-xs text-slate-400">Competências</p>
+        <div className="flex flex-wrap gap-2">
+          {competenciasDados?.competencias.map((c) => (
+            <button
+              type="button"
+              key={c.id}
+              onClick={() => toggleCompetencia(c.id)}
+              className={`rounded-full px-3 py-1 text-xs ${competenciasSelecionadas.includes(c.id) ? 'bg-accent text-white' : 'bg-surface text-slate-400'}`}
+            >
+              {c.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <button type="submit" className="self-start rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white">
+        Mapear
+      </button>
+      {mensagem && <p className={`text-xs ${mensagem.tipo === 'ok' ? 'text-emerald-400' : 'text-red-400'}`}>{mensagem.texto}</p>}
+    </form>
   );
 }
 

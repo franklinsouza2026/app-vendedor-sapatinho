@@ -14,15 +14,26 @@ import { listarPDIsDoUsuario, criarPDI } from '../universidade/pdi.service';
 import { registrarAvaliacaoGerente, listarAvaliacoesDoUsuario } from '../universidade/manager-assessment.service';
 import { sugerirSequenciaDeAprendizado } from '../universidade/ai-recommendation.service';
 import { AIProviderError } from '../ai-platform/providers';
+import { TrainingIntelligenceError } from '../training-intelligence/types';
 
 export const universidadeManagerRouter = Router();
 
+// AI-off nunca pode quebrar a Universidade determinística (seção 75/98): só
+// a sugestão de IA passa por `chamarAgente`, que lança `TrainingIntelligenceError`
+// (não `AIProviderError`) quando o budget mensal está esgotado ou o provider
+// está desabilitado — sem este tratamento, cairia no `throw err` final e
+// viraria um 500 genérico em vez da mesma resposta graciosa 503 que as
+// outras rotas de IA já devolvem.
 function tratarErro(err: unknown, res: import('express').Response) {
   if (err instanceof UniversidadeError) {
-    const status = err.type === 'not_found' ? 404 : err.type === 'forbidden' ? 403 : err.type === 'invalid_reference' ? 400 : 400;
+    const status = err.type === 'not_found' ? 404 : err.type === 'forbidden' ? 403 : err.type === 'already_exists' ? 409 : err.type === 'invalid_reference' ? 400 : 400;
     return res.status(status).json({ error: err.message, type: err.type });
   }
   if (err instanceof AIProviderError) return res.status(503).json({ error: 'IA indisponível no momento', type: 'provider_unavailable' });
+  if (err instanceof TrainingIntelligenceError) {
+    const status = err.type === 'budget_exceeded' || err.type === 'rate_limited' || err.type === 'provider_unavailable' ? 503 : 400;
+    return res.status(status).json({ error: 'sugestão de IA indisponível no momento', type: err.type });
+  }
   throw err;
 }
 

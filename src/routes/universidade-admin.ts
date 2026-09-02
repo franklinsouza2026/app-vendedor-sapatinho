@@ -25,7 +25,7 @@ export const universidadeAdminRouter = Router();
 
 function tratarErro(err: unknown, res: import('express').Response) {
   if (err instanceof UniversidadeError) {
-    const status = err.type === 'not_found' ? 404 : err.type === 'invalid_transition' ? 409 : 400;
+    const status = err.type === 'not_found' ? 404 : err.type === 'invalid_transition' || err.type === 'already_exists' ? 409 : 400;
     return res.status(status).json({ error: err.message, type: err.type });
   }
   throw err;

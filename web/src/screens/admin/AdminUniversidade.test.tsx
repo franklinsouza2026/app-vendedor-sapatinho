@@ -4,8 +4,10 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { AdminUniversidade } from './AdminUniversidade';
 import * as api from '../../api/universidade';
+import * as adminTrainingApi from '../../api/adminTraining';
 
 vi.mock('../../api/universidade');
+vi.mock('../../api/adminTraining');
 
 function renderTela() {
   return render(
@@ -23,6 +25,9 @@ beforeEach(() => {
     definicoes: [{ id: 'd1', code: 'cert-1', name: 'Certificação 13 Mandamentos', description: 'd', status: 'DRAFT', version: 1, validityMonths: null, requisitos: [] }],
   });
   vi.mocked(api.listarPDIsAdmin).mockResolvedValue({ planos: [] });
+  vi.mocked(adminTrainingApi.listarTrilhasAdmin).mockResolvedValue({
+    trilhas: [{ id: 't1', code: 'abertura', title: 'Fundamentos de Abertura', description: 'd', status: 'PUBLISHED', audience: 'SELLER', active: true, aulas: [{ id: 'a1', title: 'Como abrir bem um atendimento', status: 'PUBLISHED' }] }],
+  });
 });
 
 describe('AdminUniversidade', () => {
@@ -64,5 +69,21 @@ describe('AdminUniversidade', () => {
     expect(screen.getByRole('button', { name: '+ requisito 13 Mandamentos' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Publicar' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Enviar pra revisão' })).toBeInTheDocument();
+  });
+
+  it('aba de Mapeamento associa uma aula real a uma competência', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.mapearCompetenciasAdmin).mockResolvedValue({});
+
+    renderTela();
+    await user.click(screen.getByRole('button', { name: 'Mapeamento' }));
+
+    const selectConteudo = await screen.findByRole('combobox', { name: /^Conteúdo/ });
+    await user.selectOptions(selectConteudo, 'a1');
+    await user.click(screen.getByRole('button', { name: 'Fechamento' }));
+    await user.click(screen.getByRole('button', { name: 'Mapear' }));
+
+    expect(api.mapearCompetenciasAdmin).toHaveBeenCalledWith('lesson', 'a1', ['c1']);
+    expect(await screen.findByText('mapeamento salvo ✓')).toBeInTheDocument();
   });
 });

@@ -49,3 +49,25 @@ describe('AI Recommendation — validação de ID contra o banco', () => {
     expect(sugestoes[0].title).toBe(aula.title);
   });
 });
+
+describe('AI-off nunca quebra a Universidade determinística (seção 75/98)', () => {
+  it('budget mensal esgotado falha graciosamente só a sugestão de IA — nunca um 500/crash', async () => {
+    const { empresa, vendedor } = await criarFixtureEmpresa();
+    await prisma.aIBudgetConfig.upsert({
+      where: { empresaId: empresa.id },
+      update: { monthlyLimitUSD: 0 },
+      create: { empresaId: empresa.id, monthlyLimitUSD: 0, dailyMessageLimitPerSeller: 20, updatedBy: 'test' },
+    });
+    const competencia = await prisma.competency.create({ data: { code: `comp-budget-${randomUUID()}`, name: 'C', description: 'd' } });
+    await criarAulaPublicadaComCompetencia(competencia.id);
+
+    await expect(sugerirSequenciaDeAprendizado({ empresaId: empresa.id, vendedorId: vendedor.id, papel: 'VENDEDOR', competencyId: competencia.id })).rejects.toMatchObject({
+      type: 'budget_exceeded',
+    });
+
+    // Score/Gap continuam 100% funcionais — nunca dependem da IA.
+    const { calcularScoreCompetencia } = await import('./score-engine.service');
+    const score = await calcularScoreCompetencia(vendedor.id, competencia.id);
+    expect(score.status).toBe('NOT_ENOUGH_DATA'); // resultado determinístico normal, não um erro
+  });
+});

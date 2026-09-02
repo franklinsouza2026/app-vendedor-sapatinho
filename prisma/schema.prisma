@@ -1842,6 +1842,10 @@ model ManagerAssessment {
 
   competencia Competency @relation(fields: [competencyId], references: [id])
 
+  // Fecha a corrida de version duplicada sob 2 avaliações concorrentes
+  // (achado da auditoria seção 79) — sem isto, 2 chamadas simultâneas podiam
+  // ler a mesma "última versão" e criar 2 linhas com o mesmo número.
+  @@unique([subjectUserId, competencyId, version])
   @@index([subjectUserId, competencyId])
   @@map("manager_assessment")
 }

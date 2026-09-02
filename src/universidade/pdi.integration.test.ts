@@ -84,3 +84,31 @@ describe('PDI — criação valida cada item contra conteúdo real', () => {
     expect(practice?.status).toBe('PENDING');
   });
 });
+
+describe('PDI — só 1 plano ACTIVE por (vendedor, competência), inclusive sob concorrência real (seção 79)', () => {
+  it('rejeita criar um 2º PDI ativo pra mesma competência', async () => {
+    const { vendedor } = await criarFixtureEmpresa();
+    const competencia = await criarCompetenciaTeste();
+
+    await criarPDI({ subjectUserId: vendedor.id, competencyId: competencia.id, targetScore: 80, createdBy: vendedor.id, itens: [{ tipo: 'PRACTICE' }] });
+    await expect(criarPDI({ subjectUserId: vendedor.id, competencyId: competencia.id, targetScore: 90, createdBy: vendedor.id, itens: [{ tipo: 'PRACTICE' }] })).rejects.toThrow(UniversidadeError);
+
+    const ativos = await prisma.developmentPlan.count({ where: { subjectUserId: vendedor.id, competencyId: competencia.id, status: 'ACTIVE' } });
+    expect(ativos).toBe(1);
+  });
+
+  it('2 criações concorrentes da mesma competência: só 1 vira PDI ativo de verdade', async () => {
+    const { vendedor } = await criarFixtureEmpresa();
+    const competencia = await criarCompetenciaTeste();
+
+    const resultados = await Promise.allSettled([
+      criarPDI({ subjectUserId: vendedor.id, competencyId: competencia.id, targetScore: 80, createdBy: vendedor.id, itens: [{ tipo: 'PRACTICE' }] }),
+      criarPDI({ subjectUserId: vendedor.id, competencyId: competencia.id, targetScore: 80, createdBy: vendedor.id, itens: [{ tipo: 'PRACTICE' }] }),
+    ]);
+
+    expect(resultados.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect(resultados.filter((r) => r.status === 'rejected')).toHaveLength(1);
+    const ativos = await prisma.developmentPlan.count({ where: { subjectUserId: vendedor.id, competencyId: competencia.id, status: 'ACTIVE' } });
+    expect(ativos).toBe(1);
+  });
+});

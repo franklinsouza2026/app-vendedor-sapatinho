@@ -1,7 +1,7 @@
 // DevelopmentPlan / PDI (Fatia 7.5E, seção 31-34). Criação pode ser manual
 // (Admin/Manager autorizado) ou sugerida pelo Gap Engine — sempre validado
 // pelo backend, nunca um texto livre do LLM virando plano.
-import { StatusPDI, TipoItemPDI } from '@prisma/client';
+import { Prisma, StatusPDI, TipoItemPDI } from '@prisma/client';
 import { prisma } from '../db';
 import { registrarEventoAuditoria } from '../identidade/auditoria.service';
 import { resolverEmpresaUnica } from './schools.service';
@@ -68,18 +68,31 @@ export async function criarPDI(params: {
 
   const baseline = await calcularScoreCompetencia(params.subjectUserId, params.competencyId);
 
-  const plano = await prisma.developmentPlan.create({
-    data: {
-      subjectUserId: params.subjectUserId,
-      competencyId: params.competencyId,
-      baselineScore: baseline.score,
-      targetScore: params.targetScore,
-      createdBy: params.createdBy,
-      targetDate: params.targetDate,
-      itens: { create: params.itens.map((item, idx) => ({ tipo: item.tipo, sourceId: item.sourceId, sortOrder: idx, required: item.required ?? true })) },
-    },
-    include: { itens: true },
-  });
+  // Só 1 PDI ACTIVE por (subjectUserId, competencyId) — reforçado por índice
+  // único parcial no banco (achado da auditoria seção 79: 2 criações
+  // concorrentes da mesma competência podiam gerar 2 planos ativos
+  // simultâneos; `concluirItemPDIPorConteudo` já presumia essa garantia em
+  // comentário, sem nada de fato impedindo a duplicata).
+  let plano;
+  try {
+    plano = await prisma.developmentPlan.create({
+      data: {
+        subjectUserId: params.subjectUserId,
+        competencyId: params.competencyId,
+        baselineScore: baseline.score,
+        targetScore: params.targetScore,
+        createdBy: params.createdBy,
+        targetDate: params.targetDate,
+        itens: { create: params.itens.map((item, idx) => ({ tipo: item.tipo, sourceId: item.sourceId, sortOrder: idx, required: item.required ?? true })) },
+      },
+      include: { itens: true },
+    });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      throw new UniversidadeError('already_exists', 'já existe um plano de desenvolvimento ativo para esta competência');
+    }
+    throw err;
+  }
 
   await registrarEventoAuditoria({ empresaId: await resolverEmpresaUnica(), acao: 'DEVELOPMENT_PLAN_CREATED', actorId: params.createdBy, metadata: { planId: plano.id, subjectUserId: params.subjectUserId } });
   return plano;

@@ -136,3 +136,39 @@ describe('POST /universidade/equipe/:vendedorId/pdi — Gerente cria, mas não e
     expect(res.status).toBe(400);
   });
 });
+
+describe('AI-off nunca quebra a Universidade determinística (seção 75/98)', () => {
+  it('budget mensal esgotado: sugestão de IA falha graciosamente (503, nunca 500) — resto da rota de equipe continua 100% funcional', async () => {
+    const { empresa, loja, vendedor } = await criarFixtureEmpresa();
+    const { token } = await criarGerente(empresa.id, loja.id);
+    await prisma.aIBudgetConfig.upsert({
+      where: { empresaId: empresa.id },
+      update: { monthlyLimitUSD: 0 },
+      create: { empresaId: empresa.id, monthlyLimitUSD: 0, dailyMessageLimitPerSeller: 20, updatedBy: 'test' },
+    });
+    const competencia = await prisma.competency.create({ data: { code: `comp-ai-off-${randomUUID()}`, name: 'C', description: 'd' } });
+    // Precisa de ao menos 1 aula candidata real — sem candidato, a função
+    // devolve [] antes mesmo de checar orçamento (nenhum custo a evitar).
+    const trilha = await prisma.academyTrack.create({ data: { code: `trilha-ai-off-${randomUUID()}`, title: 'T', description: 'd', status: 'PUBLISHED' } });
+    await prisma.academyLesson.create({
+      data: { trackId: trilha.id, code: `aula-ai-off-${randomUUID()}`, title: 'Aula', description: 'd', content: 'c', estimatedMinutes: 5, status: 'PUBLISHED', competencyIds: [competencia.id] },
+    });
+
+    const resSugestao = await request(app)
+      .post(`/universidade/equipe/${vendedor.id}/pdi/sugestao-ia`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ competencyId: competencia.id });
+    expect(resSugestao.status).toBe(503);
+    expect(resSugestao.body.type).toBe('budget_exceeded');
+
+    // Determinístico: matriz/avaliação/PDI continuam funcionando na mesma empresa com budget zerado.
+    const resDesenvolvimento = await request(app).get(`/universidade/equipe/${vendedor.id}/desenvolvimento`).set('Authorization', `Bearer ${token}`);
+    expect(resDesenvolvimento.status).toBe(200);
+
+    const resAvaliacao = await request(app)
+      .post(`/universidade/equipe/${vendedor.id}/avaliacoes`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ competencyId: competencia.id, rating: 4 });
+    expect(resAvaliacao.status).toBe(201);
+  });
+});
