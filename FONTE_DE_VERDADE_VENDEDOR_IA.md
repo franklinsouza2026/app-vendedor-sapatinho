@@ -1604,13 +1604,34 @@ Camada de gamificação social sobre o Gamification Engine/Ranking/Missions/Univ
 
 **Não implementado nesta fatia** (registrado formalmente, não esquecido): Team como participantType/entidade própria (Store já é suficiente, seção 53), comentários livres no Feed (seção 38, deliberadamente fora), reações além do escopo mínimo, expressão/fórmula custom pra competição (nunca, por design — seção 48), tempo real via WebSocket (polling/refresh existente é suficiente), Dashboard Gerencial avançado (Fatia 9), Linx real, deploy/piloto.
 
-### Fatia 9 — Painel do gestor avançado
-- visão consolidada;
-- campanhas;
-- treinamento;
-- oportunidades;
-- evolução;
-- governança.
+### Fatia 9 — Painel Gerencial Avançado (Manager Command Center) — CONCLUÍDA (2026-09-02, commit `ec4471e`, 685 testes: 516 backend + 140 frontend + 29 E2E Playwright)
+Painel de comando do GERENTE sobre a loja, montado inteiramente reaproveitando os motores já existentes (Meta/IndicadorRealizado/BaselinePessoal/RankingSnapshot, Gamificação/Missões/Seasons/Competições/Reconhecimento/Feed, Universidade/Competências/PDI/Certificação, Training Intelligence/AI Gateway) — **zero motor de KPI/score/matriz paralelo**. Princípio central: a IA interpreta e recomenda, nunca calcula um número que já existe em outro lugar.
+
+**Store Summary/Team Overview**: agregador determinístico da loja inteira (`store-summary.service.ts`/`team-overview.service.ts`), sempre em lote — `realizadoNoPeriodoEmLote`/`metaDoPeriodoEmLote` (novas funções batch em `metas.service.ts`, 1 única query pra N vendedores, nunca 1 por vendedor num loop) somadas a `groupBy` em Missão/PDI/Certificação/Alerta. A matriz de competências COMPLETA (`calcularMatrizCompetencias`, cara) só roda 1 vendedor por vez, na tela de detalhe — nunca em lote pra loja inteira.
+
+**ManagerAttentionEngine**: 100% determinístico (`attention-engine.service.ts`), 11 tipos de situação (LOW_GOAL_ATTAINMENT/PA_BELOW_BASELINE/TICKET_BELOW_BASELINE/CONSISTENCY_DROP/NO_SALES_RECENTLY/MISSION_STALLED/TRAINING_OVERDUE/CERTIFICATION_EXPIRING/PDI_STALLED/COMPETENCY_GAP/NO_RECENT_MANAGER_FOLLOWUP), cada um com severidade LOW/MEDIUM/HIGH via threshold versionado (`ManagerAlertConfig`, editável pelo Admin só dentro de um conjunto fixo de parâmetros conhecidos — nunca uma fórmula livre). LOW_GOAL_ATTAINMENT usa pacing por DIAS do período (comparável/mês) — nunca pacing intraday (não existe fonte de horário de loja no domínio, então não foi inventada). COMPETENCY_GAP nunca nasce de `NOT_ENOUGH_DATA` (só `status === 'OK' && priority === 'HIGH'` gera sinal). Alertas persistem em `ManagerAlert` com dedupe idempotente via índice único PARCIAL (`dedupeKey`, só sobre OPEN/ACKNOWLEDGED — resolvido/dispensado nunca colide, histórico sempre preservado).
+
+**Alertas — ciclo de vida**: OPEN → ACKNOWLEDGED → RESOLVED (com `tipoResolucao`: RESOLVED_OPERATIONALLY vs METRIC_RECOVERED, nunca conflatados) ou → DISMISSED; todas as transições via `updateMany` condicional + `count===1` (mesmo padrão atômico de Season/Competition/PDI), testadas com concorrência real. Alerta nunca bloqueia vendedor, nunca remove XP, nunca altera Score Geral, nunca notifica RH sozinho.
+
+**ManagerActionPlan/ManagerActionItem**: plano sobre SELLER/TEAM/STORE, `DRAFT→ACTIVE→COMPLETED/CANCELLED`; 10 tipos de item (TALK/OBSERVE/TRAIN/ASSIGN_MISSION/ASSIGN_CONTENT/CREATE_PDI/REVIEW_PDI/RECOGNIZE/FOLLOW_UP/CUSTOM_TEXT); texto sempre sanitizado (`sanitizarTextoLivre`, tags HTML removidas + limite de 500 chars, mesma disciplina do Recognition da Fatia 8); backend-autoritativo (Zod da rota nunca aceita `status`/`completedAt` do cliente).
+
+**OneOnOne (1:1)**: `SCHEDULED→IN_PROGRESS→COMPLETED/CANCELLED`; notas (`pontosPositivos`/`pontosAtencao`/`compromissos`) são PRIVADAS do gerente — nunca expostas a nenhuma rota do vendedor, ao Conselheiro, ao Feed ou a um gerente de outra loja (escopo por `lojaId`, mesmo `garantirVendedorNoEscopoDoGerente` da Universidade). Roteiro de 7 perguntas é conteúdo ESTÁTICO (`ROTEIRO_SUGERIDO_1A1`), nunca gerado por IA.
+
+**Manager Inbox ("Pendências")**: agrega alertas + follow-ups + sugestões de reconhecimento num painel só, priorizado, sempre em linguagem factual/não-judicativa ("Hoje você tem: N vendedores abaixo do ritmo esperado", nunca "N vendedores ruins").
+
+**Daily Huddle ("Reunião do Dia")**: 100% determinístico (faturamento de ontem, foco sugerido por template fixo — nunca causal —, destaques, temporada/competição ativa, treinamentos da semana); funciona inteiro com IA desligada; o resumo da IA é sempre um botão explícito e opcional, nunca a fonte primária.
+
+**AI Manager Advisor ("Assistente de Gestão")**: novo `EspecialistaIA.MANAGER_ADVISOR` (migration puramente aditiva), reaproveita o AI Gateway + `agent-runtime`/`montarPrompt` já existentes (zero infra nova). Só resume/prioriza/sugere sobre dados JÁ CALCULADOS (Store Summary/Alertas/Highlights) — nunca vê CPF/senha/apiKey/conversa do Conselheiro/nota de 1:1. Todo `sellerId` proposto pela IA é revalidado contra os vendedores reais da loja antes de sair do backend (mesmo padrão de `ai-recommendation.service.ts` da Fatia 7.5E); nunca invade orçamento próprio (usa `verificarBudgetMensal` compartilhado, sem régua paralela).
+
+**Home do Gerente**: `Home.tsx` agora ramifica por `papel` — GERENTE nunca vê a Home genérica de vendedor (sem meta/PA/ticket pessoal, sem sentido pra quem não vende); vê `GerenteHome` (situação da loja, alertas prioritários, destaques, atalho pra Pendências/Reunião do Dia/Equipe). `Equipe.tsx` estendida (não substituída) com visão agregada por vendedor (%meta/PA/ticket/alertas) e, no detalhe do vendedor, os novos blocos Alertas/Plano de Ação/1:1 ao lado da Matriz de Competências/PDI/Avaliação/Reconhecimento já existentes.
+
+**Achados corrigidos durante a implementação:**
+1. **Regressão E2E real causada pelo próprio Admin nav**: adicionar o 6º item "Gerencial" ao `AdminNav` (antes só 5, sem `flex-wrap`) fazia o link "IA" ficar coberto por outro elemento em viewport mobile — `jornada-admin-ia.spec.ts` (Fatia 7.5B, pré-existente) passou a falhar por click interceptado. Corrigido com `flex-wrap` no nav.
+2. **Race de teste (não de produção) no E2E de 1:1**: a primeira versão do spec consultava o Prisma logo após clicar "Concluir 1:1" sem esperar a resposta HTTP da conclusão — corrigido aguardando `page.waitForResponse` antes de qualquer asserção contra o banco (mesma disciplina "nunca alucinar terminal" aplicada também a asserções de UI).
+
+**Revisão de segurança dedicada**: agente independente cobrindo AUTH/RBAC/TENANT/IDOR/MANAGER SCOPE/PRIVATE NOTES/COUNSELOR PRIVACY/MASS ASSIGNMENT/KPI-ALERT-ACTIONPLAN TAMPERING/1:1 IDOR/AI DATA LEAK/PROMPT INJECTION/AI ID INJECTION/XSS/AUDIT/PWA CACHE/CONCURRENCY — **nenhum achado de alta confiança**. Única observação não-bloqueante (confiança 3/10): `ManagerActionPlan.sourceAlertId` é aceito do cliente como um UUID qualquer e gravado sem FK/checagem de escopo — mas é write-only (nada no código o lê de volta ou faz join com o `ManagerAlert` real), então não há caminho de leitura cross-tenant através dele; registrado aqui pra referência futura, não corrigido por não ser um vetor de ataque real.
+
+**Não implementado nesta fatia** (registrado formalmente, não esquecido): Dashboard executivo/BI, ações disciplinares de RH, promoção/demissão automática, avaliação psicológica, mensagens automáticas ao vendedor (WhatsApp/e-mail/push complexo), engine de agenda/calendário, folha de pagamento, Fatia 10 (Linx real), deploy/piloto.
 
 ### Fatia 10 — Linx real
 Executar assim que contrato/credenciais reais estiverem disponíveis, sem bloquear fatias independentes.
