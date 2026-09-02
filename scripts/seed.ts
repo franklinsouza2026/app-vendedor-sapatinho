@@ -31,6 +31,7 @@ async function main() {
 
   const senhaHashAdmin = await bcrypt.hash('admin123', 10);
   const senhaHashVendedor = await bcrypt.hash('vendedor123', 10);
+  const senhaHashGerente = await bcrypt.hash('gerente123', 10);
 
   await prisma.vendedor.upsert({
     where: { lojaId_matriculaErp: { lojaId: loja.id, matriculaErp: 'ADM001' } },
@@ -70,6 +71,22 @@ async function main() {
       nome: 'Segundo Vendedor',
       senhaHash: senhaHashVendedor,
       papel: 'VENDEDOR',
+    },
+  });
+
+  // Gerente fixo de dev (Fatia 7.5A/7.5E: escopo de loja, "Minha Equipe") —
+  // antes só existia GERENTE ad hoc criado por spec de E2E, sem matrícula
+  // estável pra login manual.
+  await prisma.vendedor.upsert({
+    where: { lojaId_matriculaErp: { lojaId: loja.id, matriculaErp: 'GER001' } },
+    update: {},
+    create: {
+      empresaId: empresa.id,
+      lojaId: loja.id,
+      matriculaErp: 'GER001',
+      nome: 'Gerente Piloto',
+      senhaHash: senhaHashGerente,
+      papel: 'GERENTE',
     },
   });
 
@@ -136,6 +153,7 @@ async function main() {
   console.log('  Admin:    matriculaErp=ADM001   senha=admin123');
   console.log('  Vendedor: matriculaErp=VEND001  senha=vendedor123');
   console.log('  Vendedor: matriculaErp=VEND002  senha=vendedor123');
+  console.log('  Gerente:  matriculaErp=GER001   senha=gerente123');
   console.log('  Meta diária de VEND001: R$ 1000');
   console.log(`  Playbook: "${playbook.nome}" v${playbook.versao} (PUBLISHED)`);
   console.log(`  Simulador: ${totalCenarios} cenários`);
