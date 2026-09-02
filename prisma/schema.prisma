@@ -525,6 +525,10 @@ enum EspecialistaIA {
   CONTENT_UPDATE_AGENT
   SELLER_TRAINING_AGENT
   MANAGER_TRAINING_AGENT
+  // Fatia 9 — Assistente de Gestão (opcional, seção 78-84): só resume/
+  // prioriza/sugere sobre dados já calculados deterministicamente — nunca
+  // calcula KPI, nunca decide sozinho.
+  MANAGER_ADVISOR
 }
 
 // Ledger auditável de cada chamada ao provider de IA — nunca um contador
@@ -2218,4 +2222,222 @@ model FeedEvent {
   @@unique([eventType, sourceType, sourceId])
   @@index([visibility, lojaId, createdAt])
   @@map("feed_event")
+}
+
+// ============================================================
+// Fatia 9 — Painel Gerencial Avançado (Manager Command Center).
+// Zero motor de KPI paralelo: todo dado numérico vem de Meta/
+// IndicadorRealizado/BaselinePessoal/RankingSnapshot/score-engine já
+// existentes. Estes modelos só guardam ESTADO de gestão (alertas,
+// planos de ação, 1:1, follow-ups) — nunca um KPI recalculado.
+// ============================================================
+
+enum TipoAlertaGerencial {
+  LOW_GOAL_ATTAINMENT
+  PA_BELOW_BASELINE
+  TICKET_BELOW_BASELINE
+  CONSISTENCY_DROP
+  NO_SALES_RECENTLY
+  MISSION_STALLED
+  TRAINING_OVERDUE
+  CERTIFICATION_EXPIRING
+  PDI_STALLED
+  COMPETENCY_GAP
+  NO_RECENT_MANAGER_FOLLOWUP
+}
+
+enum SeveridadeAlertaGerencial {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum StatusAlertaGerencial {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+  DISMISSED
+}
+
+enum TipoResolucaoAlerta {
+  RESOLVED_OPERATIONALLY
+  METRIC_RECOVERED
+}
+
+// Sem `sellerId`/`managerId` como `@relation` pro Vendedor (mesmo padrão do
+// Fatia 8: tabela de alto volume, evita inchar o model Vendedor). Idempotência
+// de geração: `dedupeKey` tem índice único PARCIAL (só sobre OPEN/ACKNOWLEDGED,
+// ver migration.sql) — o Attention Engine nunca duplica um alerta já aberto
+// para a mesma situação, só atualiza `detectedAt`/`metadata`/`severidade`.
+model ManagerAlert {
+  id             String                    @id @default(uuid())
+  empresaId      String
+  lojaId         String
+  sellerId       String?
+  tipo           TipoAlertaGerencial
+  severidade     SeveridadeAlertaGerencial
+  status         StatusAlertaGerencial     @default(OPEN)
+  dedupeKey      String
+  sourceType     String
+  sourceId       String?
+  detectedAt     DateTime
+  acknowledgedAt DateTime?
+  acknowledgedBy String?
+  resolvedAt     DateTime?
+  resolvedBy     String?
+  tipoResolucao  TipoResolucaoAlerta?
+  metadata       Json?
+  version        Int                       @default(1)
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+
+  @@index([empresaId, lojaId, status])
+  @@index([dedupeKey])
+  @@map("manager_alert")
+}
+
+enum TipoSujeitoPlanoAcao {
+  SELLER
+  TEAM
+  STORE
+}
+
+enum StatusPlanoAcao {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+model ManagerActionPlan {
+  id            String               @id @default(uuid())
+  empresaId     String
+  lojaId        String
+  subjectType   TipoSujeitoPlanoAcao
+  subjectId     String?
+  title         String
+  description   String?
+  status        StatusPlanoAcao      @default(DRAFT)
+  createdBy     String
+  sourceAlertId String?
+  startAt       DateTime?
+  dueAt         DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  itens ManagerActionItem[]
+
+  @@index([empresaId, lojaId, status])
+  @@index([subjectType, subjectId])
+  @@map("manager_action_plan")
+}
+
+enum TipoItemPlanoAcao {
+  TALK
+  OBSERVE
+  TRAIN
+  ASSIGN_MISSION
+  ASSIGN_CONTENT
+  CREATE_PDI
+  REVIEW_PDI
+  RECOGNIZE
+  FOLLOW_UP
+  CUSTOM_TEXT
+}
+
+enum StatusItemPlanoAcao {
+  PENDING
+  COMPLETED
+}
+
+// `descricao` sempre sanitizada (tags HTML removidas, limite de 500 chars —
+// mesma disciplina do Recognition.message da Fatia 8) antes de persistir.
+model ManagerActionItem {
+  id          String              @id @default(uuid())
+  planId      String
+  tipo        TipoItemPlanoAcao
+  descricao   String
+  status      StatusItemPlanoAcao @default(PENDING)
+  completedAt DateTime?
+  createdAt   DateTime            @default(now())
+
+  plan ManagerActionPlan @relation(fields: [planId], references: [id])
+
+  @@index([planId])
+  @@map("manager_action_item")
+}
+
+enum StatusOneOnOne {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+// Notas (`pontosPositivos`/`pontosAtencao`/`compromissos`) são privadas do
+// GERENTE — nunca expostas ao vendedor, ao Conselheiro, ao Feed, ao ranking
+// nem a outro gerente fora do escopo da loja (seção 27/85 da fonte de verdade).
+model OneOnOne {
+  id               String         @id @default(uuid())
+  empresaId        String
+  lojaId           String
+  managerId        String
+  sellerId         String
+  scheduledAt      DateTime?
+  startedAt        DateTime?
+  completedAt      DateTime?
+  status           StatusOneOnOne @default(SCHEDULED)
+  pontosPositivos  String?
+  pontosAtencao    String?
+  compromissos     String?
+  proximaRevisaoEm DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([empresaId, lojaId, sellerId])
+  @@index([empresaId, lojaId, managerId])
+  @@map("one_on_one")
+}
+
+enum StatusFollowUp {
+  PENDING
+  DONE
+  DISMISSED
+}
+
+model ManagerFollowUp {
+  id          String         @id @default(uuid())
+  empresaId   String
+  lojaId      String
+  managerId   String
+  sellerId    String?
+  sourceType  String?
+  sourceId    String?
+  descricao   String
+  dueAt       DateTime
+  status      StatusFollowUp @default(PENDING)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([empresaId, lojaId, managerId, status])
+  @@map("manager_followup")
+}
+
+// Configuração de thresholds por tipo de alerta (seção 66-70) — Admin pode
+// ajustar, sempre versionado, nunca uma fórmula livre. Ausência de linha
+// aqui = usa o default neutro/conservador hardcoded no attention-engine.
+model ManagerAlertConfig {
+  id         String              @id @default(uuid())
+  empresaId  String
+  tipo       TipoAlertaGerencial
+  ativo      Boolean             @default(true)
+  parametros Json
+  versao     Int                 @default(1)
+  updatedBy  String?
+  updatedAt  DateTime            @updatedAt
+  createdAt  DateTime            @default(now())
+
+  @@unique([empresaId, tipo])
+  @@map("manager_alert_config")
 }

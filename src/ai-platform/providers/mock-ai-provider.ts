@@ -261,6 +261,29 @@ function gerarRecomendacaoAprendizado(contexto?: ContextoRecomendacaoMinimo): st
   });
 }
 
+// ===== Fatia 9 — Assistente de Gestão (Manager Advisor) =====
+interface ContextoManagerAdvisorMinimo {
+  storeSummary: { percentualAtingido: number | null; vendedoresAtivosHoje: number; totalVendedores: number };
+  alertas: { tipo: string; severidade: string; sellerId: string | null }[];
+  highlights: { tipo: string; sellerId: string | null }[];
+}
+
+function gerarConselhoGerencial(contexto?: ContextoManagerAdvisorMinimo): string {
+  if (!contexto) return JSON.stringify({ summary: 'Sem dados suficientes hoje.', priorities: [], suggestedRecognitions: [] });
+
+  const pct = contexto.storeSummary.percentualAtingido;
+  const resumoMeta = pct !== null ? `A loja está em ${Math.round(pct)}% da meta do mês.` : 'A loja ainda não tem meta cadastrada para o mês.';
+  const summary = `${resumoMeta} ${contexto.storeSummary.vendedoresAtivosHoje} de ${contexto.storeSummary.totalVendedores} vendedores já tiveram atendimento hoje.`;
+
+  const priorities = contexto.alertas.slice(0, 5).map((a) => ({ sellerId: a.sellerId, description: `Situação "${a.tipo}" identificada (severidade ${a.severidade}).` }));
+  const suggestedRecognitions = contexto.highlights
+    .filter((h) => h.sellerId !== null)
+    .slice(0, 3)
+    .map((h) => ({ sellerId: h.sellerId as string, reason: `Sinal positivo "${h.tipo}" identificado hoje.` }));
+
+  return JSON.stringify({ summary, priorities, suggestedRecognitions });
+}
+
 export class MockAIProvider implements AIProvider {
   async generateResponse(input: GenerateResponseInput): Promise<GenerateResponseResult> {
     const inicio = Date.now();
@@ -289,6 +312,7 @@ export class MockAIProvider implements AIProvider {
       | 'content_update_agent'
       | 'seller_training_agent'
       | 'manager_training_agent'
+      | 'manager_advisor'
       | undefined;
     const modo = input.metadata?.mode as 'client' | 'evaluator' | undefined;
     let content: string;
@@ -314,6 +338,8 @@ export class MockAIProvider implements AIProvider {
       content = gerarContentUpdate(input.metadata?.context as ContextoContentUpdateMinimo | undefined);
     } else if (especialista === 'seller_training_agent' || especialista === 'manager_training_agent') {
       content = gerarRecomendacaoAprendizado(input.metadata?.context as ContextoRecomendacaoMinimo | undefined);
+    } else if (especialista === 'manager_advisor') {
+      content = gerarConselhoGerencial(input.metadata?.context as ContextoManagerAdvisorMinimo | undefined);
     } else {
       content = gerarRespostaCoach(ultimaMensagem, input.metadata?.context as ContextoCoachMinimo | undefined);
     }

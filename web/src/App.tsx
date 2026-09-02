@@ -28,6 +28,9 @@ import { AdminTreinamento } from './screens/admin/AdminTreinamento';
 import { AdminUniversidade } from './screens/admin/AdminUniversidade';
 import { Competicoes } from './screens/Competicoes';
 import { AdminGamificacao } from './screens/admin/AdminGamificacao';
+import { Pendencias } from './screens/Pendencias';
+import { ReuniaoDoDia } from './screens/ReuniaoDoDia';
+import { AdminAlertasGerenciais } from './screens/admin/AdminAlertasGerenciais';
 
 export function App() {
   return (
@@ -94,6 +97,14 @@ export function App() {
               </RequireAuth>
             }
           />
+          <Route
+            path="/admin/gerencial"
+            element={
+              <RequireAuth papeis={['ADMIN']}>
+                <AdminAlertasGerenciais />
+              </RequireAuth>
+            }
+          />
           {/* Coach fica fora do Layout (sem bottom nav) — tela de chat ocupa a
               altura inteira, com input fixo embaixo; bottom nav junto quebraria
               esse layout. */}
@@ -144,6 +155,8 @@ export function App() {
             <Route path="/universidade/revisao" element={<Revisao />} />
             <Route path="/equipe" element={<Equipe />} />
             <Route path="/competicoes" element={<Competicoes />} />
+            <Route path="/gerente/pendencias" element={<Pendencias />} />
+            <Route path="/gerente/reuniao-do-dia" element={<ReuniaoDoDia />} />
           </Route>
         </Routes>
       </BrowserRouter>

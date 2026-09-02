@@ -9,12 +9,14 @@ import * as metasApi from '../api/metas';
 import * as gamificacaoApi from '../api/gamificacao';
 import * as missoesApi from '../api/missoes';
 import * as competicoesApi from '../api/competicoes';
+import * as managerPanelApi from '../api/managerPanel';
 
 vi.mock('../api/auth');
 vi.mock('../api/metas');
 vi.mock('../api/gamificacao');
 vi.mock('../api/missoes');
 vi.mock('../api/competicoes');
+vi.mock('../api/managerPanel');
 
 const SESSAO = {
   vendedor: { id: 'v1', nome: 'Ana Vendedora', papel: 'VENDEDOR' as const },
@@ -169,5 +171,28 @@ describe('Home', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível carregar os dados agora.');
     expect(screen.getByRole('button', { name: 'Tentar de novo' })).toBeInTheDocument();
+  });
+});
+
+describe('Home — GERENTE nunca vê a Home de vendedor (Fatia 9, seção 4)', () => {
+  it('renderiza a Home do Gerente (situação da loja) em vez de meta/PA/ticket pessoal', async () => {
+    vi.mocked(authApi.buscarSessaoAtual).mockResolvedValue({
+      vendedor: { id: 'ger1', nome: 'Gerente Geral', papel: 'GERENTE' as const },
+      loja: { id: 'loja-1', nome: 'Loja Piloto' },
+      empresa: { nome: 'Sapatinho de Luxo' },
+    });
+    vi.mocked(managerPanelApi.buscarGerenteHome).mockResolvedValue({
+      storeSummary: { lojaId: 'loja-1', referencia: new Date().toISOString(), metaFaturamento: 10000, realizado: 4000, percentualAtingido: 40, faltaParaMeta: 6000, pa: 2, ticketMedio: 100, vendedoresAtivosHoje: 2, totalVendedores: 5, freshness: null },
+      alertasPrioritarios: [],
+      highlights: [],
+      pendenciasResumo: { vendedoresAbaixoDaMetaEsperada: 0, followUpsPendentes: 0, followUpsVencidos: 0, reconhecimentosSugeridos: 0, treinamentosPendentes: 0 },
+    });
+
+    renderHome();
+
+    expect(await screen.findByText(/Gerente/)).toBeInTheDocument();
+    expect(screen.getByText('Meta do mês (loja)')).toBeInTheDocument();
+    expect(screen.getByText('Minha Equipe')).toBeInTheDocument();
+    expect(screen.queryByText('Meta hoje')).not.toBeInTheDocument(); // nunca a meta pessoal do vendedor
   });
 });

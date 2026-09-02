@@ -67,6 +67,69 @@ export async function metaDoPeriodo(vendedorId: string, tipo: TipoMeta, periodo:
   return meta ? Number(meta.valorMeta) : null;
 }
 
+export interface RealizadoAgregado {
+  faturamento: number;
+  ticketMedio: number;
+  pa: number;
+  numAtendimentos: number;
+}
+
+/**
+ * Versão em lote de `realizadoNoPeriodo` (Fatia 9, seção 8/96) — 1 única
+ * query pra N vendedores, nunca 1 query por vendedor num loop. Usada pelo
+ * Store Summary e pelo Team Overview do gerente, que sempre olham a loja
+ * inteira de uma vez.
+ */
+export async function realizadoNoPeriodoEmLote(vendedorIds: string[], desde: Date, ate: Date): Promise<Map<string, RealizadoAgregado>> {
+  if (vendedorIds.length === 0) return new Map();
+
+  const snapshots = await prisma.indicadorRealizado.findMany({
+    where: { vendedorId: { in: vendedorIds }, dataHora: { gte: desde, lte: ate } },
+    orderBy: { dataHora: 'asc' },
+  });
+
+  const porVendedor = new Map<string, typeof snapshots>();
+  for (const s of snapshots) {
+    const lista = porVendedor.get(s.vendedorId);
+    if (lista) lista.push(s);
+    else porVendedor.set(s.vendedorId, [s]);
+  }
+
+  const resultado = new Map<string, RealizadoAgregado>();
+  for (const vendedorId of vendedorIds) {
+    const lista = porVendedor.get(vendedorId) ?? [];
+    const fechamentoPorDia = new Map<string, (typeof lista)[number]>();
+    for (const s of lista) {
+      fechamentoPorDia.set(inicioDoDia(s.dataHora).toISOString(), s);
+    }
+
+    let faturamento = 0;
+    let numAtendimentos = 0;
+    let somaPaPonderada = 0;
+    for (const s of fechamentoPorDia.values()) {
+      faturamento += Number(s.faturamento);
+      numAtendimentos += s.numAtendimentos;
+      somaPaPonderada += Number(s.pa) * s.numAtendimentos;
+    }
+
+    resultado.set(vendedorId, {
+      faturamento,
+      ticketMedio: numAtendimentos > 0 ? faturamento / numAtendimentos : 0,
+      pa: numAtendimentos > 0 ? somaPaPonderada / numAtendimentos : 0,
+      numAtendimentos,
+    });
+  }
+
+  return resultado;
+}
+
+/** Versão em lote de `metaDoPeriodo` — 1 única query pra N vendedores. */
+export async function metaDoPeriodoEmLote(vendedorIds: string[], tipo: TipoMeta, periodo: PeriodoMeta, referencia: Date): Promise<Map<string, number>> {
+  if (vendedorIds.length === 0) return new Map();
+  const metas = await prisma.meta.findMany({ where: { vendedorId: { in: vendedorIds }, tipo, periodo, referencia } });
+  return new Map(metas.map((m) => [m.vendedorId, Number(m.valorMeta)]));
+}
+
 export interface ProgressoPeriodo {
   periodo: 'DIA' | 'SEMANA' | 'MES';
   metaFaturamento: number | null;

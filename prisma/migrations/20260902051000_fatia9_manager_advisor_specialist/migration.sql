@@ -1,0 +1,3 @@
+-- AlterEnum
+ALTER TYPE "EspecialistaIA" ADD VALUE 'MANAGER_ADVISOR';
+

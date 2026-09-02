@@ -5,19 +5,35 @@ import { MemoryRouter } from 'react-router-dom';
 import { Equipe } from './Equipe';
 import * as api from '../api/universidade';
 import * as competicoesApi from '../api/competicoes';
+import * as managerPanelApi from '../api/managerPanel';
 
 vi.mock('../api/universidade');
 vi.mock('../api/competicoes');
+vi.mock('../api/managerPanel');
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(api.listarEquipe).mockResolvedValue({ vendedores: [{ id: 'v1', nome: 'Vendedor Um', matriculaErp: 'VEND001' }] });
+  vi.mocked(managerPanelApi.listarVisaoEquipe).mockResolvedValue({
+    vendedores: [{ vendedorId: 'v1', nome: 'Vendedor Um', percentualMetaDia: 50, pa: 2, ticketMedio: 100, missoesAtivas: 0, pdiAtivo: false, certificacoesExpirando: 0, alertasAbertos: 0, alertaMaisSeveroTipo: null, alertaMaisSeveroSeveridade: null }],
+  });
   vi.mocked(api.buscarDesenvolvimentoVendedor).mockResolvedValue({
     vendedor: { id: 'v1', nome: 'Vendedor Um' },
     matriz: [{ competencyId: 'c1', code: 'FECHAMENTO', name: 'Fechamento', category: null, status: 'OK', score: 50, confidence: 'LOW', nivel: 'INICIANTE', lastEvidenceAt: null, evidenceCount: 2, target: 80, gap: 30, priority: 'HIGH', breakdown: [] }],
     pdis: [],
     avaliacoes: [],
   });
+  vi.mocked(managerPanelApi.buscarEquipeDetalhe).mockResolvedValue({
+    vendedor: { id: 'v1', nome: 'Vendedor Um' },
+    matriz: [],
+    pdis: [],
+    alertas: [],
+    oneOnOnes: [],
+    planos: [],
+    certificacoes: [],
+    missoes: [],
+  });
+  vi.mocked(managerPanelApi.listarOneOnOnes).mockResolvedValue({ encontros: [] });
+  vi.mocked(managerPanelApi.buscarRoteiroSugerido1a1).mockResolvedValue({ perguntas: [] });
 });
 
 function renderTela() {

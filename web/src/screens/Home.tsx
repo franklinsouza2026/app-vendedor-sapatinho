@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { useApi } from '../utils/useApi';
+import { GerenteHome } from './GerenteHome';
 import { buscarMinhasMetas } from '../api/metas';
 import { buscarCarteira, buscarRanking, buscarStreak } from '../api/gamificacao';
 import { buscarMissoesAtivas } from '../api/missoes';
@@ -29,6 +30,15 @@ async function carregarHome(vendedorId: string) {
 }
 
 export function Home() {
+  const { sessao } = useAuth();
+  // Painel Gerencial Avançado (Fatia 9, seção 4): GERENTE nunca vê a Home
+  // genérica de vendedor (sem meta/ticket/PA própria, sem sentido pra quem
+  // não vende) — vê a situação da LOJA em vez da própria.
+  if (sessao!.vendedor.papel === 'GERENTE') return <GerenteHome />;
+  return <HomeVendedor />;
+}
+
+function HomeVendedor() {
   const { sessao } = useAuth();
   const vendedorId = sessao!.vendedor.id;
   const { dados, carregando, erro, atualizadoEm, recarregar } = useApi(() => carregarHome(vendedorId), [vendedorId]);
