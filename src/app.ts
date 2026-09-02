@@ -22,6 +22,9 @@ import { adminTrainingAiRouter } from './routes/admin-training-ai';
 import { universidadeSellerRouter } from './routes/universidade-seller';
 import { universidadeManagerRouter } from './routes/universidade-manager';
 import { universidadeAdminRouter } from './routes/universidade-admin';
+import { competicoesSellerRouter } from './routes/competicoes-seller';
+import { competicoesManagerRouter } from './routes/competicoes-manager';
+import { competicoesAdminRouter } from './routes/competicoes-admin';
 import { apiRateLimit } from './middlewares/ratelimit';
 import { errorHandler } from './middlewares/error-handler';
 
@@ -50,5 +53,8 @@ app.use(adminTrainingAiRouter);
 app.use(universidadeSellerRouter);
 app.use(universidadeManagerRouter);
 app.use(universidadeAdminRouter);
+app.use(competicoesSellerRouter);
+app.use(competicoesManagerRouter);
+app.use(competicoesAdminRouter);
 
 app.use(errorHandler);

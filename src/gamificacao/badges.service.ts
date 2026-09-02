@@ -5,6 +5,7 @@
 // ficam de fora por enquanto — não bloqueiam o Gamification Engine.
 import { prisma } from '../db';
 import { createLogger } from '../utils/logger';
+import { publicarEventoFeed } from '../competicoes/feed.service';
 
 const log = createLogger('gamificacao:badges');
 
@@ -13,6 +14,15 @@ export const CATALOGO_BADGES_V1 = [
   { codigo: 'STREAK_7', titulo: '7 Dias Consecutivos', descricao: 'Bateu a meta diária 7 dias seguidos', categoria: 'STREAK' },
   { codigo: 'PA_MASTER', titulo: 'PA Master', descricao: 'Melhorou o PA em relação à própria baseline', categoria: 'EVOLUCAO' },
   { codigo: 'TICKET_MASTER', titulo: 'Ticket Master', descricao: 'Melhorou o ticket médio em relação à própria baseline', categoria: 'EVOLUCAO' },
+  // Fatia 8 — competições/temporadas (já previstos desde a Fatia 2, ver
+  // comentário histórico acima). Concedidos só via `finalizarCompetition`,
+  // nunca manualmente.
+  { codigo: 'CAMPEAO_DA_SEASON', titulo: 'Campeão da Temporada', descricao: '1º lugar geral numa temporada', categoria: 'TEMPORADA' },
+  { codigo: 'TOP_3', titulo: 'Pódio', descricao: 'Terminou entre os 3 primeiros de uma competição', categoria: 'TEMPORADA' },
+  { codigo: 'MAIOR_EVOLUCAO', titulo: 'Maior Evolução', descricao: 'Maior evolução de Score Geral numa competição', categoria: 'EVOLUCAO' },
+  { codigo: 'CONSISTENCIA', titulo: 'Consistência', descricao: 'Venceu uma competição de consistência', categoria: 'STREAK' },
+  { codigo: 'CAMPEAO_DE_TREINAMENTO', titulo: 'Campeão de Treinamento', descricao: 'Venceu uma competição de treinamento', categoria: 'EVOLUCAO' },
+  { codigo: 'DESTAQUE_DA_EQUIPE', titulo: 'Destaque da Equipe', descricao: 'Loja venceu uma competição entre lojas', categoria: 'TEMPORADA' },
 ] as const;
 
 export type CodigoBadge = (typeof CATALOGO_BADGES_V1)[number]['codigo'];
@@ -36,6 +46,11 @@ export async function concederBadge(
     update: {},
     create: { empresaId, lojaId, vendedorId, badgeId: badge.id, idempotencyKey },
   });
+
+  // Feed idempotente por sourceId (a própria concessão) — publicar de novo
+  // numa concessão já existente (idempotencyKey repetida) nunca duplica
+  // (Fatia 8, seção 40).
+  await publicarEventoFeed({ eventType: 'BADGE_EARNED', sourceType: 'BADGE_CONCESSAO', sourceId: concessao.id, visibility: 'STORE', lojaId, subjectId: vendedorId, templateData: { badgeTitulo: badge.titulo } });
 
   log.info({ vendedorId, codigoBadge }, 'badge concedido (ou já existente — idempotente)');
   return concessao;

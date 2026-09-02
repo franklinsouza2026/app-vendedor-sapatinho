@@ -8,11 +8,13 @@ import * as authApi from '../api/auth';
 import * as metasApi from '../api/metas';
 import * as gamificacaoApi from '../api/gamificacao';
 import * as missoesApi from '../api/missoes';
+import * as competicoesApi from '../api/competicoes';
 
 vi.mock('../api/auth');
 vi.mock('../api/metas');
 vi.mock('../api/gamificacao');
 vi.mock('../api/missoes');
+vi.mock('../api/competicoes');
 
 const SESSAO = {
   vendedor: { id: 'v1', nome: 'Ana Vendedora', papel: 'VENDEDOR' as const },
@@ -36,6 +38,7 @@ beforeEach(() => {
     ranking: [{ vendedorId: 'v1', nomeVendedor: 'Ana Vendedora', posicao: 1, valor: '800', gapParaAnterior: null, provisorio: false }],
   });
   vi.mocked(missoesApi.buscarMissoesAtivas).mockResolvedValue({ missoes: [] });
+  vi.mocked(competicoesApi.buscarTemporadaAtual).mockResolvedValue({ season: null });
 });
 
 // Home só é montada atrás de RequireAuth na aplicação real (App.tsx) — nunca
@@ -140,6 +143,23 @@ describe('Home', () => {
 
     await screen.findByText('Nenhuma meta de hoje cadastrada ainda.');
     expect(screen.queryByText('Missões de hoje')).not.toBeInTheDocument();
+  });
+
+  it('mostra o bloco de Temporada só quando há uma season ACTIVE (seção 41/86/94)', async () => {
+    vi.mocked(competicoesApi.buscarTemporadaAtual).mockResolvedValue({
+      season: { id: 's1', code: 's1', name: 'Temporada de Verão', description: 'd', status: 'ACTIVE', startsAt: new Date().toISOString(), endsAt: new Date().toISOString() },
+    });
+
+    renderHome();
+    expect(await screen.findByText('Temporada de Verão')).toBeInTheDocument();
+  });
+
+  it('nunca mostra o bloco de Temporada quando não há season ativa', async () => {
+    vi.mocked(competicoesApi.buscarTemporadaAtual).mockResolvedValue({ season: null });
+
+    renderHome();
+    await screen.findByText(/Bom dia|Boa tarde|Boa noite/);
+    expect(screen.queryByText('Temporada em andamento')).not.toBeInTheDocument();
   });
 
   it('mostra tela de erro com opção de tentar de novo quando a API falha', async () => {

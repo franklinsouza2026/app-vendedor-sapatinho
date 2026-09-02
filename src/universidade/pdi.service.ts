@@ -8,6 +8,7 @@ import { resolverEmpresaUnica } from './schools.service';
 import { UniversidadeError } from './constantes';
 import { calcularScoreCompetencia } from './score-engine.service';
 import { buscarCompetencia } from './competency.service';
+import { publicarEventoFeed } from '../competicoes/feed.service';
 import { createLogger } from '../utils/logger';
 
 const log = createLogger('universidade:pdi');
@@ -147,6 +148,10 @@ export async function concluirItemPDI(planId: string, tipo: TipoItemPDI, sourceI
     const resultado = await prisma.developmentPlan.updateMany({ where: { id: planId, status: 'ACTIVE' }, data: { status: 'COMPLETED', completedAt: new Date() } });
     if (resultado.count === 1) {
       await registrarEventoAuditoria({ empresaId: await resolverEmpresaUnica(), acao: 'DEVELOPMENT_PLAN_COMPLETED', actorId: plano.subjectUserId, metadata: { planId } });
+      const vendedor = await prisma.vendedor.findUnique({ where: { id: plano.subjectUserId }, select: { lojaId: true } });
+      if (vendedor) {
+        await publicarEventoFeed({ eventType: 'PDI_COMPLETED', sourceType: 'DEVELOPMENT_PLAN', sourceId: planId, visibility: 'STORE', lojaId: vendedor.lojaId, subjectId: plano.subjectUserId, templateData: { competencyName: plano.competencia.name } });
+      }
     }
   }
   return item;

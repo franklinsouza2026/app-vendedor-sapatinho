@@ -11,6 +11,7 @@ import { getRegraAtiva } from './regras.service';
 import { concederMoeda, concederXp, reverterMoeda } from './ledger.service';
 import { concederBadge } from './badges.service';
 import { deltaPercentual, recomputarBaselines } from './baseline.service';
+import { publicarEventoFeed } from '../competicoes/feed.service';
 import { createLogger } from '../utils/logger';
 
 const log = createLogger('gamificacao:motor');
@@ -103,6 +104,9 @@ export async function avaliarMetaDiaria(vendedorId: string, agora: Date = new Da
 
         if (tier.limiar === 100) {
           await concederBadge(vendedor.empresaId, vendedor.lojaId, vendedorId, 'PRIMEIRA_META', `badge-primeira-meta-${vendedorId}`);
+          // Feed (Fatia 8, seção 70/86) — idempotente por dia (referenciaId já
+          // é único por vendedor+dia+tier), nunca publica a mesma meta 2x.
+          await publicarEventoFeed({ eventType: 'GOAL_REACHED', sourceType: referenciaTipo, sourceId: referenciaId, visibility: 'STORE', lojaId: vendedor.lojaId, subjectId: vendedorId, templateData: {} });
         }
       } else if (!qualifica && ativo) {
         const ultimaTransacaoAtiva = transacoes[transacoes.length - 1];

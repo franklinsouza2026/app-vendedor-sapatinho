@@ -4,6 +4,7 @@ import { useApi } from '../utils/useApi';
 import { buscarMinhasMetas } from '../api/metas';
 import { buscarCarteira, buscarRanking, buscarStreak } from '../api/gamificacao';
 import { buscarMissoesAtivas } from '../api/missoes';
+import { buscarTemporadaAtual } from '../api/competicoes';
 import { Card } from '../components/Card';
 import { ProgressBar } from '../components/ProgressBar';
 import { LoadingState } from '../components/LoadingState';
@@ -13,17 +14,18 @@ import { vendasNecessarias } from '../utils/calculo';
 import { rotaDaAcaoMissao } from '../utils/missoes';
 
 async function carregarHome(vendedorId: string) {
-  const [metas, carteira, streak, ranking, missoes] = await Promise.all([
+  const [metas, carteira, streak, ranking, missoes, temporada] = await Promise.all([
     buscarMinhasMetas(),
     buscarCarteira(),
     buscarStreak(),
     buscarRanking('SCORE_GERAL', 'LOJA'),
     buscarMissoesAtivas(),
+    buscarTemporadaAtual(),
   ]);
   const dia = metas.progresso.find((p) => p.periodo === 'DIA')!;
   const posicao = ranking.ranking.find((r) => r.vendedorId === vendedorId)?.posicao ?? null;
   const missoesPendentes = missoes.missoes.filter((m) => m.status === 'ASSIGNED' || m.status === 'IN_PROGRESS');
-  return { dia, carteira, streak, posicao, totalNoRanking: ranking.ranking.length, missoesPendentes };
+  return { dia, carteira, streak, posicao, totalNoRanking: ranking.ranking.length, missoesPendentes, temporada: temporada.season };
 }
 
 export function Home() {
@@ -35,7 +37,7 @@ export function Home() {
   if (erro) return <ErrorState mensagem={erro} onRetry={recarregar} />;
   if (!dados) return null;
 
-  const { dia, carteira, streak, posicao, totalNoRanking, missoesPendentes } = dados;
+  const { dia, carteira, streak, posicao, totalNoRanking, missoesPendentes, temporada } = dados;
   const percentual = dia.metaFaturamento ? (dia.realizado.faturamento / dia.metaFaturamento) * 100 : 0;
   const vendas = dia.faltaParaMeta !== null && dia.realizado.ticketMedio > 0 ? vendasNecessarias(dia.faltaParaMeta, dia.realizado.ticketMedio) : null;
 
@@ -164,6 +166,24 @@ export function Home() {
           </div>
         </div>
       </Card>
+
+      {/* Temporada atual (Fatia 8, seção 41/86) — só ocupa espaço quando
+          existe uma season ACTIVE de verdade; nunca inflado com detalhe,
+          só um atalho compacto pra tela de Competições. */}
+      {temporada && temporada.status === 'ACTIVE' && (
+        <Link to="/competicoes">
+          <Card className="flex items-center gap-3">
+            <span className="text-2xl">🏆</span>
+            <div className="flex-1">
+              <p className="font-medium text-white">{temporada.name}</p>
+              <p className="text-xs text-slate-400">Temporada em andamento</p>
+            </div>
+            <span className="text-slate-500" aria-hidden="true">
+              →
+            </span>
+          </Card>
+        </Link>
+      )}
 
       {/* Ponto único de entrada pro Coach/Treinador/Simulador/Academia —
           detalhe fica no hub /evoluir (também acessível pelo bottom nav),

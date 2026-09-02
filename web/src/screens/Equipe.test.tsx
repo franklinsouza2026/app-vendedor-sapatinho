@@ -4,8 +4,10 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { Equipe } from './Equipe';
 import * as api from '../api/universidade';
+import * as competicoesApi from '../api/competicoes';
 
 vi.mock('../api/universidade');
+vi.mock('../api/competicoes');
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -43,12 +45,25 @@ describe('Equipe', () => {
 
     renderTela();
     await user.click(await screen.findByText('Vendedor Um'));
-    await screen.findByRole('option', { name: 'Fechamento' });
+    const opcaoCompetencia = await screen.findByRole('option', { name: 'Fechamento' });
+    const selectCompetencia = opcaoCompetencia.closest('select')!;
 
-    await user.selectOptions(screen.getByRole('combobox'), 'c1');
+    await user.selectOptions(selectCompetencia, 'c1');
     await user.click(screen.getByRole('button', { name: 'Registrar' }));
 
     await waitFor(() => expect(api.registrarAvaliacao).toHaveBeenCalledWith('v1', { competencyId: 'c1', rating: 3, evidenceNote: undefined }));
+  });
+
+  it('reconhece um vendedor (social, nunca altera KPI/score)', async () => {
+    const user = userEvent.setup();
+    vi.mocked(competicoesApi.reconhecerVendedor).mockResolvedValue({ id: 'r1', tipo: 'TEAMWORK', authorId: 'ger1', subjectId: 'v1', message: 'Ótimo!', createdAt: new Date().toISOString() });
+
+    renderTela();
+    await user.click(await screen.findByText('Vendedor Um'));
+    await user.click(screen.getByRole('button', { name: 'Reconhecer' }));
+
+    await waitFor(() => expect(competicoesApi.reconhecerVendedor).toHaveBeenCalledWith('v1', { tipo: 'PERFORMANCE', message: undefined }));
+    expect(await screen.findByText('Reconhecimento enviado ✓')).toBeInTheDocument();
   });
 
   it('pede sugestão de IA pra competência com prioridade HIGH', async () => {

@@ -21,6 +21,7 @@ import { concederBonusMissao } from './recompensa.service';
 import { createLogger } from '../utils/logger';
 import { gerarEvidenciaDeMissao } from '../universidade/evidence.service';
 import { concluirItemPDIPorConteudo } from '../universidade/pdi.service';
+import { publicarEventoFeed } from '../competicoes/feed.service';
 
 const log = createLogger('missoes:avaliacao');
 
@@ -75,6 +76,7 @@ export async function avaliarMissoesDoVendedor(vendedorId: string, agora: Date =
     // continuam domínios separados (seção 23).
     await gerarEvidenciaDeMissao(vendedorId, assignment.definicao.id, assignment.id);
     await concluirItemPDIPorConteudo(vendedorId, 'MISSION', assignment.definicao.id);
+    await publicarEventoFeed({ eventType: 'MISSION_COMPLETED', sourceType: 'MISSION_ASSIGNMENT', sourceId: assignment.id, visibility: 'STORE', lojaId: assignment.lojaId, subjectId: vendedorId, templateData: { missionTitle: assignment.definicao.title } });
   }
 }
 

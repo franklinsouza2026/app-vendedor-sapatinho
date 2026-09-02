@@ -9,6 +9,10 @@ import { resolverEmpresaUnica } from './schools.service';
 import { UniversidadeError } from './constantes';
 import { calcularScoreCompetencia } from './score-engine.service';
 import { checarCompletudeMandamentos } from '../academia/mandamentos.service';
+import { publicarEventoFeed } from '../competicoes/feed.service';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('universidade:certification');
 
 export async function criarCertificationDefinition(
   dados: { code: string; name: string; description: string; audience?: PublicoConteudo; validityMonths?: number },
@@ -144,6 +148,13 @@ export async function emitirCertificacaoSeElegivel(userId: string, definitionId:
       data: { userId, definitionId, definitionVersion: def.version, expiresAt, evidenceSnapshot: elegibilidade.evidenceSnapshot as Prisma.InputJsonValue },
     });
     await registrarEventoAuditoria({ empresaId: await resolverEmpresaUnica(), acao: 'CERTIFICATION_ISSUED', actorId: userId, metadata: { certificationId: emitida.id, definitionId } });
+    // Feed (Fatia 8, seção 70) — best-effort, nunca bloqueia a emissão real.
+    try {
+      const vendedor = await prisma.vendedor.findUnique({ where: { id: userId }, select: { lojaId: true } });
+      if (vendedor) await publicarEventoFeed({ eventType: 'CERTIFICATION_ISSUED', sourceType: 'USER_CERTIFICATION', sourceId: emitida.id, visibility: 'STORE', lojaId: vendedor.lojaId, subjectId: userId, templateData: { certificationName: def.name } });
+    } catch (err) {
+      log.error({ err, userId, definitionId }, 'falha ao publicar feed de certificação — não bloqueia a emissão');
+    }
     return emitida;
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {

@@ -4,6 +4,7 @@ const ITENS = [
   { to: '/admin/usuarios', label: 'Usuários' },
   { to: '/admin/treinamento', label: 'Treinamento' },
   { to: '/admin/universidade', label: 'Universidade' },
+  { to: '/admin/gamificacao', label: 'Gamificação' },
   { to: '/admin/ai', label: 'IA' },
 ];
 

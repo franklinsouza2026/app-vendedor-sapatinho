@@ -3,7 +3,10 @@ import { useApi } from '../utils/useApi';
 import { Card } from '../components/Card';
 import { LoadingState } from '../components/LoadingState';
 import { buscarDesenvolvimentoVendedor, listarEquipe, registrarAvaliacao, sugerirSequenciaIA, VendedorResumoEquipe } from '../api/universidade';
+import { reconhecerVendedor, TipoReconhecimento } from '../api/competicoes';
 import { ApiError } from '../api/client';
+
+const TIPOS_RECONHECIMENTO: TipoReconhecimento[] = ['PERFORMANCE', 'EVOLUTION', 'LEARNING', 'TEAMWORK', 'CONSISTENCY', 'LEADERSHIP', 'CUSTOM'];
 
 export function Equipe() {
   const { dados, carregando } = useApi(() => listarEquipe(), []);
@@ -40,6 +43,10 @@ function Desenvolvimento({ vendedorId, onVoltar }: { vendedorId: string; onVolta
   const [nota, setNota] = useState('');
   const [erro, setErro] = useState<string | null>(null);
   const [sugestoes, setSugestoes] = useState<{ title: string; rationale: string }[] | null>(null);
+  const [tipoReconhecimento, setTipoReconhecimento] = useState<TipoReconhecimento>('PERFORMANCE');
+  const [mensagemReconhecimento, setMensagemReconhecimento] = useState('');
+  const [reconhecimentoEnviado, setReconhecimentoEnviado] = useState(false);
+  const [erroReconhecimento, setErroReconhecimento] = useState<string | null>(null);
 
   async function handleAvaliar(e: FormEvent) {
     e.preventDefault();
@@ -50,6 +57,19 @@ function Desenvolvimento({ vendedorId, onVoltar }: { vendedorId: string; onVolta
       recarregar();
     } catch (err) {
       setErro(err instanceof ApiError ? err.message : 'não foi possível registrar a avaliação');
+    }
+  }
+
+  async function handleReconhecer(e: FormEvent) {
+    e.preventDefault();
+    setErroReconhecimento(null);
+    setReconhecimentoEnviado(false);
+    try {
+      await reconhecerVendedor(vendedorId, { tipo: tipoReconhecimento, message: mensagemReconhecimento || undefined });
+      setMensagemReconhecimento('');
+      setReconhecimentoEnviado(true);
+    } catch (err) {
+      setErroReconhecimento(err instanceof ApiError ? err.message : 'não foi possível reconhecer');
     }
   }
 
@@ -127,6 +147,23 @@ function Desenvolvimento({ vendedorId, onVoltar }: { vendedorId: string; onVolta
           Registrar
         </button>
         {erro && <p className="text-xs text-red-400">{erro}</p>}
+      </form>
+
+      <form onSubmit={handleReconhecer} className="flex flex-col gap-2 rounded-lg border border-slate-800 p-4">
+        <p className="text-xs uppercase tracking-wide text-slate-500">Reconhecer (social, não altera KPI/score)</p>
+        <select value={tipoReconhecimento} onChange={(e) => setTipoReconhecimento(e.target.value as TipoReconhecimento)} className="rounded-lg bg-surface px-3 py-2 text-sm text-white">
+          {TIPOS_RECONHECIMENTO.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+        </select>
+        <input placeholder="Mensagem (opcional)" value={mensagemReconhecimento} onChange={(e) => setMensagemReconhecimento(e.target.value)} className="rounded-lg bg-surface px-3 py-2 text-sm text-white" />
+        <button type="submit" className="self-start rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white">
+          Reconhecer
+        </button>
+        {reconhecimentoEnviado && <p className="text-xs text-emerald-400">Reconhecimento enviado ✓</p>}
+        {erroReconhecimento && <p className="text-xs text-red-400">{erroReconhecimento}</p>}
       </form>
 
       <div className="flex flex-col gap-2">

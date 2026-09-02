@@ -58,7 +58,9 @@ test.describe('Jornada Universidade — Manager', () => {
     await expect(page.getByRole('option', { name: 'Comunicação (E2E)' })).toHaveCount(1);
 
     // 3. Registra uma avaliação (1-5) — vira evidência real automaticamente.
-    await page.getByRole('combobox').selectOption(competencia.id);
+    // Escopado ao formulário de avaliação (a tela também tem o formulário de
+    // Reconhecimento da Fatia 8, com seu próprio combobox de tipo).
+    await page.locator('form').filter({ hasText: 'Registrar avaliação' }).getByRole('combobox').selectOption(competencia.id);
     const respostaAvaliacao = page.waitForResponse((r) => r.url().includes('/avaliacoes') && r.request().method() === 'POST');
     await page.getByRole('button', { name: 'Registrar' }).click();
     expect((await respostaAvaliacao).status()).toBe(201);

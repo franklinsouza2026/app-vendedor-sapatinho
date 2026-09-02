@@ -194,6 +194,11 @@ enum TipoEventoGamificacao {
   MISSAO
   AJUSTE_MANUAL
   REVERSAO
+  // Fatia 8 — recompensa de competição/temporada, reusa o MESMO ledger de
+  // XP/VendaCoins (nunca um "Season Points" confundido com moeda real, ver
+  // model SeasonPointLedger). Bônus 0 por padrão (seção 26/95) até o negócio
+  // definir valores.
+  COMPETICAO
 }
 
 // Régua de XP/moeda e pesos do Score Geral — versionados (nunca hardcoded
@@ -1948,4 +1953,269 @@ model UserCertification {
   @@unique([userId, definitionId, definitionVersion])
   @@index([userId])
   @@map("user_certification")
+}
+
+// ============================================================
+// Fatia 8 — Competições, Seasons, Ligas, Reconhecimento, Feed Social
+// ============================================================
+// Reaproveita Gamification Engine/Ranking/Missions/Universidade já
+// existentes — nenhum motor de KPI paralelo. Season Points é um conceito
+// NOVO e deliberadamente separado de XP/VendaCoins (seção 6): nunca gasta
+// XP, nunca mexe na wallet, só existe dentro do escopo de uma Season.
+// Catálogo global (sem empresaId), mesma decisão de "1 empresa por
+// deployment" já reafirmada desde a Fatia 6.
+
+enum StatusSeason {
+  DRAFT
+  SCHEDULED
+  ACTIVE
+  FINISHED
+  CANCELLED
+}
+
+model Season {
+  id                   String       @id @default(uuid())
+  code                 String       @unique
+  name                 String
+  description          String       @db.Text
+  status               StatusSeason @default(DRAFT)
+  startsAt             DateTime
+  endsAt               DateTime
+  registrationStartsAt DateTime?
+  registrationEndsAt   DateTime?
+  createdBy            String
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  competicoes  Competition[]
+  ligaMembros  LeagueMembership[]
+  pontosLedger SeasonPointLedger[]
+
+  @@index([status])
+  @@map("season")
+}
+
+enum TipoParticipante {
+  SELLER
+  STORE
+}
+
+// Ledger append-only (seção 7) — nunca editado; idempotente por
+// (season, participante, fonte do evento). Season Points nunca se
+// misturam com XP/VendaCoins — este é o único lugar onde eles existem.
+model SeasonPointLedger {
+  id              String           @id @default(uuid())
+  seasonId        String
+  participantType TipoParticipante
+  participantId   String
+  eventType       String
+  sourceType      String
+  sourceId        String
+  points          Int
+  occurredAt      DateTime         @default(now())
+  metadata        Json?
+  createdAt       DateTime         @default(now())
+
+  season Season @relation(fields: [seasonId], references: [id])
+
+  @@unique([seasonId, participantType, participantId, sourceType, sourceId])
+  @@index([seasonId, participantType, participantId])
+  @@map("season_point_ledger")
+}
+
+enum TipoMetricaCompeticao {
+  GOAL_ATTAINMENT
+  PERSONAL_IMPROVEMENT
+  SCORE_GERAL
+  PA
+  TICKET_MEDIO
+  TRAINING
+  COMPETENCY_EVOLUTION
+  MISSION_COMPLETION
+  CONSISTENCY
+  CUSTOM_RULE
+}
+
+enum StatusCompeticao {
+  DRAFT
+  SCHEDULED
+  ACTIVE
+  FINISHED
+  CANCELLED
+}
+
+// Regras (seção 13) ficam como colunas tipadas na própria Competition —
+// nunca uma fórmula/expressão armazenada (seção 48: nunca eval/JS/SQL
+// arbitrário). `metricType` é o único "seletor de regra", sempre resolvido
+// por um calculador determinístico fixo em código (metricas.service.ts).
+// `rulesVersion` incrementa se as regras mudarem depois de agendada/ativa
+// (mesmo princípio de versionamento do CertificationDefinition, 7.5E).
+model Competition {
+  id                String                @id @default(uuid())
+  seasonId          String?
+  code              String                @unique
+  name              String
+  description       String                @db.Text
+  participantType   TipoParticipante
+  metricType        TipoMetricaCompeticao
+  // Só usado quando metricType=COMPETENCY_EVOLUTION (Universidade, 7.5E) —
+  // qual competência está em disputa. Irrelevante pras demais métricas.
+  competencyId      String?
+  status            StatusCompeticao      @default(DRAFT)
+  startsAt          DateTime
+  endsAt            DateTime
+  minDiasAtivos     Int                   @default(5)
+  rewardXp          Int                   @default(0)
+  rewardMoedas      Int                   @default(0)
+  rewardBadgeCodigo String?
+  rulesVersion      Int                   @default(1)
+  finalizedAt       DateTime?
+  createdBy         String
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  season       Season?                  @relation(fields: [seasonId], references: [id])
+  participantes CompetitionParticipant[]
+  resultados    CompetitionResult[]
+
+  @@index([status])
+  @@index([seasonId])
+  @@map("competition")
+}
+
+enum StatusParticipacaoCompeticao {
+  ELIGIBLE
+  ACTIVE
+  DISQUALIFIED
+  FINISHED
+}
+
+model CompetitionParticipant {
+  id                 String                       @id @default(uuid())
+  competitionId      String
+  participantType    TipoParticipante
+  participantId      String
+  status             StatusParticipacaoCompeticao @default(ELIGIBLE)
+  enrolledAt         DateTime                     @default(now())
+  disqualifiedAt     DateTime?
+  disqualifiedReason String?
+  disqualifiedBy     String?
+
+  competicao Competition @relation(fields: [competitionId], references: [id])
+
+  @@unique([competitionId, participantType, participantId])
+  @@map("competition_participant")
+}
+
+// Snapshot final IMUTÁVEL (seção 64) — gravado só na finalização, nunca
+// recalculado depois. Reprocessamento antes do fechamento é permitido
+// (seção 65), depois disso qualquer correção exige um fluxo explícito novo.
+model CompetitionResult {
+  id              String           @id @default(uuid())
+  competitionId   String
+  participantType TipoParticipante
+  participantId   String
+  rank            Int
+  score           Decimal          @db.Decimal(14, 4)
+  points          Int
+  rewardGranted   Boolean          @default(false)
+  createdAt       DateTime         @default(now())
+
+  competicao Competition @relation(fields: [competitionId], references: [id])
+
+  @@unique([competitionId, participantType, participantId])
+  @@map("competition_result")
+}
+
+// Liga é agrupamento administrável (seção 18) — os 4 nomes clássicos
+// (Bronze/Prata/Ouro/Diamante) são só SEED v1, nunca hardcoded no código de
+// negócio (sortOrder decide a ordem real).
+model League {
+  id                  String   @id @default(uuid())
+  code                String   @unique
+  name                String
+  sortOrder           Int      @default(0)
+  promotionThreshold  Int?
+  relegationThreshold Int?
+  active              Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  membros LeagueMembership[]
+
+  @@map("league")
+}
+
+// Histórico de participação (seção 19) — `exitedAt: null` é a liga ATUAL do
+// participante; promoção/rebaixamento nunca edita a linha antiga, sempre
+// fecha (`exitedAt`) e abre uma nova.
+model LeagueMembership {
+  id              String           @id @default(uuid())
+  seasonId        String?
+  leagueId        String
+  participantType TipoParticipante
+  participantId   String
+  enteredAt       DateTime         @default(now())
+  exitedAt        DateTime?
+  reason          String?
+
+  season Season? @relation(fields: [seasonId], references: [id])
+  liga   League  @relation(fields: [leagueId], references: [id])
+
+  @@index([participantType, participantId, exitedAt])
+  @@index([seasonId])
+  @@map("league_membership")
+}
+
+enum TipoReconhecimento {
+  PERFORMANCE
+  EVOLUTION
+  LEARNING
+  TEAMWORK
+  CONSISTENCY
+  LEADERSHIP
+  CUSTOM
+}
+
+// Reconhecimento manual (seção 30/31) — puramente social, nunca altera
+// KPI/score/resultado de competição. `authorId`/`subjectId` são Vendedor.id
+// sem @relation (mesmo padrão de ManagerAssessment, Fatia 7.5E — evita
+// inchar o model Vendedor com mais back-relations).
+model Recognition {
+  id        String             @id @default(uuid())
+  tipo      TipoReconhecimento
+  authorId  String
+  subjectId String
+  message   String?            @db.Text
+  createdAt DateTime           @default(now())
+
+  @@index([subjectId])
+  @@map("recognition")
+}
+
+enum VisibilidadeFeed {
+  PRIVATE
+  STORE
+  COMPANY
+}
+
+// Feed 100% system-generated (seção 35) — nunca texto livre/LLM; mensagem é
+// sempre reconstruída no frontend/service a partir de `eventType` +
+// `templateData` (dados estruturados, nunca HTML). Idempotente por
+// (eventType, sourceType, sourceId) — mesmo evento nunca publica 2x.
+model FeedEvent {
+  id           String           @id @default(uuid())
+  lojaId       String?
+  actorId      String?
+  subjectId    String?
+  eventType    String
+  visibility   VisibilidadeFeed
+  sourceType   String
+  sourceId     String
+  templateData Json
+  createdAt    DateTime         @default(now())
+
+  @@unique([eventType, sourceType, sourceId])
+  @@index([visibility, lojaId, createdAt])
+  @@map("feed_event")
 }
