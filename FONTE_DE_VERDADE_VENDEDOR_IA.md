@@ -1575,14 +1575,34 @@ Camada de desenvolvimento profissional contínuo sobre Academy+CMS+Training Inte
 
 **Não implementado nesta fatia** (registrado formalmente, não esquecido): certificação por trilha inteira além dos tipos de requisito já suportados (TRACK/LESSON/QUIZ_MIN_SCORE/SIMULATION/COMPETENCY_TARGET/MANDAMENTOS_COMPLETOS), scheduler automático de expiração de certificação (`atualizarStatusExpiracao` roda sob demanda, mesmo padrão de avaliação de missão da Fatia 7), Seller/Manager Training Agent além do identificador de specialist reusado do Gateway, competições, Dashboard Gerencial avançado, Linx real, deploy/piloto. Decisões completas no vault (`05-Decisoes-e-Tradeoffs.md`, Decisões 60-72).
 
-### Fatia 8 — Competições, temporadas e feed
-- ligas;
-- loja x loja;
-- temporadas;
-- ranking final;
-- feed;
-- reações;
-- premiações.
+### Fatia 8 — Competições, temporadas e feed — CONCLUÍDA (2026-09-02, commit `9ec8694`, 638 testes: 478 backend + 136 frontend + 24 E2E Playwright)
+Camada de gamificação social sobre o Gamification Engine/Ranking/Missions/Universidade já existentes (Fatias 2/6/7/7.5E) — nenhum motor de KPI paralelo. **Regra fundamental respeitada por construção**: backend é sempre a autoridade sobre elegibilidade, ranking, tie-break, vencedor e recompensa; frontend nunca envia `winner`/`finalRank`/`rewardGranted`/`eligible` — tudo isso é derivado internamente e testado como tal.
+
+**Season/SeasonPointLedger**: Season (`DRAFT→SCHEDULED→ACTIVE→FINISHED/CANCELLED`) nunca reseta XP/VendaCoins/badges/certificações/PDI — Season Points são um conceito NOVO, totalmente separado (ledger próprio, append-only, idempotente por `(season, participante, sourceType, sourceId)`, aceita pontos negativos pra compensação de cancelamento/devolução, nunca apaga o registro original).
+
+**Competition**: `participantType` (SELLER/STORE — TEAM deliberadamente fora, seção 53: não existe domínio Team no projeto, Store já é agrupamento suficiente) + `metricType` com calculador determinístico fixo em código pra 9 das 10 métricas do enum (GOAL_ATTAINMENT/PERSONAL_IMPROVEMENT/SCORE_GERAL/PA/TICKET_MEDIO/TRAINING/COMPETENCY_EVOLUTION/MISSION_COMPLETION/CONSISTENCY) — `CUSTOM_RULE` é aceito pelo enum mas **rejeitado na criação** (nunca teria calculador, por design: nenhuma fórmula/expressão executável é armazenada ou avaliada, seção 48). GOAL_ATTAINMENT/PA/TICKET_MEDIO sempre expõem só o `score` normalizado (% ou delta), nunca o faturamento bruto de terceiros.
+
+**Fairness Engine**: auto-enrollment (seção 60) marca `ELIGIBLE`/`DISQUALIFIED` (nunca score 0 como substituto de "sem dados") com base em dias ativos (`StreakChecagem`) ou baseline pessoal suficiente — em lote (`diasAtivosEmLote`, 1 query pra N candidatos) + `createMany` com `skipDuplicates`, nunca N+1 por vendedor.
+
+**Ranking/Tie-break**: fixo em código (score → consistência → participantId), nunca configurável por competição (fecharia a porta pra reintroduzir "fórmula arbitrária"). Finalização grava snapshot IMUTÁVEL (`CompetitionResult`) dentro da MESMA transação Prisma que a transição ACTIVE→FINISHED — testado com `Promise.all` real confirmando que uma chamada perdedora nunca vê "FINISHED mas sem resultado ainda" nem duplica reward.
+
+**League**: seed v1 administrável (Bronze/Prata/Ouro/Diamante, nunca hardcoded no motor); promoção/rebaixamento na finalização da Season, sempre fechando a membership antiga e abrindo uma nova (histórico preservado, nunca editado).
+
+**Recognition**: puramente social, nunca altera KPI/score; texto sanitizado (tags HTML removidas) e limitado a 500 caracteres; nunca autorreconhecimento; RBAC reaproveita o MESMO escopo de loja da Universidade (`garantirVendedorNoEscopoDoGerente`, restrito a `papel:'VENDEDOR'`).
+
+**Feed**: 100% system-generated (templates fixos + dados estruturados, nunca LLM, nunca HTML livre); idempotente por `(eventType, sourceType, sourceId)`; visibilidade STORE/COMPANY (PRIVATE reservado, sem uso ainda); paginação por cursor, limite máximo 50.
+
+**Achados corrigidos durante a implementação (self-review, seção 120):**
+1. **Bug de performance real (não só teórico)**: `garantirParticipantesInscritos` buscava TODOS os vendedores da plataforma e avaliava fairness um por um, sequencial — com o banco de teste compartilhado (~21 mil vendedores acumulados de sessões anteriores), isso *travava* de verdade (timeout de 5s do vitest). Corrigido com fairness em lote + `createMany`.
+2. **Recompensa de competição sendo silenciosamente ignorada**: a primeira versão reusava `concederRecompensaTreinamento` (consulta a régua global de gamificação), que nunca tinha `COMPETICAO` configurado — toda competição concedia XP/moeda **zero**, mesmo com `rewardXp`/`rewardMoedas` preenchidos pelo Admin. Corrigido chamando `concederXp`/`concederMoeda` diretamente com os valores da PRÓPRIA competição (seção 13/26: "cada competição define seu próprio prêmio", incompatível com 1 valor global pra todo evento do tipo).
+3. **2 bugs reais de ordenação de rota Express**: `GET /admin/competicoes/:id` (genérica) registrada ANTES de `GET /admin/competicoes/ligas` (literal) fazia `ligas` ser interpretado como um `:id` — mesmo problema em `/:id/:transicao` vs `/:id/finalizar`/`/desqualificar` (e o equivalente em `/seasons/`). Corrigido reordenando: toda rota literal agora vem antes de qualquer rota com parâmetro genérico no mesmo nível — coberto por teste de integração que teria pego isso desde o início.
+4. **Race condition real de finalização**: a versão original fazia a transição de status ACTIVE→FINISHED e SÓ DEPOIS criava os `CompetitionResult` — uma chamada concorrente perdedora, ao reconsultar o status pra decidir "já foi finalizada?", podia achar `FINISHED` mas os resultados ainda vazios (ou usar o status ANTIGO capturado antes da corrida, nunca revalidado). Corrigido envolvendo transição + snapshot na MESMA transação Prisma.
+5. **Dead code**: `nivelDoScore`-like — `rankingSeason` (ranking de Season Points) tinha sido implementado mas nunca exposto por nenhuma rota; corrigido adicionando `GET /temporadas/:id/ranking` + aba "Temporada" na tela de Competições do vendedor.
+6. **N+1 real (2º achado)**: `metaTotalNoPeriodo` (métrica GOAL_ATTAINMENT) fazia 1 query por DIA do período, sequencial — uma competição de 90 dias faria 90 queries por vendedor só nesse cálculo. Corrigido buscando todas as metas do período numa única query.
+
+**Revisão de segurança dedicada**: agente independente cobrindo AUTH/RBAC/TENANT/IDOR/MASS ASSIGNMENT/SCORE-REWARD-POINT-WINNER FORGERY/PRIVACY-REVENUE-LEAK/XSS/RECOGNITION ABUSE/CONCURRENCY/REPLAY/AUDIT/PWA CACHE/SECRETS — **nenhum achado de alta confiança** (os 4 achados reais desta fatia já foram todos encontrados e corrigidos no self-review antes da revisão dedicada rodar).
+
+**Não implementado nesta fatia** (registrado formalmente, não esquecido): Team como participantType/entidade própria (Store já é suficiente, seção 53), comentários livres no Feed (seção 38, deliberadamente fora), reações além do escopo mínimo, expressão/fórmula custom pra competição (nunca, por design — seção 48), tempo real via WebSocket (polling/refresh existente é suficiente), Dashboard Gerencial avançado (Fatia 9), Linx real, deploy/piloto.
 
 ### Fatia 9 — Painel do gestor avançado
 - visão consolidada;
