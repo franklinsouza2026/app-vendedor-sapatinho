@@ -12,8 +12,10 @@ import { AIProviderError } from '../ai-platform/providers';
 import { gerarViaGateway, providerEModeloParaTelemetria } from '../ai-platform/gateway.service';
 import { verificarBudgetMensal } from '../ai-platform/budget.service';
 import { buildTrainerContext } from './context-builder.service';
+import { buildManagerTrainerContext, MODOS_GERENCIAIS } from './manager-context';
 import { getSystemPrompt } from './prompts/system-prompt';
-import { formatarContextoParaPrompt } from './prompts/context-formatter';
+import { getSystemPromptGerencial } from './prompts/system-prompt-gerencial';
+import { formatarContextoParaPrompt, formatarContextoGerencialParaPrompt } from './prompts/context-formatter';
 import { verificarRateLimitDiario } from './limites.service';
 import { createLogger } from '../utils/logger';
 
@@ -182,8 +184,32 @@ export async function enviarMensagem(input: EnviarMensagemInput) {
       if (respostaJaGerada) return respostaJaGerada;
     }
 
-    const { context: contexto, playbookId } = await buildTrainerContext(vendedorId, { mode, objection, situation });
-    const systemPrompt = `${getSystemPrompt()}\n\n${formatarContextoParaPrompt(contexto)}`;
+    // Treinador Gerencial (Fatia 9.6, seção 29) — mesmo engine, contexto e
+    // prompt PRÓPRIOS pro papel de quem pergunta: um GERENTE nunca recebe
+    // PA/ticket/playbook de venda (não fazem sentido pra quem não vende).
+    const ehGerencial = vendedor.papel === 'GERENTE';
+    const modoEhGerencial = (MODOS_GERENCIAIS as string[]).includes(mode);
+    if (ehGerencial !== modoEhGerencial) {
+      throw new TrainerError('not_found', 'modo de treino não disponível pro seu papel');
+    }
+    let contexto: unknown;
+    let playbookId: string | null;
+    let systemPrompt: string;
+    let specialistMockKey: 'trainer' | 'trainer_gerencial';
+
+    if (ehGerencial) {
+      const resultado = await buildManagerTrainerContext(vendedorId, { mode, situation });
+      contexto = resultado.context;
+      playbookId = resultado.playbookId;
+      systemPrompt = `${getSystemPromptGerencial()}\n\n${formatarContextoGerencialParaPrompt(resultado.context)}`;
+      specialistMockKey = 'trainer_gerencial';
+    } else {
+      const resultado = await buildTrainerContext(vendedorId, { mode, objection, situation });
+      contexto = resultado.context;
+      playbookId = resultado.playbookId;
+      systemPrompt = `${getSystemPrompt()}\n\n${formatarContextoParaPrompt(resultado.context)}`;
+      specialistMockKey = 'trainer';
+    }
 
     const historico = await prisma.trainerMessage.findMany({
       where: { conversationId },
@@ -198,7 +224,7 @@ export async function enviarMensagem(input: EnviarMensagemInput) {
         empresaId: vendedor.empresaId,
         systemPrompt,
         messages: mensagensParaProvider,
-        metadata: { specialist: 'trainer', context: contexto },
+        metadata: { specialist: specialistMockKey, context: contexto },
       }));
     } catch (err) {
       await registrarFalhaUso(vendedor.empresaId, vendedorId, conversationId, err);

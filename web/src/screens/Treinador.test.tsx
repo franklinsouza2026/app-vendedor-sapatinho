@@ -2,16 +2,30 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Treinador } from './Treinador';
+import { AuthProvider } from '../auth/AuthContext';
 import { ApiError } from '../api/client';
+import * as authApi from '../api/auth';
 import * as treinadorApi from '../api/treinador';
 import { MensagemTreinador } from '../types';
 
 vi.mock('../api/treinador');
+vi.mock('../api/auth');
 
 const CONVERSA = { id: 'conv-1', vendedorId: 'v1', status: 'ABERTA' as const, startedAt: '2026-08-29T10:00:00Z' };
 const OBJECOES = { objections: [{ code: 'ESTA_CARO', label: 'Está caro' }, { code: 'VOU_PENSAR', label: 'Vou pensar' }] };
+const SESSAO_VENDEDOR = { vendedor: { id: 'v1', nome: 'Ana Vendedora', papel: 'VENDEDOR' as const }, loja: { id: 'loja-1', nome: 'Loja Piloto' }, empresa: { nome: 'Sapatinho de Luxo' } };
+
+function renderTreinador() {
+  return render(
+    <AuthProvider>
+      <Treinador />
+    </AuthProvider>
+  );
+}
 
 beforeEach(() => {
+  localStorage.setItem('vendedor-ia:token', 'token-valido');
+  vi.mocked(authApi.buscarSessaoAtual).mockResolvedValue(SESSAO_VENDEDOR);
   vi.mocked(treinadorApi.buscarConversaAtual).mockResolvedValue(CONVERSA);
   vi.mocked(treinadorApi.buscarObjecoesComuns).mockResolvedValue(OBJECOES);
   vi.mocked(treinadorApi.buscarMensagens).mockResolvedValue({ mensagens: [] });
@@ -19,7 +33,7 @@ beforeEach(() => {
 
 describe('Treinador', () => {
   it('mostra objeções comuns e quick actions quando não há mensagens', async () => {
-    render(<Treinador />);
+    renderTreinador();
 
     expect(await screen.findByRole('button', { name: 'Está caro' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Vou pensar' })).toBeInTheDocument();
@@ -27,9 +41,19 @@ describe('Treinador', () => {
   });
 
   it('título e subtítulo deixam claro que é técnica de venda, não o Coach', async () => {
-    render(<Treinador />);
+    renderTreinador();
     expect(await screen.findByRole('heading', { name: 'Treinador de Vendas' })).toBeInTheDocument();
     expect(screen.getByText(/playbook da sua loja/)).toBeInTheDocument();
+  });
+
+  it('GERENTE vê o Treinador de Gestão, sem objeções de venda (Fatia 9.6, seção 29)', async () => {
+    vi.mocked(authApi.buscarSessaoAtual).mockResolvedValue({ vendedor: { id: 'ger1', nome: 'Gerente', papel: 'GERENTE' as const }, loja: { id: 'loja-1', nome: 'Loja Piloto' }, empresa: { nome: 'Sapatinho de Luxo' } });
+    renderTreinador();
+
+    expect(await screen.findByRole('heading', { name: 'Treinador de Gestão' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Como conduzo um 1:1?' })).toBeInTheDocument();
+    expect(screen.queryByText('A cliente disse...')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Está caro' })).not.toBeInTheDocument();
   });
 
   it('envia uma objeção com mode=OBJECAO e objection preenchido', async () => {
@@ -42,7 +66,7 @@ describe('Treinador', () => {
       createdAt: '2026-08-29T10:01:00Z',
     });
 
-    render(<Treinador />);
+    renderTreinador();
     await user.click(await screen.findByRole('button', { name: 'Está caro' }));
 
     expect(treinadorApi.enviarMensagem).toHaveBeenCalledWith(CONVERSA.id, { content: 'Está caro', mode: 'OBJECAO', objection: 'Está caro' });
@@ -59,7 +83,7 @@ describe('Treinador', () => {
       createdAt: '2026-08-29T10:01:00Z',
     });
 
-    render(<Treinador />);
+    renderTreinador();
     await user.click(await screen.findByRole('button', { name: 'Quero melhorar meu PA' }));
 
     expect(treinadorApi.enviarMensagem).toHaveBeenCalledWith(CONVERSA.id, { content: 'Quero melhorar meu PA', mode: 'PA', objection: undefined });
@@ -75,7 +99,7 @@ describe('Treinador', () => {
       createdAt: '2026-08-29T10:01:00Z',
     });
 
-    render(<Treinador />);
+    renderTreinador();
     const input = await screen.findByPlaceholderText('Descreva a situação...');
     await user.type(input, 'Como fecho essa venda?');
     await user.click(screen.getByRole('button', { name: 'Enviar' }));
@@ -93,7 +117,7 @@ describe('Treinador', () => {
       })
     );
 
-    render(<Treinador />);
+    renderTreinador();
     await user.click(await screen.findByRole('button', { name: 'Está caro' }));
 
     expect(screen.getByRole('status')).toHaveTextContent('digitando...');
@@ -108,7 +132,7 @@ describe('Treinador', () => {
       mensagens: [{ id: 'm1', conversationId: CONVERSA.id, role: 'USER', content: '<b>injeção</b>', createdAt: '2026-08-29T10:00:00Z' }],
     });
 
-    render(<Treinador />);
+    renderTreinador();
 
     expect(await screen.findByText('<b>injeção</b>')).toBeInTheDocument();
     expect(document.querySelector('b')).not.toBeInTheDocument();
@@ -122,7 +146,7 @@ describe('Treinador', () => {
       ],
     });
 
-    render(<Treinador />);
+    renderTreinador();
 
     expect(await screen.findByText('Está caro')).toBeInTheDocument();
     expect(screen.getByText('Vamos investigar o motivo.')).toBeInTheDocument();
@@ -132,7 +156,7 @@ describe('Treinador', () => {
     const user = userEvent.setup();
     vi.mocked(treinadorApi.enviarMensagem).mockRejectedValue(new ApiError(429, 'limite atingido', 'rate_limited'));
 
-    render(<Treinador />);
+    renderTreinador();
     const input = await screen.findByPlaceholderText('Descreva a situação...');
     await user.type(input, 'Minha pergunta');
     await user.click(screen.getByRole('button', { name: 'Enviar' }));
@@ -144,7 +168,7 @@ describe('Treinador', () => {
   it('mostra tela de erro com opção de tentar de novo quando o carregamento inicial falha', async () => {
     vi.mocked(treinadorApi.buscarConversaAtual).mockRejectedValue(new Error('falha de rede'));
 
-    render(<Treinador />);
+    renderTreinador();
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível carregar o Treinador agora.');
     expect(screen.getByRole('button', { name: 'Tentar de novo' })).toBeInTheDocument();

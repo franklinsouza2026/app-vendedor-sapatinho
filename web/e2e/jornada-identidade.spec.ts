@@ -155,7 +155,8 @@ test.describe('Jornada de Identidade — Fatia 7.5A', () => {
 
     await expect(page.getByText(/Bo(m|a) (dia|tarde|noite), Vendedor/)).toBeVisible();
 
-    await page.getByRole('link', { name: 'Evoluir', exact: true }).click();
+    // Fatia 9.6, seção 17: Conselheiro agora vive logo na Home (não mais
+    // dentro do hub Evoluir) — "Coach" nunca aparece como rótulo em nenhum lugar.
     await expect(page.getByText('Conselheiro', { exact: true })).toBeVisible();
     await expect(page.getByText('Coach', { exact: true })).toHaveCount(0);
 

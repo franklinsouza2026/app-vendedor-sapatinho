@@ -66,6 +66,13 @@ export interface RevisaoPendente {
   nextReviewAt: string;
 }
 
+export interface TemplateCertificado {
+  templateTitle: string | null;
+  templateBody: string | null;
+  signatureName: string | null;
+  signatureRole: string | null;
+}
+
 export interface Certificacao {
   id: string;
   definitionId: string;
@@ -73,7 +80,7 @@ export interface Certificacao {
   issuedAt: string;
   expiresAt: string | null;
   status: StatusUserCertificacao;
-  definicao: { id: string; name: string; description: string };
+  definicao: { id: string; name: string; description: string } & TemplateCertificado;
 }
 
 export interface CertificacaoDisponivel {
@@ -212,7 +219,7 @@ export function mapearCompetenciasAdmin(tipo: 'track' | 'lesson' | 'question' | 
   return apiFetch(`/admin/universidade/mapear`, { method: 'POST', body: JSON.stringify({ tipo, contentId, competencyIds }) });
 }
 
-export interface CertificationDefinitionAdmin {
+export interface CertificationDefinitionAdmin extends TemplateCertificado {
   id: string;
   code: string;
   name: string;
@@ -237,6 +244,10 @@ export function definirRequisitosAdmin(id: string, requisitos: { tipo: string; r
 
 export function transicionarCertificacaoAdmin(id: string, transicao: 'submeter' | 'aprovar' | 'publicar' | 'arquivar') {
   return apiFetch<CertificationDefinitionAdmin>(`/admin/universidade/certificacoes/${id}/${transicao}`, { method: 'POST' });
+}
+
+export function atualizarTemplateCertificacaoAdmin(id: string, template: Partial<TemplateCertificado>) {
+  return apiFetch<CertificationDefinitionAdmin>(`/admin/universidade/certificacoes/${id}/template`, { method: 'PUT', body: JSON.stringify(template) });
 }
 
 export function listarPDIsAdmin(status?: StatusPDI) {

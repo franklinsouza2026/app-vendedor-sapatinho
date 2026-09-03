@@ -124,9 +124,15 @@ test.describe('Jornada Universidade — Vendedor', () => {
     // 3. Minha Evolução mostra um score real (nunca "sem dados suficientes"
     // depois de 2 evidências reais com nota máxima).
     await page.goto('/universidade');
-    await expect(page.getByText('Abordagem (E2E)')).toBeVisible();
-    await expect(page.getByText(/Ainda sem dados suficientes/)).not.toBeVisible();
-    await expect(page.getByText('100')).toBeVisible();
+    // Escopado ao card da PRÓPRIA competência (nunca a página inteira): o
+    // catálogo de competências cresceu ao longo de várias fatias e agora tem
+    // várias outras ainda em NOT_ENOUGH_DATA na mesma tela — checar a página
+    // toda faria o locator ficar ambíguo (strict mode) sem essa competência
+    // ter, de fato, nenhuma relação com as demais.
+    const cardCompetencia = page.locator('.rounded-2xl.bg-surface', { hasText: 'Abordagem (E2E)' });
+    await expect(cardCompetencia).toBeVisible();
+    await expect(cardCompetencia.getByText(/Ainda sem dados suficientes/)).not.toBeVisible();
+    await expect(cardCompetencia.getByText('100')).toBeVisible();
 
     // 4. Certificação com requisito de score >=50 fica elegível de verdade
     // (score real é 100) — Admin nunca "decidiu" isso, o backend calculou.

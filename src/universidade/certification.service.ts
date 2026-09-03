@@ -37,6 +37,27 @@ export async function buscarCertificationDefinition(id: string) {
  * princípio de versionamento do CMS, Fatia 7.5C) — emissões antigas
  * continuam válidas pra versão que existia quando foram emitidas; uma
  * "recertificação" (seção 49) é emitir de novo contra a versão nova. */
+/**
+ * Template de certificado (Fatia 9.6, seção 46-47) — só texto (nunca upload
+ * de logo/imagem: não existe pipeline de upload no projeto ainda, seção 47).
+ * O render final é feito no frontend a partir destes campos.
+ */
+export async function atualizarTemplate(
+  definitionId: string,
+  template: { templateTitle?: string; templateBody?: string; signatureName?: string; signatureRole?: string },
+  actorId: string
+) {
+  await buscarCertificationDefinition(definitionId);
+  // Texto puro, tags HTML removidas — mesma disciplina de todo campo de
+  // texto livre do produto (Recognition.message, notas de 1:1 etc.), mesmo
+  // o React já escapar no render: defesa em profundidade, nunca confiar só
+  // numa camada.
+  const sanitizado = Object.fromEntries(Object.entries(template).map(([chave, valor]) => [chave, valor?.replace(/<[^>]*>/g, '')])) as typeof template;
+  const atualizado = await prisma.certificationDefinition.update({ where: { id: definitionId }, data: sanitizado });
+  await registrarEventoAuditoria({ empresaId: await resolverEmpresaUnica(), acao: 'CERTIFICATION_DEFINITION_UPDATED', actorId, metadata: { definitionId, campo: 'template' } });
+  return atualizado;
+}
+
 export async function definirRequisitos(definitionId: string, requisitos: { tipo: TipoRequisitoCertificacao; refId?: string; minScore?: number }[], actorId: string) {
   const atual = await buscarCertificationDefinition(definitionId);
 

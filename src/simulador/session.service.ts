@@ -73,7 +73,7 @@ export async function criarSessao(vendedorId: string, scenarioId: string, dificu
   if (existente) return existente;
 
   const vendedor = await getVendedor(vendedorId);
-  const cenario = await resolverCenario(scenarioId, dificuldade);
+  const cenario = await resolverCenario(scenarioId, dificuldade, vendedor.papel);
 
   // Abrir uma sessão já dispara 1 chamada real ao provider (a primeira fala
   // da cliente, logo abaixo) — sujeita aos MESMOS limites de enviarMensagem.

@@ -3,8 +3,9 @@ import { Card } from '../components/Card';
 import { useApi } from '../utils/useApi';
 import { buscarParaVoce } from '../api/universidade';
 
+// Conselheiro saiu daqui (Fatia 9.6, seção 17) — a entrada principal agora
+// é um card logo após a saudação na Home; a rota /coach continua funcionando.
 const MODULOS = [
-  { to: '/coach', emoji: '💬', titulo: 'Conselheiro', descricao: 'Organize seu foco e sua performance.', cor: 'border-coach' },
   { to: '/treinador', emoji: '🎯', titulo: 'Treinador', descricao: 'Aprenda como agir melhor numa situação de venda.', cor: 'border-treinador' },
   { to: '/simulador', emoji: '🎭', titulo: 'Simulador', descricao: 'Pratique um atendimento real com uma cliente virtual.', cor: 'border-simulador' },
   { to: '/academia', emoji: '🎓', titulo: 'Academia', descricao: 'Aprenda através de aulas e exercícios rápidos.', cor: 'border-academia' },

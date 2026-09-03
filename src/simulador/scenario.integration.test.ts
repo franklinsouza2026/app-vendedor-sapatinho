@@ -63,4 +63,31 @@ describe('listarCenariosAtivos', () => {
     expect(ids).toContain(ativo.id);
     expect(ids).not.toContain(inativo.id);
   });
+
+  it('GERENTE só vê cenários de gestão de pessoas, nunca cenários de venda (Fatia 9.6, seção 33)', async () => {
+    const cenarioVenda = await criarCenarioTeste({ category: 'ABORDAGEM' });
+    const cenarioGerencial = await criarCenarioTeste({ category: 'GESTAO_DE_PESSOAS' });
+
+    const listaGerente = await listarCenariosAtivos('GERENTE');
+    expect(listaGerente.map((c) => c.id)).toContain(cenarioGerencial.id);
+    expect(listaGerente.map((c) => c.id)).not.toContain(cenarioVenda.id);
+
+    const listaVendedor = await listarCenariosAtivos('VENDEDOR');
+    expect(listaVendedor.map((c) => c.id)).toContain(cenarioVenda.id);
+    expect(listaVendedor.map((c) => c.id)).not.toContain(cenarioGerencial.id);
+  });
+
+  it('resolverCenario rejeita categoria incompatível com o papel, mesmo com o ID exato (Fatia 9.6 — corrige achado de segurança: o filtro só existia na listagem, não na criação da sessão)', async () => {
+    const cenarioVenda = await criarCenarioTeste({ category: 'ABORDAGEM' });
+    const cenarioGerencial = await criarCenarioTeste({ category: 'GESTAO_DE_PESSOAS' });
+
+    // VENDEDOR não pode abrir sessão de um cenário gerencial mesmo sabendo o ID.
+    await expect(resolverCenario(cenarioGerencial.id, 'EASY', 'VENDEDOR')).rejects.toThrow();
+    // GERENTE não pode abrir sessão de um cenário de venda mesmo sabendo o ID.
+    await expect(resolverCenario(cenarioVenda.id, 'EASY', 'GERENTE')).rejects.toThrow();
+
+    // O papel correto continua funcionando normalmente.
+    await expect(resolverCenario(cenarioVenda.id, 'EASY', 'VENDEDOR')).resolves.toMatchObject({ id: cenarioVenda.id });
+    await expect(resolverCenario(cenarioGerencial.id, 'EASY', 'GERENTE')).resolves.toMatchObject({ id: cenarioGerencial.id });
+  });
 });

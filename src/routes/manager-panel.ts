@@ -18,19 +18,22 @@ import { ManagerError } from '../manager/constantes';
 import { calcularStoreSummary } from '../manager/store-summary.service';
 import { listarVisaoEquipe } from '../manager/team-overview.service';
 import { sincronizarAlertasDaLoja, sincronizarCompetencyGapDoVendedor, listarAlertas, reconhecerAlerta, resolverAlerta, dispensarAlerta } from '../manager/alerts.service';
-import { listarSinaisPositivosDaLoja } from '../manager/positive-signals.service';
+import { listarSinaisPositivosDaLoja, parabenizarSinalPositivo } from '../manager/positive-signals.service';
+import { CompeticoesError } from '../competicoes/constantes';
 import { montarInbox } from '../manager/inbox.service';
 import { montarDailyHuddle } from '../manager/daily-huddle.service';
 import { pedirConselhoGerencial } from '../manager/ai-advisor.service';
 import { criarPlanoDeAcao, listarPlanos, buscarPlanoNoEscopo, ativarPlano, cancelarPlano, concluirItem, concluirPlano } from '../manager/action-plan.service';
 import { criarOneOnOne, listarOneOnOnesDoVendedor, buscarOneOnOneNoEscopo, iniciarOneOnOne, concluirOneOnOne, cancelarOneOnOne, ROTEIRO_SUGERIDO_1A1 } from '../manager/one-on-one.service';
 import { criarFollowUp, listarFollowUps, concluirFollowUp, dispensarFollowUp } from '../manager/followup.service';
+import { getMissoesGerenciaisAtivas } from '../missoes/gerencial.service';
+import { avaliarMissoesDoVendedor } from '../missoes/avaliacao.service';
 import { prisma } from '../db';
 
 export const managerPanelRouter = Router();
 
 function tratarErro(err: unknown, res: Response) {
-  if (err instanceof ManagerError || err instanceof UniversidadeError) {
+  if (err instanceof ManagerError || err instanceof UniversidadeError || err instanceof CompeticoesError) {
     const status = err.type === 'not_found' ? 404 : err.type === 'forbidden' ? 403 : err.type === 'invalid_transition' || err.type === 'invalid_reference' ? 400 : err.type === 'already_exists' ? 409 : 400;
     return res.status(status).json({ error: err.message, type: err.type });
   }
@@ -411,6 +414,39 @@ managerPanelRouter.post(
     } catch (err) {
       tratarErro(err, res);
     }
+  })
+);
+
+// ===== Parabenizar (Fatia 9.6, seção 39-41) =====
+const parabenizarSchema = z.object({
+  sellerId: z.string().uuid(),
+  tipo: z.enum(['GOAL_REACHED', 'PERSONAL_IMPROVEMENT', 'PA_IMPROVEMENT', 'TICKET_IMPROVEMENT', 'MISSION_COMPLETED', 'CERTIFICATION_EARNED', 'COMPETENCY_EVOLUTION', 'STREAK', 'BADGE_EARNED']),
+});
+
+managerPanelRouter.post(
+  '/gerente/destaques/parabenizar',
+  requireAuth('GERENTE'),
+  asyncHandler(async (req, res) => {
+    const parsed = parabenizarSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'dados inválidos' });
+    try {
+      const reconhecimento = await parabenizarSinalPositivo(req.auth!.empresaId, req.auth!.lojaId, req.auth!.vendedorId, parsed.data.sellerId, parsed.data.tipo);
+      res.status(201).json(reconhecimento);
+    } catch (err) {
+      tratarErro(err, res);
+    }
+  })
+);
+
+// ===== Missões do Gerente (Fatia 9.6, seção 42-44) =====
+managerPanelRouter.get(
+  '/gerente/missoes',
+  requireAuth('GERENTE'),
+  asyncHandler(async (req, res) => {
+    const { vendedorId } = req.auth!;
+    await avaliarMissoesDoVendedor(vendedorId);
+    const missoes = await getMissoesGerenciaisAtivas(vendedorId);
+    res.json({ missoes });
   })
 );
 

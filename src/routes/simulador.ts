@@ -38,8 +38,8 @@ function tratarSimulationError(err: unknown, res: Response): boolean {
 simuladorRouter.get(
   '/simulador/cenarios',
   requireAuth(),
-  asyncHandler(async (_req, res) => {
-    const cenarios = await listarCenariosAtivos();
+  asyncHandler(async (req, res) => {
+    const cenarios = await listarCenariosAtivos(req.auth!.papel);
     res.json({
       cenarios: cenarios.map((c) => ({
         id: c.id,

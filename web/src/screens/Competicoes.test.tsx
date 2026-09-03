@@ -24,7 +24,7 @@ beforeEach(() => {
   vi.mocked(api.listarMinhasCompeticoes).mockResolvedValue({
     competicoes: [{ id: 'c1', seasonId: null, code: 'c1', name: 'Desafio de Consistência', description: 'd', participantType: 'SELLER', metricType: 'CONSISTENCY', status: 'ACTIVE', startsAt: '', endsAt: '', rewardXp: 0, rewardMoedas: 0, rewardBadgeCodigo: null }],
   });
-  vi.mocked(api.listarMinhasLigas).mockResolvedValue({ ligas: [{ id: 'l1', code: 'bronze', name: 'Bronze', sortOrder: 0, active: true }], minhaLiga: { id: 'l1', code: 'bronze', name: 'Bronze', sortOrder: 0, active: true } });
+  vi.mocked(api.listarMinhasLigas).mockResolvedValue({ ligas: [{ id: 'l1', code: 'bronze', name: 'Bronze', sortOrder: 0, active: true, promotionThreshold: null, relegationThreshold: null }], minhaLiga: { id: 'l1', code: 'bronze', name: 'Bronze', sortOrder: 0, active: true, promotionThreshold: null, relegationThreshold: null } });
   vi.mocked(api.listarFeed).mockResolvedValue({ eventos: [], proximoCursor: null });
   vi.mocked(api.listarMeusReconhecimentos).mockResolvedValue({ reconhecimentos: [] });
   vi.mocked(api.buscarTemporadaAtual).mockResolvedValue({ season: null });

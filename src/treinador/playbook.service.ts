@@ -86,6 +86,14 @@ const CATEGORIAS_POR_MODO: Record<ModoTreinador, CategoriaPlaybook[]> = {
   PA: ['VENDA_COMPLEMENTAR', 'DEMONSTRACAO'],
   TICKET: ['DEMONSTRACAO', 'FECHAMENTO'],
   POS_VENDA: ['POS_VENDA', 'CONDUTA'],
+  // Modos gerenciais (Fatia 9.6) nunca usam o Playbook de atendimento — não
+  // existe (e não deveria existir) uma categoria de Playbook sobre gestão de
+  // pessoas; o contexto gerencial vem de `buildManagerTrainerContext`, nunca daqui.
+  LIDERANCA: [],
+  FEEDBACK: [],
+  REUNIAO_1A1: [],
+  GESTAO_DE_CONFLITOS: [],
+  DESENVOLVIMENTO_DE_EQUIPE: [],
 };
 
 // Recuperação determinística: só as seções da(s) categoria(s) do modo atual —

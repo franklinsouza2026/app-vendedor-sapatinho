@@ -72,6 +72,42 @@ export const MISSOES: MissaoSeed[] = [
   },
 ];
 
+// Missões do GERENTE (Fatia 9.6, seção 43) — nunca as missões dos vendedores
+// da loja, sempre uma ação do PRÓPRIO gerente, com evidência real (nunca
+// client-side complete=true — ver criterio.service.ts).
+export const MISSOES_GERENCIAIS: MissaoSeed[] = [
+  {
+    code: 'MANAGER_RECOGNITION_CREATED',
+    title: 'Reconheça um destaque da equipe',
+    description: 'Registre um reconhecimento pra algum vendedor com um destaque real hoje.',
+    category: 'MANAGEMENT',
+    criterionType: 'RECOGNITION_CREATED',
+    periodType: 'DIA',
+    acao: { actionType: 'MANAGER_ACTION', actionReference: { rota: '/equipe' } },
+    targetPapel: 'GERENTE',
+  },
+  {
+    code: 'MANAGER_ONE_ON_ONE_COMPLETED',
+    title: 'Realize um 1:1',
+    description: 'Conclua uma conversa 1:1 com algum vendedor da equipe.',
+    category: 'MANAGEMENT',
+    criterionType: 'ONE_ON_ONE_COMPLETED',
+    periodType: 'SEMANA',
+    acao: { actionType: 'MANAGER_ACTION', actionReference: { rota: '/equipe' } },
+    targetPapel: 'GERENTE',
+  },
+  {
+    code: 'MANAGER_PDI_REVIEWED',
+    title: 'Revise o desenvolvimento de um vendedor',
+    description: 'Registre uma avaliação de competência pra algum vendedor da equipe.',
+    category: 'MANAGEMENT',
+    criterionType: 'PDI_REVIEWED',
+    periodType: 'SEMANA',
+    acao: { actionType: 'MANAGER_ACTION', actionReference: { rota: '/equipe' } },
+    targetPapel: 'GERENTE',
+  },
+];
+
 export const DESAFIOS: DesafioSeed[] = [
   {
     code: '3_SIMULATIONS_WEEK',
@@ -100,7 +136,7 @@ export const DESAFIOS: DesafioSeed[] = [
 ];
 
 export async function seedMissoesEDesafios() {
-  for (const m of MISSOES) {
+  for (const m of [...MISSOES, ...MISSOES_GERENCIAIS]) {
     await prisma.missionDefinition.upsert({
       where: { code: m.code },
       update: {},
@@ -114,6 +150,7 @@ export async function seedMissoesEDesafios() {
         periodType: m.periodType,
         actionType: m.acao.actionType,
         actionReference: m.acao.actionReference as object | undefined,
+        targetPapel: m.targetPapel ?? 'VENDEDOR',
       },
     });
   }
@@ -133,5 +170,5 @@ export async function seedMissoesEDesafios() {
     });
   }
 
-  return { missoes: MISSOES.length, desafios: DESAFIOS.length };
+  return { missoes: MISSOES.length + MISSOES_GERENCIAIS.length, desafios: DESAFIOS.length };
 }

@@ -32,7 +32,32 @@ export async function avaliarCriterio(
       return avaliarSimulacaoConcluida(vendedorId, janela.inicio);
     case 'STREAK_3':
       return avaliarStreak(vendedorId, 3);
+    case 'RECOGNITION_CREATED':
+      return avaliarReconhecimentoCriado(vendedorId, janela.inicio);
+    case 'ONE_ON_ONE_COMPLETED':
+      return avaliarOneOnOneConcluido(vendedorId, janela.inicio);
+    case 'PDI_REVIEWED':
+      return avaliarPdiRevisado(vendedorId, janela.inicio);
   }
+}
+
+// ===== Critérios gerenciais (Fatia 9.6, seção 44) — sempre evidência real
+// de uma ação já registrada por outro motor (Recognition/OneOnOne/
+// ManagerAssessment), nunca um client-side complete=true. =====
+
+async function avaliarReconhecimentoCriado(vendedorId: string, desde: Date): Promise<ResultadoCriterio> {
+  const reconhecimento = await prisma.recognition.findFirst({ where: { authorId: vendedorId, createdAt: { gte: desde } } });
+  return { atingido: !!reconhecimento, progressoAtual: reconhecimento ? 1 : 0, progressoAlvo: 1 };
+}
+
+async function avaliarOneOnOneConcluido(vendedorId: string, desde: Date): Promise<ResultadoCriterio> {
+  const encontro = await prisma.oneOnOne.findFirst({ where: { managerId: vendedorId, status: 'COMPLETED', completedAt: { gte: desde } } });
+  return { atingido: !!encontro, progressoAtual: encontro ? 1 : 0, progressoAlvo: 1 };
+}
+
+async function avaliarPdiRevisado(vendedorId: string, desde: Date): Promise<ResultadoCriterio> {
+  const avaliacao = await prisma.managerAssessment.findFirst({ where: { authorId: vendedorId, createdAt: { gte: desde } } });
+  return { atingido: !!avaliacao, progressoAtual: avaliacao ? 1 : 0, progressoAlvo: 1 };
 }
 
 async function avaliarMetaDiaria(vendedorId: string, dia: Date): Promise<ResultadoCriterio> {

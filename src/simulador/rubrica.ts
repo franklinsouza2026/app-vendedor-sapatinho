@@ -13,6 +13,10 @@ export const CRITERIOS_AVALIACAO = [
   'FECHAMENTO',
   'CLAREZA',
   'EXPERIENCIA_DO_CLIENTE',
+  // Fatia 9.6, seção 33 — Simulador Gerencial (situações de gestão de
+  // pessoas); reaproveita ESCUTA/ARGUMENTACAO/CLAREZA já existentes, só
+  // acrescenta o único critério genuinamente novo desse contexto.
+  'EMPATIA',
 ] as const;
 
 export type CriterioAvaliacao = (typeof CRITERIOS_AVALIACAO)[number];

@@ -295,3 +295,36 @@ describe('enviarMensagem — prompt injection e alucinação de política (seç�
     expect(saldoDepois).toBe(saldoAntes);
   });
 });
+
+describe('Treinador Gerencial (Fatia 9.6, seção 29) — mesmo engine, contexto/prompt próprios', () => {
+  async function criarGerente(empresaId: string, lojaId: string) {
+    return prisma.vendedor.create({ data: { empresaId, lojaId, matriculaErp: `GER-TREIN-${Math.random()}`, nome: 'Gerente Treino', senhaHash: 'x', papel: 'GERENTE' } });
+  }
+
+  it('GERENTE consegue conversar em modo gerencial e recebe contexto da loja, nunca PA/ticket pessoal', async () => {
+    const { empresa, loja } = await criarFixtureEmpresa();
+    const gerente = await criarGerente(empresa.id, loja.id);
+    const conversa = await getOrCreateConversaAtual(gerente.id);
+
+    const resposta = await enviarMensagem({ conversationId: conversa.id, vendedorId: gerente.id, content: 'Como conduzo um feedback difícil?', mode: 'FEEDBACK' });
+
+    expect(resposta.role).toBe('ASSISTANT');
+    expect(resposta.content).not.toContain('Ticket médio');
+    expect(resposta.content).not.toMatch(/R\$\s?\d/);
+  });
+
+  it('VENDEDOR nunca consegue usar um modo gerencial (404)', async () => {
+    const { vendedor } = await criarFixtureEmpresa();
+    const conversa = await getOrCreateConversaAtual(vendedor.id);
+
+    await expect(enviarMensagem({ conversationId: conversa.id, vendedorId: vendedor.id, content: 'oi', mode: 'FEEDBACK' })).rejects.toMatchObject({ type: 'not_found' });
+  });
+
+  it('GERENTE nunca consegue usar um modo de venda (404)', async () => {
+    const { empresa, loja } = await criarFixtureEmpresa();
+    const gerente = await criarGerente(empresa.id, loja.id);
+    const conversa = await getOrCreateConversaAtual(gerente.id);
+
+    await expect(enviarMensagem({ conversationId: conversa.id, vendedorId: gerente.id, content: 'oi', mode: 'OBJECAO' })).rejects.toMatchObject({ type: 'not_found' });
+  });
+});

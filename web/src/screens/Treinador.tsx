@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { buscarConversaAtual, buscarMensagens, buscarObjecoesComuns, enviarMensagem } from '../api/treinador';
 import { ApiError } from '../api/client';
+import { useAuth } from '../auth/AuthContext';
 import { ConversaTreinador, MensagemTreinador, ModoTreinador, ObjecaoComum } from '../types';
 import { LoadingState } from '../components/LoadingState';
 import { ErrorState } from '../components/ErrorState';
@@ -17,6 +18,16 @@ const QUICK_ACTIONS: { label: string; mode: ModoTreinador }[] = [
   { label: 'Quero melhorar meu ticket', mode: 'TICKET' },
 ];
 
+// Treinador Gerencial (Fatia 9.6, seção 29) — mesma tela/engine, ações
+// próprias pro papel GERENTE (nunca misturadas com as de venda).
+const QUICK_ACTIONS_GERENCIAL: { label: string; mode: ModoTreinador }[] = [
+  { label: 'Como dou um feedback difícil?', mode: 'FEEDBACK' },
+  { label: 'Como conduzo um 1:1?', mode: 'REUNIAO_1A1' },
+  { label: 'Como lido com um conflito na equipe?', mode: 'GESTAO_DE_CONFLITOS' },
+  { label: 'Como desenvolvo minha equipe?', mode: 'DESENVOLVIMENTO_DE_EQUIPE' },
+  { label: 'Quero evoluir minha liderança', mode: 'LIDERANCA' },
+];
+
 const MENSAGEM_POR_TIPO_ERRO: Record<string, string> = {
   rate_limited: 'Você atingiu o limite de mensagens de hoje com o Treinador. Volta amanhã!',
   budget_exceeded: 'O Treinador está temporariamente indisponível. Tente de novo mais tarde.',
@@ -26,6 +37,7 @@ const MENSAGEM_POR_TIPO_ERRO: Record<string, string> = {
 };
 
 export function Treinador() {
+  const { sessao } = useAuth();
   const [carregando, setCarregando] = useState(true);
   const [erroCarregamento, setErroCarregamento] = useState<string | null>(null);
   const [conversa, setConversa] = useState<ConversaTreinador | null>(null);
@@ -97,34 +109,39 @@ export function Treinador() {
   if (carregando) return <LoadingState texto="Carregando o Treinador..." />;
   if (erroCarregamento) return <ErrorState mensagem={erroCarregamento} onRetry={carregarTudo} />;
 
+  const ehGerencial = sessao!.vendedor.papel === 'GERENTE';
+  const acoesRapidas = ehGerencial ? QUICK_ACTIONS_GERENCIAL : QUICK_ACTIONS;
+
   return (
     <div className="mx-auto flex h-full w-full max-w-md flex-col">
       <div className="flex-1 overflow-y-auto p-4 pb-4">
         <div className="flex items-center gap-2">
           <span className="h-2 w-2 rounded-full bg-treinador" aria-hidden="true" />
-          <h1 className="text-xl font-semibold text-white">Treinador de Vendas</h1>
+          <h1 className="text-xl font-semibold text-white">{ehGerencial ? 'Treinador de Gestão' : 'Treinador de Vendas'}</h1>
         </div>
-        <p className="mb-4 text-xs text-slate-400">Técnica de abordagem, objeções e o playbook da sua loja</p>
+        <p className="mb-4 text-xs text-slate-400">{ehGerencial ? 'Feedback, 1:1, conflitos e desenvolvimento de equipe' : 'Técnica de abordagem, objeções e o playbook da sua loja'}</p>
 
         {mensagens.length === 0 && (
           <>
-            <Card className="mb-4">
-              <p className="mb-3 text-sm text-slate-200">A cliente disse...</p>
-              <div className="flex flex-wrap gap-2">
-                {objecoes.map((o) => (
-                  <button
-                    key={o.code}
-                    onClick={() => enviar(o.label, 'OBJECAO', o.label)}
-                    className="rounded-full bg-base px-3 py-1.5 text-xs text-slate-300 active:opacity-70"
-                  >
-                    {o.label}
-                  </button>
-                ))}
-              </div>
-            </Card>
+            {!ehGerencial && (
+              <Card className="mb-4">
+                <p className="mb-3 text-sm text-slate-200">A cliente disse...</p>
+                <div className="flex flex-wrap gap-2">
+                  {objecoes.map((o) => (
+                    <button
+                      key={o.code}
+                      onClick={() => enviar(o.label, 'OBJECAO', o.label)}
+                      className="rounded-full bg-base px-3 py-1.5 text-xs text-slate-300 active:opacity-70"
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+              </Card>
+            )}
 
             <div className="flex flex-wrap gap-2">
-              {QUICK_ACTIONS.map((acao) => (
+              {acoesRapidas.map((acao) => (
                 <button
                   key={acao.label}
                   onClick={() => enviar(acao.label, acao.mode)}

@@ -212,3 +212,99 @@ describe('RBAC/tenant isolation em /admin/vendedores', () => {
     expect(linha.cpfMascarado).toBe('***.***.***-72');
   });
 });
+
+describe('Realocação de loja (Fatia 9.6, seção 11) — prospectiva, nunca reescreve histórico', () => {
+  it('ADMIN realoca um vendedor pra outra loja da mesma empresa — histórico anterior preserva o lojaId antigo', async () => {
+    const { empresa, loja, vendedor } = await criarFixtureEmpresa();
+    const outraLoja = await prisma.loja.create({ data: { empresaId: empresa.id, nome: 'Segunda Loja', codigoErp: `L2-${Math.random()}` } });
+    const tokenAdmin = await tokenAdminDe(empresa.id, loja.id);
+
+    await criarMeta(vendedor.id, 1000, new Date());
+    await criarIndicador(vendedor.id, new Date(), { faturamento: 500 });
+    const indicadorAntesRealocacao = await prisma.indicadorRealizado.findFirstOrThrow({ where: { vendedorId: vendedor.id } });
+
+    const res = await request(app)
+      .post(`/admin/vendedores/${vendedor.id}/realocar`)
+      .set('Authorization', `Bearer ${tokenAdmin}`)
+      .send({ novaLojaId: outraLoja.id });
+
+    expect(res.status).toBe(200);
+    const atualizado = await prisma.vendedor.findUniqueOrThrow({ where: { id: vendedor.id } });
+    expect(atualizado.lojaId).toBe(outraLoja.id);
+
+    // Histórico já gravado nunca é reescrito retroativamente.
+    const indicadorDepois = await prisma.indicadorRealizado.findUniqueOrThrow({ where: { id: indicadorAntesRealocacao.id } });
+    expect(indicadorDepois.lojaId).toBe(loja.id);
+
+    const evento = await prisma.auditEvent.findFirst({ where: { empresaId: empresa.id, acao: 'USER_RELOCATED', targetId: vendedor.id } });
+    expect(evento).not.toBeNull();
+  });
+
+  it('nunca realoca pra loja de outra empresa (400)', async () => {
+    const { empresa, loja, vendedor } = await criarFixtureEmpresa();
+    const outraFixture = await criarFixtureEmpresa();
+    const tokenAdmin = await tokenAdminDe(empresa.id, loja.id);
+
+    const res = await request(app)
+      .post(`/admin/vendedores/${vendedor.id}/realocar`)
+      .set('Authorization', `Bearer ${tokenAdmin}`)
+      .send({ novaLojaId: outraFixture.loja.id });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('matrícula já existente na loja de destino é rejeitada (409, nunca sobrescreve)', async () => {
+    const { empresa, loja, vendedor } = await criarFixtureEmpresa();
+    const outraLoja = await prisma.loja.create({ data: { empresaId: empresa.id, nome: 'Segunda Loja', codigoErp: `L2-${Math.random()}` } });
+    await prisma.vendedor.create({ data: { empresaId: empresa.id, lojaId: outraLoja.id, matriculaErp: vendedor.matriculaErp, nome: 'Colisão', senhaHash: 'x' } });
+    const tokenAdmin = await tokenAdminDe(empresa.id, loja.id);
+
+    const res = await request(app)
+      .post(`/admin/vendedores/${vendedor.id}/realocar`)
+      .set('Authorization', `Bearer ${tokenAdmin}`)
+      .send({ novaLojaId: outraLoja.id });
+
+    expect(res.status).toBe(409);
+  });
+
+  it('GERENTE nunca realoca (só ADMIN)', async () => {
+    const { empresa, loja, vendedor } = await criarFixtureEmpresa();
+    const outraLoja = await prisma.loja.create({ data: { empresaId: empresa.id, nome: 'Segunda Loja', codigoErp: `L2-${Math.random()}` } });
+    const gerente = await prisma.vendedor.create({ data: { empresaId: empresa.id, lojaId: loja.id, matriculaErp: `GER-${Math.random()}`, nome: 'G', senhaHash: 'x', papel: 'GERENTE' } });
+    const tokenGerente = assinarToken({ vendedorId: gerente.id, empresaId: empresa.id, lojaId: loja.id, papel: 'GERENTE' });
+
+    const res = await request(app)
+      .post(`/admin/vendedores/${vendedor.id}/realocar`)
+      .set('Authorization', `Bearer ${tokenGerente}`)
+      .send({ novaLojaId: outraLoja.id });
+
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('GET /admin/estrutura (Fatia 9.6, seção 10) — Loja -> Gerente(s) -> Vendedor(es)', () => {
+  it('monta a árvore da empresa a partir dos vínculos reais, nunca de outra empresa', async () => {
+    const { empresa, loja, vendedor } = await criarFixtureEmpresa();
+    const gerente = await prisma.vendedor.create({ data: { empresaId: empresa.id, lojaId: loja.id, matriculaErp: `GER-${Math.random()}`, nome: 'Gerente da Loja', senhaHash: 'x', papel: 'GERENTE' } });
+    const outraFixture = await criarFixtureEmpresa();
+    const tokenAdmin = await tokenAdminDe(empresa.id, loja.id);
+
+    const res = await request(app).get('/admin/estrutura').set('Authorization', `Bearer ${tokenAdmin}`);
+    expect(res.status).toBe(200);
+
+    const linhaDaLoja = res.body.estrutura.find((e: { loja: { id: string } }) => e.loja.id === loja.id);
+    expect(linhaDaLoja.gerentes.map((g: { id: string }) => g.id)).toContain(gerente.id);
+    expect(linhaDaLoja.vendedores.map((v: { id: string }) => v.id)).toContain(vendedor.id);
+
+    const idsDeOutraEmpresa = res.body.estrutura.flatMap((e: { vendedores: { id: string }[] }) => e.vendedores.map((v) => v.id));
+    expect(idsDeOutraEmpresa).not.toContain(outraFixture.vendedor.id);
+  });
+
+  it('GERENTE nunca acessa a estrutura da empresa (só ADMIN)', async () => {
+    const { empresa, loja, vendedor: gerente } = await criarFixtureEmpresa();
+    const tokenGerente = assinarToken({ vendedorId: gerente.id, empresaId: empresa.id, lojaId: loja.id, papel: 'GERENTE' });
+
+    const res = await request(app).get('/admin/estrutura').set('Authorization', `Bearer ${tokenGerente}`);
+    expect(res.status).toBe(403);
+  });
+});

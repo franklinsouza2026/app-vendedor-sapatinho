@@ -2,29 +2,18 @@
 // vendedor quando `papel === 'GERENTE'` (ver Home.tsx). Compacta: situação
 // da loja hoje, alertas prioritários, destaques, resumo de pendências — não
 // um dashboard de 30 cards.
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { useApi } from '../utils/useApi';
-import { buscarGerenteHome } from '../api/managerPanel';
+import { buscarGerenteHome, pedirConselhoIA, parabenizarDestaque, ConselhoGerencialDTO, SinalPositivoDTO } from '../api/managerPanel';
+import { ApiError } from '../api/client';
 import { Card } from '../components/Card';
 import { ProgressBar } from '../components/ProgressBar';
 import { LoadingState } from '../components/LoadingState';
 import { ErrorState } from '../components/ErrorState';
 import { formatarMoeda, formatarNumero, saudacao } from '../utils/format';
-
-const NOME_ALERTA: Record<string, string> = {
-  LOW_GOAL_ATTAINMENT: 'Ritmo de meta do mês abaixo do esperado',
-  PA_BELOW_BASELINE: 'PA abaixo da própria média',
-  TICKET_BELOW_BASELINE: 'Ticket médio abaixo da própria média',
-  CONSISTENCY_DROP: 'Queda de consistência na meta diária',
-  NO_SALES_RECENTLY: 'Sem venda registrada recentemente',
-  MISSION_STALLED: 'Missão sem progresso',
-  TRAINING_OVERDUE: 'Treinamento com prazo vencido',
-  CERTIFICATION_EXPIRING: 'Certificação prestes a vencer',
-  PDI_STALLED: 'Plano de desenvolvimento sem evolução',
-  COMPETENCY_GAP: 'Gap de competência identificado',
-  NO_RECENT_MANAGER_FOLLOWUP: 'Sem 1:1 recente',
-};
+import { labelAlerta } from '../utils/alertLabels';
 
 const SEVERIDADE_COR: Record<string, string> = { HIGH: 'text-red-400', MEDIUM: 'text-amber-400', LOW: 'text-slate-400' };
 
@@ -46,6 +35,12 @@ export function GerenteHome() {
         </h1>
         <p className="text-xs text-slate-500">{sessao!.loja.nome}</p>
       </div>
+
+      {/* Assistente de Gestão logo após a saudação (Fatia 9.6, seção 19) —
+          antes só existia dentro de Reunião do Dia; a rota/lógica de IA
+          continuam as mesmas (`pedirConselhoIA`), só ganhou uma entrada
+          direta aqui também. */}
+      <AssistenteDeGestao />
 
       <Card className="border border-accent/20 shadow-lg shadow-accent/5">
         {storeSummary.metaFaturamento === null ? (
@@ -91,7 +86,7 @@ export function GerenteHome() {
           <div className="flex flex-col gap-2">
             {alertasPrioritarios.map((a) => (
               <Card key={a.id}>
-                <p className={`text-sm font-medium ${SEVERIDADE_COR[a.severidade]}`}>{NOME_ALERTA[a.tipo] ?? a.tipo}</p>
+                <p className={`text-sm font-medium ${SEVERIDADE_COR[a.severidade]}`}>{labelAlerta(a.tipo)}</p>
               </Card>
             ))}
           </div>
@@ -103,9 +98,7 @@ export function GerenteHome() {
           <p className="mb-2 text-sm font-medium text-slate-300">Destaques de hoje</p>
           <div className="flex flex-col gap-2">
             {highlights.map((h, i) => (
-              <Card key={i}>
-                <p className="text-sm text-emerald-400">{h.descricao}</p>
-              </Card>
+              <LinhaDestaque key={i} destaque={h} />
             ))}
           </div>
         </div>
@@ -146,5 +139,74 @@ export function GerenteHome() {
         </Card>
       </Link>
     </div>
+  );
+}
+
+function LinhaDestaque({ destaque }: { destaque: SinalPositivoDTO }) {
+  const [parabenizado, setParabenizado] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
+
+  async function handleParabenizar() {
+    setErro(null);
+    setEnviando(true);
+    try {
+      await parabenizarDestaque(destaque.sellerId, destaque.tipo);
+      setParabenizado(true);
+    } catch (err) {
+      setErro(err instanceof ApiError ? err.message : 'não foi possível parabenizar');
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  return (
+    <Card>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-emerald-400">{destaque.descricao}</p>
+        {!parabenizado ? (
+          <button onClick={handleParabenizar} disabled={enviando} className="shrink-0 rounded-lg border border-emerald-500/40 px-3 py-1 text-xs font-medium text-emerald-400 disabled:opacity-50">
+            Parabenizar
+          </button>
+        ) : (
+          <span className="shrink-0 text-xs text-emerald-500">Parabenizado ✓</span>
+        )}
+      </div>
+      {erro && <p className="mt-1 text-xs text-red-400">{erro}</p>}
+    </Card>
+  );
+}
+
+function AssistenteDeGestao() {
+  const [conselho, setConselho] = useState<ConselhoGerencialDTO | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const [carregando, setCarregando] = useState(false);
+
+  async function handlePedirConselho() {
+    setCarregando(true);
+    setErro(null);
+    try {
+      setConselho(await pedirConselhoIA());
+    } catch (err) {
+      setErro(err instanceof ApiError ? err.message : 'assistente de IA indisponível no momento');
+    } finally {
+      setCarregando(false);
+    }
+  }
+
+  return (
+    <Card className="border border-accent/20">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="font-medium text-white">Assistente de Gestão</p>
+          <p className="text-xs text-slate-400">Resumo opcional de IA sobre a loja hoje</p>
+        </div>
+        <button onClick={handlePedirConselho} disabled={carregando} className="shrink-0 rounded-lg border border-accent/40 px-3 py-1.5 text-xs font-medium text-accentSoft disabled:opacity-50">
+          {carregando ? 'Consultando...' : conselho ? 'Atualizar' : 'Pedir conselho'}
+        </button>
+      </div>
+      {conselho && <p className="mt-2 text-sm text-white">{conselho.summary}</p>}
+      {erro && <p className="mt-2 text-xs text-red-400">{erro}</p>}
+    </Card>
   );
 }

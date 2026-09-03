@@ -42,8 +42,10 @@ export interface StoreSummary {
   freshness: string | null;
 }
 
+export type TipoSinalPositivo = 'GOAL_REACHED' | 'PERSONAL_IMPROVEMENT' | 'PA_IMPROVEMENT' | 'TICKET_IMPROVEMENT' | 'MISSION_COMPLETED' | 'CERTIFICATION_EARNED' | 'COMPETENCY_EVOLUTION' | 'STREAK' | 'BADGE_EARNED';
+
 export interface SinalPositivoDTO {
-  tipo: string;
+  tipo: TipoSinalPositivo;
   sellerId: string;
   descricao: string;
   metadata: Record<string, unknown>;
@@ -235,6 +237,15 @@ export function buscarPendencias() {
   return apiFetch<{ resumo: PendenciasResumo; itens: ItemInboxDTO[] }>('/gerente/pendencias');
 }
 
+export interface RoteiroReuniaoDTO {
+  foco: string;
+  contexto: string;
+  mensagemPrincipal: string;
+  perguntaParaEquipe: string;
+  acaoDoDia: string;
+  fechamentoPositivo: string;
+}
+
 export interface DailyHuddleDTO {
   storeSummary: StoreSummary;
   faturamentoOntem: number;
@@ -244,6 +255,7 @@ export interface DailyHuddleDTO {
   competicoesAtivas: { id: string; name: string }[];
   treinamentosDaSemana: number;
   focoSugerido: string | null;
+  roteiro: RoteiroReuniaoDTO;
 }
 
 export function buscarReuniaoDoDia() {
@@ -258,4 +270,18 @@ export interface ConselhoGerencialDTO {
 
 export function pedirConselhoIA() {
   return apiFetch<ConselhoGerencialDTO>('/gerente/assistente/conselho', { method: 'POST' });
+}
+
+export function parabenizarDestaque(sellerId: string, tipo: TipoSinalPositivo) {
+  return apiFetch<{ id: string }>('/gerente/destaques/parabenizar', { method: 'POST', body: JSON.stringify({ sellerId, tipo }) });
+}
+
+export interface MissaoGerencialDTO {
+  id: string;
+  status: 'ASSIGNED' | 'IN_PROGRESS' | 'COMPLETED' | 'EXPIRED';
+  definicao: { title: string; description: string };
+}
+
+export function listarMissoesGerenciais() {
+  return apiFetch<{ missoes: MissaoGerencialDTO[] }>('/gerente/missoes');
 }

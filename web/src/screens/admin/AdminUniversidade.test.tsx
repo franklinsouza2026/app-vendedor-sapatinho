@@ -22,7 +22,7 @@ beforeEach(() => {
   vi.mocked(api.listarEscolasAdmin).mockResolvedValue({ escolas: [{ id: 'e1', code: 'vendas', name: 'Escola de Vendas', description: 'd', audience: 'SELLER', active: true }] });
   vi.mocked(api.listarCompetenciasAdmin).mockResolvedValue({ competencias: [{ id: 'c1', code: 'FECHAMENTO', name: 'Fechamento', description: 'd', audience: 'SELLER', category: null, status: 'ACTIVE' }] });
   vi.mocked(api.listarCertificacoesAdmin).mockResolvedValue({
-    definicoes: [{ id: 'd1', code: 'cert-1', name: 'Certificação 13 Mandamentos', description: 'd', status: 'DRAFT', version: 1, validityMonths: null, requisitos: [] }],
+    definicoes: [{ id: 'd1', code: 'cert-1', name: 'Certificação 13 Mandamentos', description: 'd', status: 'DRAFT', version: 1, validityMonths: null, requisitos: [], templateTitle: null, templateBody: null, signatureName: null, signatureRole: null }],
   });
   vi.mocked(api.listarPDIsAdmin).mockResolvedValue({ planos: [] });
   vi.mocked(adminTrainingApi.listarTrilhasAdmin).mockResolvedValue({

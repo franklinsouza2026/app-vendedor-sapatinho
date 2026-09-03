@@ -6,6 +6,7 @@ import { Card } from '../components/Card';
 import { LoadingState } from '../components/LoadingState';
 import { ErrorState } from '../components/ErrorState';
 import { EmptyState } from '../components/EmptyState';
+import { RankingPista } from '../components/RankingPista';
 import { formatarNumero, labelRanking } from '../utils/format';
 import { EscopoRanking, RankingLinha, TipoRanking } from '../types';
 
@@ -55,6 +56,13 @@ export function Ranking() {
       {dados && dados.ranking.length === 0 && <EmptyState texto="Ainda não há ranking calculado para hoje." />}
 
       {dados && dados.ranking.length > 0 && <SuaPosicao ranking={dados.ranking} vendedorId={sessao?.vendedor.id} tipo={tipo} />}
+
+      {/* Pista de corrida (Fatia 9.6, seção 54-61) — representação visual
+          nova, só decorativa (aria-hidden): a lista completa logo abaixo
+          continua sendo a fonte acessível real, nunca dependente só da
+          posição gráfica (seção 57) — nunca duplicada aqui em texto solto
+          pra não criar ambiguidade com o texto já visível da lista. */}
+      {dados && dados.ranking.length > 0 && <RankingPista ranking={dados.ranking} vendedorId={sessao?.vendedor.id} />}
 
       {dados && dados.ranking.length > 0 && (
         <Card className="divide-y divide-slate-700 p-0">

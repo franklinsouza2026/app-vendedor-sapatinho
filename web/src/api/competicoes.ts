@@ -46,6 +46,8 @@ export interface Liga {
   name: string;
   sortOrder: number;
   active: boolean;
+  promotionThreshold: number | null;
+  relegationThreshold: number | null;
 }
 
 export interface FeedEventoDTO {
@@ -173,4 +175,8 @@ export function listarLigasAdmin() {
 
 export function criarLigaAdmin(dados: { code: string; name: string; sortOrder: number; promotionThreshold?: number; relegationThreshold?: number }) {
   return apiFetch<Liga>('/admin/competicoes/ligas', { method: 'POST', body: JSON.stringify(dados) });
+}
+
+export function atualizarLigaAdmin(id: string, dados: Partial<{ name: string; sortOrder: number; promotionThreshold: number; relegationThreshold: number; active: boolean }>) {
+  return apiFetch<Liga>(`/admin/competicoes/ligas/${id}`, { method: 'PUT', body: JSON.stringify(dados) });
 }

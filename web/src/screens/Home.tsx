@@ -60,6 +60,20 @@ function HomeVendedor() {
         <p className="text-xs text-slate-500">{sessao!.loja.nome}</p>
       </div>
 
+      {/* Conselheiro logo após a saudação (Fatia 9.6, seção 17) — antes só
+          era alcançável via /evoluir; a entrada principal agora fica aqui,
+          a rota /coach continua funcionando normalmente (deep-link preservado). */}
+      <Link to="/coach">
+        <Card className="flex items-center gap-3 border-l-4 border-coach">
+          <span className="text-2xl">💬</span>
+          <div className="flex-1">
+            <p className="font-medium text-white">Conselheiro</p>
+            <p className="text-xs text-slate-400">Como você está hoje? Vamos organizar seu foco.</p>
+          </div>
+          <span className="text-slate-500" aria-hidden="true">→</span>
+        </Card>
+      </Link>
+
       {/* Meta do dia — hero da Home: primeira coisa que o vendedor precisa
           entender em segundos (seções 7/8 da auditoria de UX). */}
       <Card className="border border-accent/20 shadow-lg shadow-accent/5">
@@ -203,7 +217,7 @@ function HomeVendedor() {
           <span className="text-2xl">🚀</span>
           <div className="flex-1">
             <p className="font-medium text-white">Evoluir</p>
-            <p className="text-xs text-slate-400">Conselheiro · Treinador · Simulador · Academia</p>
+            <p className="text-xs text-slate-400">Treinador · Simulador · Academia · Universidade</p>
           </div>
           <span className="text-slate-500" aria-hidden="true">
             →

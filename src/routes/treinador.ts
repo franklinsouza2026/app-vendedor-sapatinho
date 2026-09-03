@@ -49,6 +49,12 @@ const MODOS: [ModoTreinador, ...ModoTreinador[]] = [
   'PA',
   'TICKET',
   'POS_VENDA',
+  // Treinador Gerencial (Fatia 9.6, seção 29) — mesma rota/engine, modos próprios.
+  'LIDERANCA',
+  'FEEDBACK',
+  'REUNIAO_1A1',
+  'GESTAO_DE_CONFLITOS',
+  'DESENVOLVIMENTO_DE_EQUIPE',
 ];
 
 treinadorRouter.get(

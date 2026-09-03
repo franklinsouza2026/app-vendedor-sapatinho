@@ -4,6 +4,7 @@ import { AdminNav } from './AdminNav';
 import { LoadingState } from '../../components/LoadingState';
 import { ApiError } from '../../api/client';
 import {
+  atualizarLigaAdmin,
   criarCompeticaoAdmin,
   criarLigaAdmin,
   criarSeasonAdmin,
@@ -14,6 +15,7 @@ import {
   transicionarCompeticaoAdmin,
   transicionarSeasonAdmin,
   Competicao,
+  Liga,
   Season,
   TipoMetricaCompeticao,
 } from '../../api/competicoes';
@@ -231,12 +233,77 @@ function AbaLigas() {
       </form>
       <div className="flex flex-col gap-2">
         {dados?.ligas.map((l) => (
-          <div key={l.id} className="rounded-lg border border-slate-800 p-3">
-            <p className="font-medium text-white">{l.name}</p>
-            <p className="text-xs text-slate-500">{l.code}</p>
-          </div>
+          <LinhaLiga key={l.id} liga={l} onSalvo={recarregar} />
         ))}
       </div>
+    </div>
+  );
+}
+
+function LinhaLiga({ liga, onSalvo }: { liga: Liga; onSalvo: () => void }) {
+  const [editando, setEditando] = useState(false);
+  const [name, setName] = useState(liga.name);
+  const [sortOrder, setSortOrder] = useState(liga.sortOrder);
+  const [erro, setErro] = useState<string | null>(null);
+
+  async function handleSalvar(e: FormEvent) {
+    e.preventDefault();
+    setErro(null);
+    try {
+      await atualizarLigaAdmin(liga.id, { name, sortOrder });
+      setEditando(false);
+      onSalvo();
+    } catch (err) {
+      setErro(err instanceof ApiError ? err.message : 'não foi possível salvar');
+    }
+  }
+
+  async function handleArquivar() {
+    setErro(null);
+    try {
+      await atualizarLigaAdmin(liga.id, { active: !liga.active });
+      onSalvo();
+    } catch (err) {
+      setErro(err instanceof ApiError ? err.message : 'não foi possível salvar');
+    }
+  }
+
+  if (editando) {
+    return (
+      <form onSubmit={handleSalvar} className="flex flex-wrap items-end gap-2 rounded-lg border border-slate-800 p-3">
+        <input value={name} onChange={(e) => setName(e.target.value)} required className="rounded-lg bg-surface px-3 py-2 text-sm text-white" />
+        <label className="flex flex-col gap-1 text-xs text-slate-400">
+          Ordem
+          <input type="number" value={sortOrder} onChange={(e) => setSortOrder(Number(e.target.value))} className="w-20 rounded-lg bg-surface px-3 py-2 text-sm text-white" />
+        </label>
+        <button type="submit" className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white">
+          Salvar
+        </button>
+        <button type="button" onClick={() => setEditando(false)} className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300">
+          Cancelar
+        </button>
+        {erro && <p className="w-full text-xs text-red-400">{erro}</p>}
+      </form>
+    );
+  }
+
+  return (
+    <div className="flex items-center justify-between rounded-lg border border-slate-800 p-3">
+      <div>
+        <p className={`font-medium ${liga.active ? 'text-white' : 'text-slate-500 line-through'}`}>{liga.name}</p>
+        <p className="text-xs text-slate-500">
+          {liga.code} · ordem {liga.sortOrder} {!liga.active && '· arquivada'}
+        </p>
+      </div>
+      <div className="flex gap-2">
+        <button onClick={() => setEditando(true)} className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300">
+          Editar
+        </button>
+        <button onClick={handleArquivar} className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300">
+          {liga.active ? 'Arquivar' : 'Reativar'}
+        </button>
+      </div>
+      {erro && <p className="text-xs text-red-400">{erro}</p>}
     </div>
   );
 }

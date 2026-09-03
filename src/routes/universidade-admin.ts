@@ -19,6 +19,7 @@ import {
   buscarCertificationDefinition,
   definirRequisitos,
   transicionarCertificationDefinition,
+  atualizarTemplate,
 } from '../universidade/certification.service';
 
 export const universidadeAdminRouter = Router();
@@ -297,6 +298,27 @@ universidadeAdminRouter.put(
     if (!parsed.success) return res.status(400).json({ error: 'dados inválidos' });
     try {
       res.json(await definirRequisitos(req.params.id, parsed.data.requisitos, req.auth!.vendedorId));
+    } catch (err) {
+      tratarErro(err, res);
+    }
+  })
+);
+
+const templateSchema = z.object({
+  templateTitle: z.string().max(200).optional(),
+  templateBody: z.string().max(2000).optional(),
+  signatureName: z.string().max(200).optional(),
+  signatureRole: z.string().max(200).optional(),
+});
+
+universidadeAdminRouter.put(
+  '/admin/universidade/certificacoes/:id/template',
+  requireAuth('ADMIN'),
+  asyncHandler(async (req, res) => {
+    const parsed = templateSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'dados inválidos' });
+    try {
+      res.json(await atualizarTemplate(req.params.id, parsed.data, req.auth!.vendedorId));
     } catch (err) {
       tratarErro(err, res);
     }

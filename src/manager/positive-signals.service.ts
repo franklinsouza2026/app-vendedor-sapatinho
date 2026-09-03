@@ -4,9 +4,13 @@
 // (meta batida, badge, certificação, missão, PDI) — zero motor paralelo.
 // PA/TICKET/STREAK são o espelho positivo do que o Attention Engine já
 // calcula pro lado negativo (mesma BaselinePessoal/StreakVendedor).
+import { TipoReconhecimento } from '@prisma/client';
 import { prisma } from '../db';
 import { inicioDoDia, realizadoNoPeriodoEmLote } from '../services/metas.service';
 import { deltaPercentual, type BaselineResultado } from '../gamificacao/baseline.service';
+import { registrarReconhecimento } from '../competicoes/recognition.service';
+import { garantirVendedorNoEscopoDoGerente } from '../universidade/manager-scope.service';
+import { ManagerError } from './constantes';
 
 export interface SinalPositivo {
   tipo: 'GOAL_REACHED' | 'PERSONAL_IMPROVEMENT' | 'PA_IMPROVEMENT' | 'TICKET_IMPROVEMENT' | 'MISSION_COMPLETED' | 'CERTIFICATION_EARNED' | 'COMPETENCY_EVOLUTION' | 'STREAK' | 'BADGE_EARNED';
@@ -88,4 +92,42 @@ export async function listarSinaisPositivosDaLoja(empresaId: string, lojaId: str
   }
 
   return sinais;
+}
+
+const TIPO_RECONHECIMENTO_POR_SINAL: Record<SinalPositivo['tipo'], TipoReconhecimento> = {
+  GOAL_REACHED: 'PERFORMANCE',
+  PERSONAL_IMPROVEMENT: 'PERFORMANCE',
+  PA_IMPROVEMENT: 'PERFORMANCE',
+  TICKET_IMPROVEMENT: 'PERFORMANCE',
+  MISSION_COMPLETED: 'CONSISTENCY',
+  CERTIFICATION_EARNED: 'LEARNING',
+  COMPETENCY_EVOLUTION: 'EVOLUTION',
+  STREAK: 'CONSISTENCY',
+  BADGE_EARNED: 'PERFORMANCE',
+};
+
+/**
+ * "Parabenizar" (Fatia 9.6, seção 39-41) — o gerente NUNCA escreve uma
+ * mensagem livre aqui: só escolhe QUAL destaque real parabenizar, o texto é
+ * sempre gerado a partir do próprio `descricao` do sinal (já determinístico,
+ * seção 34). Backend revalida que o sinal é REAL antes de criar qualquer
+ * coisa — um `tipo`/`sellerId` que não aparece em `listarSinaisPositivosDaLoja`
+ * agora é sempre rejeitado, nunca "aceito mesmo assim" (seção 41).
+ * Reaproveita 100% `registrarReconhecimento` (Fatia 8) — nunca um sistema de
+ * mensagem novo.
+ */
+export async function parabenizarSinalPositivo(empresaId: string, lojaId: string, managerId: string, sellerId: string, tipoSinal: SinalPositivo['tipo'], agora: Date = new Date()) {
+  await garantirVendedorNoEscopoDoGerente(sellerId, empresaId, lojaId);
+
+  const sinaisAtuais = await listarSinaisPositivosDaLoja(empresaId, lojaId, agora);
+  const sinal = sinaisAtuais.find((s) => s.sellerId === sellerId && s.tipo === tipoSinal);
+  if (!sinal) throw new ManagerError('not_found', 'este destaque não está mais disponível pra parabenizar');
+
+  return registrarReconhecimento({
+    authorId: managerId,
+    subjectId: sellerId,
+    lojaId,
+    tipo: TIPO_RECONHECIMENTO_POR_SINAL[tipoSinal],
+    message: sinal.descricao,
+  });
 }

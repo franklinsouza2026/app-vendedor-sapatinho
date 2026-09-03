@@ -5,6 +5,7 @@ import { LoadingState } from '../components/LoadingState';
 import { buscarDesenvolvimentoVendedor, registrarAvaliacao, sugerirSequenciaIA } from '../api/universidade';
 import { reconhecerVendedor, TipoReconhecimento } from '../api/competicoes';
 import { ApiError } from '../api/client';
+import { labelAlerta } from '../utils/alertLabels';
 import {
   buscarEquipeDetalhe,
   listarVisaoEquipe,
@@ -211,20 +212,6 @@ function Desenvolvimento({ vendedorId, onVoltar }: { vendedorId: string; onVolta
   );
 }
 
-const NOME_ALERTA: Record<string, string> = {
-  LOW_GOAL_ATTAINMENT: 'Ritmo de meta do mês abaixo do esperado',
-  PA_BELOW_BASELINE: 'PA abaixo da própria média',
-  TICKET_BELOW_BASELINE: 'Ticket médio abaixo da própria média',
-  CONSISTENCY_DROP: 'Queda de consistência na meta diária',
-  NO_SALES_RECENTLY: 'Sem venda registrada recentemente',
-  MISSION_STALLED: 'Missão sem progresso',
-  TRAINING_OVERDUE: 'Treinamento com prazo vencido',
-  CERTIFICATION_EXPIRING: 'Certificação prestes a vencer',
-  PDI_STALLED: 'Plano de desenvolvimento sem evolução',
-  COMPETENCY_GAP: 'Gap de competência identificado',
-  NO_RECENT_MANAGER_FOLLOWUP: 'Sem 1:1 recente',
-};
-
 /** Alertas + Plano de Ação + 1:1 (Fatia 9) — sempre reaproveitando o mesmo
  * vendedorId da tela de Desenvolvimento (Fatia 7.5E), nunca uma tela paralela. */
 function PainelGerencial({ vendedorId }: { vendedorId: string }) {
@@ -305,7 +292,7 @@ function PainelGerencial({ vendedorId }: { vendedorId: string }) {
         <p className="text-xs uppercase tracking-wide text-slate-500">Alertas</p>
         {dados.alertas.map((a) => (
           <Card key={a.id}>
-            <p className={`text-sm font-medium ${a.severidade === 'HIGH' ? 'text-red-400' : a.severidade === 'MEDIUM' ? 'text-amber-400' : 'text-slate-300'}`}>{NOME_ALERTA[a.tipo] ?? a.tipo}</p>
+            <p className={`text-sm font-medium ${a.severidade === 'HIGH' ? 'text-red-400' : a.severidade === 'MEDIUM' ? 'text-amber-400' : 'text-slate-300'}`}>{labelAlerta(a.tipo)}</p>
             {a.status === 'OPEN' && (
               <div className="mt-2 flex gap-2">
                 <button onClick={() => handleReconhecerAlerta(a.id)} className="rounded-lg border border-slate-700 px-3 py-1 text-xs text-slate-300">

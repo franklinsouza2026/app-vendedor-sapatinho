@@ -302,6 +302,7 @@ export class MockAIProvider implements AIProvider {
     const especialista = input.metadata?.specialist as
       | 'coach'
       | 'trainer'
+      | 'trainer_gerencial'
       | 'simulator'
       | 'research_agent'
       | 'curator_agent'
@@ -322,6 +323,8 @@ export class MockAIProvider implements AIProvider {
       content = gerarFalaClienteSimulador(input.metadata?.context as ContextoSimuladorClienteMinimo | undefined);
     } else if (especialista === 'trainer') {
       content = gerarRespostaTreinador(ultimaMensagem, input.metadata?.context as ContextoTreinadorMinimo | undefined);
+    } else if (especialista === 'trainer_gerencial') {
+      content = gerarRespostaTreinadorGerencial(input.metadata?.context as ContextoTreinadorGerencialMinimo | undefined);
     } else if (especialista === 'research_agent') {
       content = gerarResearch(input.metadata?.context as ContextoResearchMinimo | undefined);
     } else if (especialista === 'curator_agent') {
@@ -395,6 +398,46 @@ function gerarRespostaCoach(mensagemUsuario: string, contexto?: ContextoCoachMin
   }
 
   return `Entendi. Como posso te ajudar a evoluir sua venda hoje, ${nome}?`;
+}
+
+// ===== Treinador Gerencial (Fatia 9.6, seção 29) =====
+interface ContextoTreinadorGerencialMinimo {
+  manager: { displayName: string };
+  store: { name: string; percentualMetaMes: number | null; vendedoresAtivosHoje: number; totalVendedores: number };
+  situacao: { alertasAbertos: number; tiposMaisFrequentes: string[] };
+  request: { mode: string; situation: string | null };
+}
+
+function gerarRespostaTreinadorGerencial(contexto?: ContextoTreinadorGerencialMinimo): string {
+  const nome = contexto?.manager.displayName?.split(' ')[0] ?? 'gerente';
+
+  if (!contexto) {
+    return `Oi ${nome}! Ainda não tenho o contexto da loja carregado, mas posso te ajudar a pensar numa conversa de gestão. Qual é a situação?`;
+  }
+
+  const situacaoRelatada = contexto.request.situation ? ` Você relatou: "${contexto.request.situation}".` : '';
+
+  if (contexto.request.mode === 'FEEDBACK') {
+    return (
+      `LEITURA: dar um feedback de performance funciona melhor quando a pessoa sente que você está do lado dela, não julgando.${situacaoRelatada}\n` +
+      `ABORDAGEM SUGERIDA: comece perguntando como ela mesma avalia a situação, antes de apontar o que você observou.\n` +
+      `PRÓXIMO PASSO: combine junto um próximo passo concreto, nunca imposto de cima pra baixo.`
+    );
+  }
+
+  if (contexto.request.mode === 'REUNIAO_1A1') {
+    return `Pra um bom 1:1, comece perguntando como a pessoa está se sentindo em relação ao trabalho, antes de falar de números. A loja está em ${contexto.store.percentualMetaMes !== null ? `${contexto.store.percentualMetaMes.toFixed(0)}% da meta do mês` : 'formação de meta'} — use isso como contexto, nunca como cobrança direta.`;
+  }
+
+  if (contexto.request.mode === 'GESTAO_DE_CONFLITOS') {
+    return `LEITURA: conflitos entre vendedores geralmente têm uma causa prática por trás (divisão de clientes, agenda, etc.).\nABORDAGEM SUGERIDA: ouça os dois lados separadamente antes de mediar uma conversa conjunta.\nPRÓXIMO PASSO: busque um acordo prático que os dois considerem justo.${situacaoRelatada}`;
+  }
+
+  if (contexto.situacao.alertasAbertos > 0) {
+    return `Hoje a loja tem ${contexto.situacao.alertasAbertos} situação(ões) de atenção, principalmente relacionadas a ${contexto.situacao.tiposMaisFrequentes.join(', ')}. Vamos pensar juntos numa forma de conduzir isso com a equipe?`;
+  }
+
+  return `Entendido, ${nome}. Como posso te ajudar a conduzir essa conversa com a equipe?`;
 }
 
 function gerarRespostaTreinador(mensagemUsuario: string, contexto?: ContextoTreinadorMinimo): string {

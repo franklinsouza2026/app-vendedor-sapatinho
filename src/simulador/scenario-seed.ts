@@ -267,10 +267,52 @@ const CENARIOS: CenarioSeed[] = [
   },
 ];
 
+// Simulador Gerencial (Fatia 9.6, seção 33) — mesmo motor/engine, mesma
+// avaliação backend-autoritativa; só o "cliente" vira um vendedor da equipe
+// e o objetivo é uma situação de gestão, nunca uma venda. `playbookCategorias`
+// vazio de propósito: não existe Playbook de gestão de pessoas (só o de
+// atendimento ao cliente), então nenhuma seção é buscada — nunca inventado.
+const CENARIOS_GERENCIAIS: CenarioSeed[] = [
+  {
+    code: 'FEEDBACK_BAIXA_PERFORMANCE',
+    title: 'Feedback sobre queda de performance',
+    description: 'Um vendedor da equipe está com a meta abaixo do esperado há alguns dias. O desafio é dar um feedback direto e construtivo, sem humilhar.',
+    category: 'GESTAO_DE_PESSOAS',
+    objective: 'Conduzir uma conversa de feedback sobre performance abaixo do esperado de forma direta, respeitosa e orientada a solução.',
+    playbookCategorias: [],
+    criteriosAvaliacao: ['ESCUTA', 'CLAREZA', 'EMPATIA', 'ARGUMENTACAO'],
+    persona: {
+      profile: 'Vendedor que está ciente da própria queda de performance, mas se sente inseguro e um pouco na defensiva.',
+      initialNeed: 'Oi... você quis falar comigo? Aconteceu alguma coisa?',
+      behavior: 'Fica na defensiva se sentir que está sendo acusado, mas se abre se sentir que o gerente quer genuinamente ajudar.',
+      objectionsPool: ['Eu sei que não está fácil, mas não é só culpa minha, o movimento da loja caiu.', 'Eu já estou tentando, não sei mais o que fazer diferente.'],
+      hiddenNeeds: ['Está passando por um momento pessoal difícil que está afetando a concentração no trabalho.'],
+      successCondition: 'O gerente entende o contexto sem julgar, e os dois combinam um próximo passo concreto juntos.',
+    },
+  },
+  {
+    code: 'CONDUZIR_1A1_DESENVOLVIMENTO',
+    title: 'Conduzir um 1:1 de desenvolvimento',
+    description: 'É hora do 1:1 mensal com um vendedor que está performando bem, mas quer crescer mais rápido.',
+    category: 'GESTAO_DE_PESSOAS',
+    objective: 'Conduzir uma conversa de desenvolvimento que reconhece o bom desempenho e ajuda a organizar próximos passos de crescimento.',
+    playbookCategorias: [],
+    criteriosAvaliacao: ['ESCUTA', 'CLAREZA', 'EMPATIA'],
+    persona: {
+      profile: 'Vendedor engajado, com bom desempenho, ansioso por crescer mais rápido na empresa.',
+      initialNeed: 'Oi! Eu queria aproveitar esse 1:1 pra entender como posso evoluir mais aqui.',
+      behavior: 'Responde bem a perguntas abertas sobre o que ele mesmo já percebeu sobre seu desenvolvimento; fica frustrado se sentir que a conversa é só formalidade.',
+      objectionsPool: ['Eu sinto que já faço tudo certo, não sei o que mais posso melhorar.', 'Eu queria uma resposta mais concreta sobre quando posso crescer de cargo.'],
+      hiddenNeeds: ['Tem medo de estagnar e considerar sair da empresa se não enxergar um caminho claro de evolução.'],
+      successCondition: 'O gerente escuta genuinamente as expectativas do vendedor e os dois saem com um plano de desenvolvimento concreto, sem promessas vazias.',
+    },
+  },
+];
+
 const MAX_TURNS_PADRAO = { EASY: 8, MEDIUM: 11, HARD: 15 };
 
 export async function seedCenariosSimulador() {
-  for (const cenario of CENARIOS) {
+  for (const cenario of [...CENARIOS, ...CENARIOS_GERENCIAIS]) {
     const personas = gerarPersonasPorDificuldade(cenario.persona);
     await prisma.simulationScenario.upsert({
       where: { code: cenario.code },
@@ -288,5 +330,5 @@ export async function seedCenariosSimulador() {
       },
     });
   }
-  return CENARIOS.length;
+  return CENARIOS.length + CENARIOS_GERENCIAIS.length;
 }

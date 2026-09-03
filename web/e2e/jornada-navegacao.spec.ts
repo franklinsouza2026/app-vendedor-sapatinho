@@ -5,7 +5,7 @@
 import { expect, test } from '@playwright/test';
 
 test.describe('Navegação completa pós-redesign (Fatia 6.5)', () => {
-  test('login → Home → Performance → Evoluir → Coach → voltar → Treinador → voltar → Simulador → voltar → Academia → Ranking → Perfil → logout', async ({ page }) => {
+  test('login → Home → Coach → voltar → Performance → Evoluir → Treinador → voltar → Simulador → voltar → Academia → Ranking → Perfil → logout', async ({ page }) => {
     await page.goto('/login');
     await page.getByLabel('Matrícula').fill('VEND001');
     await page.getByLabel('Senha').fill('vendedor123');
@@ -14,18 +14,19 @@ test.describe('Navegação completa pós-redesign (Fatia 6.5)', () => {
     // Home
     await expect(page.getByText('Meta hoje')).toBeVisible();
 
+    // Conselheiro — Fatia 9.6, seção 17: entrada direto na Home, não mais
+    // dentro do hub Evoluir → volta pra Home.
+    await page.getByText('Conselheiro', { exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Conselheiro' })).toBeVisible();
+    await page.goBack();
+    await expect(page.getByText('Meta hoje')).toBeVisible();
+
     // Performance (bottom nav)
     await page.getByRole('link', { name: 'Performance', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Performance' })).toBeVisible();
 
     // Evoluir (hub)
     await page.getByRole('link', { name: 'Evoluir', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Evoluir' })).toBeVisible();
-
-    // Coach → voltar pro hub
-    await page.getByText('Conselheiro', { exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Conselheiro' })).toBeVisible();
-    await page.goBack();
     await expect(page.getByRole('heading', { name: 'Evoluir' })).toBeVisible();
 
     // Treinador → voltar pro hub

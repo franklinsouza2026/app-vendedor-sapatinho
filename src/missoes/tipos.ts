@@ -1,5 +1,5 @@
 // Tipos compartilhados do módulo de Missões/Desafios (Fatia 7).
-import { CategoriaMissao, CriterioMissao, PeriodoMissao, TipoAcaoMissao } from '@prisma/client';
+import { CategoriaMissao, CriterioMissao, Papel, PeriodoMissao, TipoAcaoMissao } from '@prisma/client';
 
 export interface AcaoRecomendada {
   actionType: TipoAcaoMissao;
@@ -15,6 +15,7 @@ export interface MissaoSeed {
   criterionConfig?: Record<string, unknown>;
   periodType: PeriodoMissao;
   acao: AcaoRecomendada;
+  targetPapel?: Papel;
 }
 
 export interface DesafioSeed {

@@ -79,6 +79,8 @@ describe('Home', () => {
     expect(await screen.findByText(/Ana/)).toBeInTheDocument();
     expect(await screen.findByText('R$ 300,00')).toBeInTheDocument(); // falta
     expect(screen.getByText(/aproximadamente/)).toHaveTextContent('3 vendas'); // ceil(300/100)
+    // Conselheiro logo após a saudação (Fatia 9.6, seção 17).
+    expect(screen.getByText('Conselheiro').closest('a')).toHaveAttribute('href', '/coach');
     expect(screen.getByText('1º de 1')).toBeInTheDocument();
   });
 
@@ -194,5 +196,8 @@ describe('Home — GERENTE nunca vê a Home de vendedor (Fatia 9, seção 4)', (
     expect(screen.getByText('Meta do mês (loja)')).toBeInTheDocument();
     expect(screen.getByText('Minha Equipe')).toBeInTheDocument();
     expect(screen.queryByText('Meta hoje')).not.toBeInTheDocument(); // nunca a meta pessoal do vendedor
+    // Assistente de Gestão logo após a saudação (Fatia 9.6, seção 19).
+    expect(screen.getByText('Assistente de Gestão')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Pedir conselho' })).toBeInTheDocument();
   });
 });

@@ -151,33 +151,3 @@ authRouter.post(
   })
 );
 
-// Cadastro de vendedor — só admin/gerente cadastram, não há auto-registro.
-const cadastroSchema = z.object({
-  lojaId: z.string().uuid(),
-  matriculaErp: z.string().min(1),
-  nome: z.string().min(1),
-  senha: z.string().min(8),
-  papel: z.enum(['VENDEDOR', 'GERENTE', 'ADMIN']).default('VENDEDOR'),
-});
-
-authRouter.post('/vendedores', requireAuth('ADMIN', 'GERENTE'), async (req, res) => {
-  const parsed = cadastroSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: 'dados de cadastro inválidos', detalhes: parsed.error.flatten() });
-  }
-
-  const { lojaId, matriculaErp, nome, senha, papel } = parsed.data;
-
-  const loja = await prisma.loja.findUnique({ where: { id: lojaId } });
-  if (!loja || loja.empresaId !== req.auth!.empresaId) {
-    return res.status(403).json({ error: 'loja fora do escopo da empresa do usuário logado' });
-  }
-
-  const senhaHash = await bcrypt.hash(senha, 10);
-
-  const vendedor = await prisma.vendedor.create({
-    data: { empresaId: loja.empresaId, lojaId, matriculaErp, nome, senhaHash, papel },
-  });
-
-  res.status(201).json({ id: vendedor.id, nome: vendedor.nome, papel: vendedor.papel });
-});

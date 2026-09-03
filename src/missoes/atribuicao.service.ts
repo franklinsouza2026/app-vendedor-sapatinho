@@ -15,19 +15,19 @@ import { prisma } from '../db';
 import { inicioDoDia, inicioDaSemana } from '../services/metas.service';
 import { recomendarMissoesDoDia } from './recomendacao.service';
 
-function fimDoDia(inicio: Date): Date {
+export function fimDoDia(inicio: Date): Date {
   const fim = new Date(inicio);
   fim.setDate(fim.getDate() + 1);
   return fim;
 }
 
-function fimDaSemana(inicio: Date): Date {
+export function fimDaSemana(inicio: Date): Date {
   const fim = new Date(inicio);
   fim.setDate(fim.getDate() + 7);
   return fim;
 }
 
-function isViolacaoUnicidade(err: unknown): boolean {
+export function isViolacaoUnicidade(err: unknown): boolean {
   return err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002';
 }
 

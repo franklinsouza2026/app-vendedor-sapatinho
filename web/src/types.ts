@@ -135,7 +135,12 @@ export type ModoTreinador =
   | 'VENDA_COMPLEMENTAR'
   | 'PA'
   | 'TICKET'
-  | 'POS_VENDA';
+  | 'POS_VENDA'
+  | 'LIDERANCA'
+  | 'FEEDBACK'
+  | 'REUNIAO_1A1'
+  | 'GESTAO_DE_CONFLITOS'
+  | 'DESENVOLVIMENTO_DE_EQUIPE';
 
 export interface ObjecaoComum {
   code: string;

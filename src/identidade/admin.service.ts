@@ -131,6 +131,45 @@ export const desligarVendedor = (id: string, empresaId: string, actorId: string,
 export const reativarVendedor = (id: string, empresaId: string, actorId: string, lojaIdRestrita?: string) =>
   transicionarStatus('reativar', id, empresaId, actorId, lojaIdRestrita);
 
+/**
+ * Realocação (Fatia 9.6, seção 11) — só ADMIN muda a loja de um vendedor/
+ * gerente já existente. Nunca reatribui histórico retroativamente: `Meta`/
+ * `IndicadorRealizado`/`ManagerAlert`/`OneOnOne`/etc já guardam seu próprio
+ * `lojaId` no momento em que foram criados, então mudar `Vendedor.lojaId`
+ * só vale PROSPECTIVAMENTE — o passado nunca é reescrito. Preserva
+ * `matriculaErp` (é reaproveitada como identificador visível na nova loja);
+ * colisão de matrícula na loja de destino é um 409 claro, nunca um "silêncio".
+ */
+export async function realocarVendedor(id: string, novaLojaId: string, empresaId: string, actorId: string) {
+  const vendedor = await buscarVendedorNoEscopo(id, empresaId);
+
+  const novaLoja = await prisma.loja.findUnique({ where: { id: novaLojaId } });
+  if (!novaLoja || novaLoja.empresaId !== empresaId) {
+    throw new IdentidadeError(400, 'loja_fora_do_escopo', 'loja de destino não pertence à empresa do usuário logado');
+  }
+  if (novaLoja.id === vendedor.lojaId) {
+    throw new IdentidadeError(409, 'ja_esta_nesta_loja', 'vendedor já está nesta loja');
+  }
+
+  const colisao = await prisma.vendedor.findUnique({ where: { lojaId_matriculaErp: { lojaId: novaLojaId, matriculaErp: vendedor.matriculaErp } } });
+  if (colisao) {
+    throw new IdentidadeError(409, 'matricula_duplicada', 'já existe um vendedor com esta matrícula na loja de destino');
+  }
+
+  const lojaAnteriorId = vendedor.lojaId;
+  await prisma.vendedor.update({ where: { id }, data: { lojaId: novaLojaId } });
+
+  await registrarEventoAuditoria({
+    empresaId,
+    acao: 'USER_RELOCATED',
+    actorId,
+    targetId: id,
+    metadata: { lojaAnteriorId, lojaNovaId: novaLojaId },
+  });
+
+  return { id, lojaAnteriorId, lojaNovaId: novaLojaId };
+}
+
 export async function vincularIdentidadeExterna(params: {
   vendedorId: string;
   empresaId: string;

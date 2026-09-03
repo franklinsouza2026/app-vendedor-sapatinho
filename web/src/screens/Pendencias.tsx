@@ -7,6 +7,7 @@ import { buscarPendencias, concluirFollowUp, dispensarFollowUp, ItemInboxDTO } f
 import { Card } from '../components/Card';
 import { LoadingState } from '../components/LoadingState';
 import { ErrorState } from '../components/ErrorState';
+import { labelAlerta } from '../utils/alertLabels';
 
 const ROTULO_TIPO: Record<ItemInboxDTO['tipo'], string> = {
   ALERT: 'Situação identificada',
@@ -46,7 +47,7 @@ export function Pendencias() {
           <Card key={i}>
             <p className="text-xs uppercase tracking-wide text-slate-500">{ROTULO_TIPO[item.tipo]}</p>
             {item.tipo === 'FOLLOWUP' && typeof item.detalhe.descricao === 'string' && <p className="text-sm text-white">{item.detalhe.descricao}</p>}
-            {item.tipo === 'ALERT' && typeof item.detalhe.alertType === 'string' && <p className="text-sm text-white">{item.detalhe.alertType}</p>}
+            {item.tipo === 'ALERT' && typeof item.detalhe.alertType === 'string' && <p className="text-sm text-white">{labelAlerta(item.detalhe.alertType)}</p>}
             {item.tipo === 'RECOGNITION_SUGGESTION' && typeof item.detalhe.descricao === 'string' && <p className="text-sm text-white">{item.detalhe.descricao}</p>}
             {item.tipo === 'FOLLOWUP' && item.refId && (
               <div className="mt-2 flex gap-2">

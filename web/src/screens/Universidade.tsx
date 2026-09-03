@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../auth/AuthContext';
 import { useApi } from '../utils/useApi';
 import { Card } from '../components/Card';
 import { LoadingState } from '../components/LoadingState';
 import {
   buscarMinhaMatriz,
   buscarPDI,
+  Certificacao,
   CompetenciaMatriz,
   emitirCertificacao,
   listarCertificacoesDisponiveis,
@@ -139,9 +141,11 @@ function DetalhePlano({ id, onVoltar }: { id: string; onVoltar: () => void }) {
 }
 
 function Certificacoes() {
+  const { sessao } = useAuth();
   const { dados: minhas, recarregar: recarregarMinhas } = useApi(() => listarMinhasCertificacoes(), []);
   const { dados: disponiveis, recarregar: recarregarDisponiveis } = useApi(() => listarCertificacoesDisponiveis(), []);
   const [erro, setErro] = useState<string | null>(null);
+  const [certificadoAbertoId, setCertificadoAbertoId] = useState<string | null>(null);
 
   async function handleEmitir(definitionId: string) {
     setErro(null);
@@ -171,6 +175,10 @@ function Certificacoes() {
                 </span>
               </div>
               {c.expiresAt && <p className="text-xs text-slate-400">Expira em {new Date(c.expiresAt).toLocaleDateString('pt-BR')}</p>}
+              <button onClick={() => setCertificadoAbertoId(certificadoAbertoId === c.id ? null : c.id)} className="mt-2 text-xs text-accentSoft underline">
+                {certificadoAbertoId === c.id ? 'fechar certificado' : 'ver certificado'}
+              </button>
+              {certificadoAbertoId === c.id && <CertificadoVisual certificacao={c} nomeParticipante={sessao!.vendedor.nome} />}
             </Card>
           ))}
           {minhas?.certificacoes.length === 0 && <p className="text-sm text-slate-400">Você ainda não tem certificações.</p>}
@@ -197,6 +205,29 @@ function Certificacoes() {
           {disponiveis?.disponiveis.length === 0 && <p className="text-sm text-slate-400">Nenhuma certificação disponível ainda.</p>}
         </div>
       </div>
+    </div>
+  );
+}
+
+// Render visual do certificado (Fatia 9.6, seção 46-48) — só texto, nunca
+// upload/logo (nenhum pipeline de upload existe no projeto ainda); usa o
+// template do Admin com fallback neutro quando ele ainda não configurou nada.
+function CertificadoVisual({ certificacao, nomeParticipante }: { certificacao: Certificacao; nomeParticipante: string }) {
+  const titulo = certificacao.definicao.templateTitle || 'Certificado de Conclusão';
+  const corpo = certificacao.definicao.templateBody || `Certificamos que o(a) participante concluiu com êxito os requisitos de "${certificacao.definicao.name}".`;
+
+  return (
+    <div className="mt-3 rounded-lg border-2 border-accent/40 bg-base p-5 text-center">
+      <p className="text-xs uppercase tracking-widest text-accentSoft">{titulo}</p>
+      <p className="mt-3 text-lg font-semibold text-white">{nomeParticipante}</p>
+      <p className="mt-3 text-sm text-slate-300">{corpo}</p>
+      <p className="mt-3 text-xs text-slate-500">Emitido em {new Date(certificacao.issuedAt).toLocaleDateString('pt-BR')} · código {certificacao.id.slice(0, 8).toUpperCase()}</p>
+      {certificacao.definicao.signatureName && (
+        <div className="mt-4 border-t border-slate-700 pt-2">
+          <p className="text-sm text-white">{certificacao.definicao.signatureName}</p>
+          {certificacao.definicao.signatureRole && <p className="text-xs text-slate-500">{certificacao.definicao.signatureRole}</p>}
+        </div>
+      )}
     </div>
   );
 }

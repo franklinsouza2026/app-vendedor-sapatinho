@@ -29,6 +29,7 @@ import { AdminUniversidade } from './screens/admin/AdminUniversidade';
 import { Competicoes } from './screens/Competicoes';
 import { AdminGamificacao } from './screens/admin/AdminGamificacao';
 import { Pendencias } from './screens/Pendencias';
+import { AdminEstrutura } from './screens/admin/AdminEstrutura';
 import { ReuniaoDoDia } from './screens/ReuniaoDoDia';
 import { AdminAlertasGerenciais } from './screens/admin/AdminAlertasGerenciais';
 
@@ -78,6 +79,14 @@ export function App() {
             element={
               <RequireAuth papeis={['ADMIN']}>
                 <AdminTreinamento />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/admin/estrutura"
+            element={
+              <RequireAuth papeis={['ADMIN']}>
+                <AdminEstrutura />
               </RequireAuth>
             }
           />

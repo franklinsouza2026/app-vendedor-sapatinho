@@ -241,29 +241,12 @@ describe('GET /gamificacao/ranking — privacidade de faturamento (Fatia 7.5A, s
   });
 });
 
-describe('POST /vendedores — RBAC', () => {
-  it('vendedor comum não pode cadastrar outro vendedor (403)', async () => {
-    const { vendedor } = await criarFixtureEmpresa();
-    const token = await tokenPara({ ...vendedor, papel: 'VENDEDOR' });
-
-    const res = await request(app)
-      .post('/vendedores')
-      .set('Authorization', `Bearer ${token}`)
-      .send({ lojaId: vendedor.lojaId, matriculaErp: 'NOVO', nome: 'X', senha: 'senha1234' });
-
-    expect(res.status).toBe(403);
-  });
-
-  it('admin não pode cadastrar vendedor em loja de outra empresa (403)', async () => {
-    const { vendedor: admin } = await criarFixtureEmpresa();
-    const { vendedor: outraEmpresaVendedor } = await criarFixtureEmpresa();
-    const token = await tokenPara({ ...admin, papel: 'ADMIN' });
-
-    const res = await request(app)
-      .post('/vendedores')
-      .set('Authorization', `Bearer ${token}`)
-      .send({ lojaId: outraEmpresaVendedor.lojaId, matriculaErp: 'NOVO', nome: 'X', senha: 'senha1234' });
-
-    expect(res.status).toBe(403);
-  });
-});
+// A antiga rota `POST /vendedores` (Fatia 0/1) foi removida na Fatia 9.6:
+// permitia a um GERENTE criar uma conta com QUALQUER papel — inclusive
+// ADMIN — com senha imediata, sem CPF e sem o fluxo de pré-autorização/
+// ativação da Fatia 7.5A (escalonamento de privilégio real, nunca
+// exercitado por nenhum teste). A mesma cobertura de RBAC (papel sem
+// permissão / cross-tenant sempre bloqueado) já existe, mais completa, em
+// `src/identidade/lifecycle.integration.test.ts` e
+// `src/identidade/ativacao.integration.test.ts`, contra a rota real
+// `POST /admin/vendedores` (CPF-protegida, só ADMIN).

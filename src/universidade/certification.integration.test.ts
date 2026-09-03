@@ -11,6 +11,8 @@ import {
   transicionarCertificationDefinition,
   avaliarElegibilidade,
   emitirCertificacaoSeElegivel,
+  atualizarTemplate,
+  listarCertificacoesDoUsuario,
 } from './certification.service';
 import { UniversidadeError } from './constantes';
 
@@ -120,5 +122,46 @@ describe('Certification — elegibilidade e emissão', () => {
 
     const historico = await prisma.userCertification.findMany({ where: { userId: vendedor.id, definitionId: def.id } });
     expect(historico).toHaveLength(2); // as duas emissões continuam existindo
+  });
+});
+
+describe('Template do certificado (Fatia 9.6, seção 46-48) — só texto, backend-autoritativo', () => {
+  it('Admin configura o template e o vendedor recebe os campos ao listar suas certificações', async () => {
+    const { vendedor } = await criarFixtureEmpresa();
+    const def = await criarCertificationDefinition({ code: `cert-template-${randomUUID()}`, name: 'Certificação de Teste', description: 'd' }, vendedor.id);
+    await definirRequisitos(def.id, [{ tipo: 'MANDAMENTOS_COMPLETOS' }], vendedor.id);
+    await transicionarCertificationDefinition(def.id, 'submeter', vendedor.id);
+    await transicionarCertificationDefinition(def.id, 'aprovar', vendedor.id);
+    await transicionarCertificationDefinition(def.id, 'publicar', vendedor.id);
+
+    await atualizarTemplate(def.id, { templateTitle: 'Certificado de Excelência', templateBody: 'Parabéns!', signatureName: 'Admin Piloto', signatureRole: 'Diretor' }, vendedor.id);
+
+    await prisma.userCertification.create({
+      data: { userId: vendedor.id, definitionId: def.id, definitionVersion: def.version, evidenceSnapshot: {} },
+    });
+
+    const minhas = await listarCertificacoesDoUsuario(vendedor.id);
+    expect(minhas[0].definicao.templateTitle).toBe('Certificado de Excelência');
+    expect(minhas[0].definicao.signatureName).toBe('Admin Piloto');
+  });
+
+  it('atualizar template de definição inexistente é rejeitado (nunca cria uma nova)', async () => {
+    const { vendedor } = await criarFixtureEmpresa();
+    await expect(atualizarTemplate('00000000-0000-0000-0000-000000000000', { templateTitle: 'X' }, vendedor.id)).rejects.toMatchObject({ type: 'not_found' });
+  });
+
+  it('XSS: tags HTML são sempre removidas dos campos de template (defesa em profundidade)', async () => {
+    const { vendedor } = await criarFixtureEmpresa();
+    const def = await criarCertificationDefinition({ code: `cert-xss-${randomUUID()}`, name: 'X', description: 'd' }, vendedor.id);
+
+    const atualizado = await atualizarTemplate(
+      def.id,
+      { templateTitle: '<script>alert(1)</script>Título', signatureName: '<img src=x onerror=alert(1)>Nome' },
+      vendedor.id
+    );
+
+    expect(atualizado.templateTitle).not.toContain('<script>');
+    expect(atualizado.templateTitle).toBe('alert(1)Título');
+    expect(atualizado.signatureName).not.toContain('<img');
   });
 });

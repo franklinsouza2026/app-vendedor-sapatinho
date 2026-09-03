@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { FormEvent, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useApi } from '../../utils/useApi';
-import { bloquearVendedor, desbloquearVendedor, desligarVendedor, detalharVendedorAdmin, reativarVendedor } from '../../api/admin';
+import { bloquearVendedor, desbloquearVendedor, desligarVendedor, detalharVendedorAdmin, reativarVendedor, realocarVendedor } from '../../api/admin';
+import { listarLojas } from '../../api/auth';
 import { ApiError } from '../../api/client';
 import { LoadingState } from '../../components/LoadingState';
 import { ErrorState } from '../../components/ErrorState';
@@ -130,10 +131,60 @@ export function AdminUsuarioDetalhe() {
         )}
       </div>
 
+      <SecaoRealocacao vendedorId={id!} lojaAtualId={dados.loja.id} onRealocado={recarregar} />
+
       <button onClick={() => navigate(-1)} className="mt-4 text-sm text-slate-500">
         Voltar
       </button>
     </div>
+  );
+}
+
+function SecaoRealocacao({ vendedorId, lojaAtualId, onRealocado }: { vendedorId: string; lojaAtualId: string; onRealocado: () => void }) {
+  const { dados: lojas } = useApi(() => listarLojas(), []);
+  const [novaLojaId, setNovaLojaId] = useState('');
+  const [erro, setErro] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
+  const [sucesso, setSucesso] = useState(false);
+
+  const opcoes = lojas?.lojas.filter((l) => l.id !== lojaAtualId) ?? [];
+  if (opcoes.length === 0) return null;
+
+  async function handleRealocar(e: FormEvent) {
+    e.preventDefault();
+    setErro(null);
+    setSucesso(false);
+    setEnviando(true);
+    try {
+      await realocarVendedor(vendedorId, novaLojaId);
+      setSucesso(true);
+      setNovaLojaId('');
+      onRealocado();
+    } catch (err) {
+      setErro(err instanceof ApiError ? err.message : 'Não foi possível realocar.');
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleRealocar} className="flex flex-col gap-2 rounded-lg border border-slate-800 p-4">
+      <p className="text-xs uppercase tracking-wide text-slate-500">Realocar pra outra loja</p>
+      <p className="text-xs text-slate-500">Vale só a partir de agora — vendas/histórico já registrados continuam na loja anterior.</p>
+      <select value={novaLojaId} onChange={(e) => setNovaLojaId(e.target.value)} required className="rounded-lg bg-surface px-3 py-2 text-sm text-white">
+        <option value="">Nova loja...</option>
+        {opcoes.map((l) => (
+          <option key={l.id} value={l.id}>
+            {l.nome}
+          </option>
+        ))}
+      </select>
+      <button type="submit" disabled={enviando || !novaLojaId} className="self-start rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+        Realocar
+      </button>
+      {sucesso && <p className="text-xs text-emerald-400">Realocado com sucesso ✓</p>}
+      {erro && <p className="text-xs text-red-400">{erro}</p>}
+    </form>
   );
 }
 

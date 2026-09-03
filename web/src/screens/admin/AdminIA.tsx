@@ -1,5 +1,6 @@
 import { FormEvent, useState } from 'react';
 import { useApi } from '../../utils/useApi';
+import { labelEspecialista } from '../../utils/specialistLabels';
 import {
   ativarProvider,
   atualizarBudgetIA,
@@ -93,7 +94,7 @@ export function AdminIA() {
               <tbody className="text-slate-200">
                 {uso.porEspecialista.map((e) => (
                   <tr key={e.specialist}>
-                    <td className="py-1">{e.specialist}</td>
+                    <td className="py-1">{labelEspecialista(e.specialist)}</td>
                     <td className="py-1">{e.chamadas}</td>
                     <td className="py-1">${e.custoEstimadoUSD.toFixed(4)}</td>
                   </tr>

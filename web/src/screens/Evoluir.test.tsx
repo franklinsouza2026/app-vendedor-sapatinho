@@ -20,20 +20,19 @@ function renderEvoluir() {
 }
 
 describe('Evoluir', () => {
-  it('mostra os 4 módulos com link pra rota correta de cada um', () => {
+  it('mostra os módulos com link pra rota correta de cada um (Conselheiro saiu daqui na Fatia 9.6 — vive na Home)', () => {
     renderEvoluir();
 
     expect(screen.getByRole('heading', { name: 'Evoluir' })).toBeInTheDocument();
 
-    const coach = screen.getByText('Conselheiro', { exact: true }).closest('a');
     const treinador = screen.getByText('Treinador', { exact: true }).closest('a');
     const simulador = screen.getByText('Simulador', { exact: true }).closest('a');
     const academia = screen.getByText('Academia', { exact: true }).closest('a');
 
-    expect(coach).toHaveAttribute('href', '/coach');
     expect(treinador).toHaveAttribute('href', '/treinador');
     expect(simulador).toHaveAttribute('href', '/simulador');
     expect(academia).toHaveAttribute('href', '/academia');
+    expect(screen.queryByText('Conselheiro', { exact: true })).not.toBeInTheDocument();
   });
 
   it('mostra o módulo Universidade', () => {

@@ -20,6 +20,7 @@ import {
   listarPDIsAdmin,
   mapearCompetenciasAdmin,
   transicionarCertificacaoAdmin,
+  atualizarTemplateCertificacaoAdmin,
   CompetenciaAdmin,
 } from '../../api/universidade';
 
@@ -383,11 +384,59 @@ function AbaCertificacoes() {
                   )}
                 </div>
               </div>
+              <EditorTemplateCertificado definicao={d} onSalvo={recarregar} />
             </div>
           );
         })}
       </div>
     </div>
+  );
+}
+
+function EditorTemplateCertificado({ definicao, onSalvo }: { definicao: CertificationDefinitionAdmin; onSalvo: () => void }) {
+  const [aberto, setAberto] = useState(false);
+  const [templateTitle, setTemplateTitle] = useState(definicao.templateTitle ?? '');
+  const [templateBody, setTemplateBody] = useState(definicao.templateBody ?? '');
+  const [signatureName, setSignatureName] = useState(definicao.signatureName ?? '');
+  const [signatureRole, setSignatureRole] = useState(definicao.signatureRole ?? '');
+  const [erro, setErro] = useState<string | null>(null);
+
+  async function handleSalvar(e: FormEvent) {
+    e.preventDefault();
+    setErro(null);
+    try {
+      await atualizarTemplateCertificacaoAdmin(definicao.id, { templateTitle, templateBody, signatureName, signatureRole });
+      onSalvo();
+    } catch (err) {
+      setErro(err instanceof ApiError ? err.message : 'não foi possível salvar o template');
+    }
+  }
+
+  if (!aberto) {
+    return (
+      <button onClick={() => setAberto(true)} className="mt-2 text-xs text-accentSoft underline">
+        {definicao.templateTitle ? 'editar template do certificado' : '+ configurar template do certificado'}
+      </button>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSalvar} className="mt-2 flex flex-col gap-2 rounded-lg bg-base p-3">
+      <p className="text-xs uppercase tracking-wide text-slate-500">Template do certificado (só texto — sem logo/imagem)</p>
+      <input placeholder="Título (ex.: Certificado de Conclusão)" value={templateTitle} onChange={(e) => setTemplateTitle(e.target.value)} maxLength={200} className="rounded-lg bg-surface px-3 py-2 text-sm text-white" />
+      <textarea placeholder="Texto do certificado" value={templateBody} onChange={(e) => setTemplateBody(e.target.value)} maxLength={2000} rows={3} className="rounded-lg bg-surface px-3 py-2 text-sm text-white" />
+      <input placeholder="Nome de quem assina" value={signatureName} onChange={(e) => setSignatureName(e.target.value)} maxLength={200} className="rounded-lg bg-surface px-3 py-2 text-sm text-white" />
+      <input placeholder="Cargo de quem assina" value={signatureRole} onChange={(e) => setSignatureRole(e.target.value)} maxLength={200} className="rounded-lg bg-surface px-3 py-2 text-sm text-white" />
+      <div className="flex gap-2">
+        <button type="submit" className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white">
+          Salvar template
+        </button>
+        <button type="button" onClick={() => setAberto(false)} className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300">
+          Fechar
+        </button>
+      </div>
+      {erro && <p className="text-xs text-red-400">{erro}</p>}
+    </form>
   );
 }
 

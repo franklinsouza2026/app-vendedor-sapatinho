@@ -27,8 +27,8 @@ test.describe('Jornada do Coach IA', () => {
     await page.getByRole('button', { name: 'Entrar' }).click();
     await expect(page.getByText('Meta hoje')).toBeVisible();
 
-    // 2. Home → Evoluir → abrir Coach
-    await page.getByRole('link', { name: 'Evoluir', exact: true }).click();
+    // 2. Home → Conselheiro (Fatia 9.6, seção 17: entrada principal agora é
+    // direto na Home, não mais dentro do hub Evoluir).
     await page.getByText('Conselheiro', { exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Conselheiro' })).toBeVisible();
 
@@ -65,9 +65,6 @@ test.describe('Jornada do Coach IA', () => {
     await page.getByLabel('Matrícula').fill('VEND002');
     await page.getByLabel('Senha').fill('vendedor123');
     await page.getByRole('button', { name: 'Entrar' }).click();
-    await expect(page.getByRole('link', { name: 'Evoluir', exact: true })).toBeVisible(); // landmark universal — VEND002 pode não ter meta cadastrada
-
-    await page.getByRole('link', { name: 'Evoluir', exact: true }).click();
     await page.getByText('Conselheiro', { exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Conselheiro' })).toBeVisible();
     await expect(page.getByText('Como você está chegando pra trabalhar hoje?')).toBeVisible(); // check-in ainda não feito por este vendedor hoje

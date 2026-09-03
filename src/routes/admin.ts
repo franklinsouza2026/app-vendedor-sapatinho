@@ -17,6 +17,7 @@ import {
   detalharVendedor,
   listarVendedores,
   reativarVendedor,
+  realocarVendedor,
   vincularIdentidadeExterna,
 } from '../identidade/admin.service';
 import { listarEventosAuditoria } from '../identidade/auditoria.service';
@@ -130,6 +131,48 @@ rotaTransicao('bloquear', bloquearVendedor);
 rotaTransicao('desbloquear', desbloquearVendedor);
 rotaTransicao('desligar', desligarVendedor);
 rotaTransicao('reativar', reativarVendedor);
+
+const realocarSchema = z.object({ novaLojaId: z.string().uuid() });
+
+adminRouter.post(
+  '/admin/vendedores/:id/realocar',
+  requireAuth('ADMIN'),
+  asyncHandler(async (req, res) => {
+    const parsed = realocarSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'dados inválidos' });
+    try {
+      const resultado = await realocarVendedor(req.params.id, parsed.data.novaLojaId, req.auth!.empresaId, req.auth!.vendedorId);
+      res.json(resultado);
+    } catch (err) {
+      tratarErro(err, res);
+    }
+  })
+);
+
+// Estrutura da Empresa (Fatia 9.6, seção 10) — Loja -> Gerente(s) ->
+// Vendedor(es), montado em memória a partir de `listarVendedores` (já
+// escopado por empresa) — nunca uma segunda fonte de verdade de vínculo.
+adminRouter.get(
+  '/admin/estrutura',
+  requireAuth('ADMIN'),
+  asyncHandler(async (req, res) => {
+    const [lojas, vendedores] = await Promise.all([
+      prisma.loja.findMany({ where: { empresaId: req.auth!.empresaId }, select: { id: true, nome: true, codigoErp: true }, orderBy: { nome: 'asc' } }),
+      listarVendedores({ empresaId: req.auth!.empresaId }),
+    ]);
+
+    const estrutura = lojas.map((loja) => {
+      const daLoja = vendedores.filter((v) => v.loja.id === loja.id);
+      return {
+        loja: { id: loja.id, nome: loja.nome, codigoErp: loja.codigoErp },
+        gerentes: daLoja.filter((v) => v.papel === 'GERENTE').map((v) => ({ id: v.id, nome: v.nome, status: v.status })),
+        vendedores: daLoja.filter((v) => v.papel === 'VENDEDOR').map((v) => ({ id: v.id, nome: v.nome, status: v.status })),
+      };
+    });
+
+    res.json({ estrutura });
+  })
+);
 
 const identidadeExternaSchema = z.object({
   provider: z.literal('LINX'),

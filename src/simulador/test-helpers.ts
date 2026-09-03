@@ -14,6 +14,7 @@ export interface CenarioTesteOptions {
   active?: boolean;
   apenasDificuldades?: Array<'EASY' | 'MEDIUM' | 'HARD'>;
   personaOverride?: Partial<PersonaSimulacao>;
+  category?: string;
 }
 
 export async function criarCenarioTeste(opts: CenarioTesteOptions = {}) {
@@ -38,7 +39,7 @@ export async function criarCenarioTeste(opts: CenarioTesteOptions = {}) {
       code: `cenario-teste-${randomUUID()}`,
       title: 'Cenário de teste',
       description: 'Cenário criado só para testes automatizados.',
-      category: 'GERAL',
+      category: opts.category ?? 'GERAL',
       objective: 'Concluir a venda identificando a necessidade real da cliente.',
       active: opts.active ?? true,
       playbookCategorias: opts.playbookCategorias ?? ['ABORDAGEM'],

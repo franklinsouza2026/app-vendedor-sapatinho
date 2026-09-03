@@ -758,6 +758,14 @@ enum ModoTreinador {
   PA
   TICKET
   POS_VENDA
+  // Fatia 9.6, seção 29 — Treinador Gerencial: mesmo motor/specialist do
+  // Treinador de vendas, contexto e prompt é que mudam conforme o papel de
+  // quem pergunta (nunca um "Treinador v2").
+  LIDERANCA
+  FEEDBACK
+  REUNIAO_1A1
+  GESTAO_DE_CONFLITOS
+  DESENVOLVIMENTO_DE_EQUIPE
 }
 
 enum StatusConversaTreinador {
@@ -1439,6 +1447,8 @@ enum CategoriaMissao {
   LEARNING
   SIMULATION
   CONSISTENCY
+  // Fatia 9.6, seção 43 — missões do GERENTE (nunca vendas/estudo pessoal).
+  MANAGEMENT
 }
 
 enum CriterioMissao {
@@ -1449,6 +1459,12 @@ enum CriterioMissao {
   PASS_QUIZ
   COMPLETE_SIMULATION
   STREAK_3
+  // Fatia 9.6, seção 44 — missões gerenciais: sempre evidência real de uma
+  // ação já registrada por outro motor (Recognition/OneOnOne/PDI), nunca
+  // client-side complete=true.
+  RECOGNITION_CREATED
+  ONE_ON_ONE_COMPLETED
+  PDI_REVIEWED
 }
 
 enum PeriodoMissao {
@@ -1472,6 +1488,9 @@ enum TipoAcaoMissao {
   SIMULATOR
   ACADEMY
   PERFORMANCE
+  // Fatia 9.6 — ação gerencial (1:1, plano de ação, reconhecimento, revisão
+  // de PDI); rota real fica em `actionReference` (estruturado, nunca URL livre).
+  MANAGER_ACTION
 }
 
 model MissionDefinition {
@@ -1482,6 +1501,10 @@ model MissionDefinition {
   category        CategoriaMissao
   criterionType   CriterioMissao
   criterionConfig Json            @default("{}")
+  // Fatia 9.6, seção 43 — a quem esta missão se destina (VENDEDOR ou
+  // GERENTE); nunca um catálogo único misturado — cada papel só vê/recebe
+  // as missões do próprio papel.
+  targetPapel     Papel           @default(VENDEDOR)
   periodType      PeriodoMissao   @default(DIA)
   actionType      TipoAcaoMissao
   actionReference Json?
@@ -1900,6 +1923,14 @@ model CertificationDefinition {
   createdBy      String?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
+  // Template simples de certificado (Fatia 9.6, seção 46) — só texto, nunca
+  // upload de logo/imagem (nenhum pipeline de upload existe no projeto
+  // ainda, seção 47: "sem SVG inseguro se pipeline não estiver preparado").
+  // O render fica inteiramente no frontend a partir destes campos.
+  templateTitle    String?
+  templateBody     String?        @db.Text
+  signatureName    String?
+  signatureRole    String?
 
   requisitos CertificationRequirement[]
   emissoes   UserCertification[]

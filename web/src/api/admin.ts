@@ -29,3 +29,26 @@ export const bloquearVendedor = (id: string) => transicao(id, 'bloquear');
 export const desbloquearVendedor = (id: string) => transicao(id, 'desbloquear');
 export const desligarVendedor = (id: string) => transicao(id, 'desligar');
 export const reativarVendedor = (id: string) => transicao(id, 'reativar');
+
+export function realocarVendedor(id: string, novaLojaId: string) {
+  return apiFetch<{ id: string; lojaAnteriorId: string; lojaNovaId: string }>(`/admin/vendedores/${id}/realocar`, {
+    method: 'POST',
+    body: JSON.stringify({ novaLojaId }),
+  });
+}
+
+export interface PessoaEstrutura {
+  id: string;
+  nome: string;
+  status: StatusConta;
+}
+
+export interface LinhaEstrutura {
+  loja: { id: string; nome: string; codigoErp: string };
+  gerentes: PessoaEstrutura[];
+  vendedores: PessoaEstrutura[];
+}
+
+export function buscarEstruturaDaEmpresa() {
+  return apiFetch<{ estrutura: LinhaEstrutura[] }>('/admin/estrutura');
+}
