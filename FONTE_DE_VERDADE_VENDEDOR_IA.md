@@ -1633,6 +1633,50 @@ Painel de comando do GERENTE sobre a loja, montado inteiramente reaproveitando o
 
 **Não implementado nesta fatia** (registrado formalmente, não esquecido): Dashboard executivo/BI, ações disciplinares de RH, promoção/demissão automática, avaliação psicológica, mensagens automáticas ao vendedor (WhatsApp/e-mail/push complexo), engine de agenda/calendário, folha de pagamento, Fatia 10 (Linx real), deploy/piloto.
 
+### Fatia 9.6 — Refinamento Integrado (Admin + Gerente + Vendedor) — CONCLUÍDA (2026-09-02, commit `41bc9aa`, 717 testes: 539 backend + 145 frontend + 33 E2E Playwright)
+Auditoria de gap completa nas 3 visões antes de qualquer implementação — cada pedido foi classificado EXISTE_E_ATENDE/PARCIAL/AUSENTE contra o código real, e só o que era genuinamente PARCIAL/AUSENTE foi implementado, sempre reaproveitando a arquitetura existente (zero "v2" de qualquer motor).
+
+**P0 — Identidade/Lojas/Vínculos/Escopo (bloco prioritário):**
+- **Achado de segurança real, corrigido**: a rota legada `POST /vendedores` (Fatia 0/1, nunca usada pelo frontend) deixava um GERENTE criar uma conta com QUALQUER papel — inclusive ADMIN — com senha imediata, sem CPF, sem o fluxo de pré-autorização/ativação da Fatia 7.5A. Escalonamento de privilégio real, nunca exercitado por nenhum teste. Removida (a cobertura de RBAC equivalente já existe, mais completa, contra a rota real `POST /admin/vendedores`).
+- **Realocação** (`POST /admin/vendedores/:id/realocar`, só ADMIN): muda a loja de um vendedor/gerente já existente, sempre prospectivamente — `Meta`/`IndicadorRealizado`/etc já guardam seu próprio `lojaId` no momento em que foram criados, então histórico nunca é reescrito retroativamente. Rejeita loja de outra empresa e colisão de matrícula na loja de destino.
+- **Estrutura da Empresa** (`GET /admin/estrutura`, só ADMIN): visão Loja → Gerente(s) → Vendedor(es), montada a partir de `listarVendedores` já existente — nenhuma segunda fonte de vínculo.
+- Admin master company-scoped, CPF, ativação, manager scope, seller scope, cross-tenant: já existiam e atendiam — confirmado por auditoria de código, sem alteração.
+
+**P1 — Identidade visual/Home:**
+- Conselheiro (Seller) e Assistente de Gestão (Manager) movidos pra logo após a saudação na Home de cada papel — antes só existiam dentro do hub Evoluir/tela de Reunião do Dia. Rotas `/coach` e a lógica de IA continuam as mesmas, só ganharam uma entrada direta.
+
+**P2 — Conteúdo/Academia/Universidade:** CMS manual, classificação editorial (`OrigemEditorial`), audience (SELLER/MANAGER/BOTH) e 13 Mandamentos já existiam e atendiam — confirmado por auditoria, sem alteração.
+
+**P3 — Treinador e Simulador:**
+- **Achado importante da auditoria**: o Simulador já era MUITO mais avançado do que a fonte de verdade presumia — conversa adaptativa de verdade (histórico completo enviado ao provider real), dificuldade (EASY/MEDIUM/HARD) com número de turnos variável por dificuldade, e avaliação sempre backend-autoritativa. Nenhuma reformulação foi necessária.
+- **Simulador Gerencial**: 2 cenários novos (`FEEDBACK_BAIXA_PERFORMANCE`, `CONDUZIR_1A1_DESENVOLVIMENTO`) na categoria `GESTAO_DE_PESSOAS`, reaproveitando 100% do engine (`category` já era um `string` livre) — `listarCenariosAtivos(papel)` agora filtra por categoria (GERENTE só vê gestão de pessoas, VENDEDOR nunca vê). Novo critério de rubrica `EMPATIA` (reaproveita ESCUTA/ARGUMENTACAO/CLAREZA já existentes).
+- **Treinador Gerencial**: mesmo engine/tabelas/rota do Treinador de vendas — só ganhou um `buildManagerTrainerContext` e um system prompt (`system-prompt-gerencial.ts`) próprios, com 5 novos `ModoTreinador` (LIDERANCA/FEEDBACK/REUNIAO_1A1/GESTAO_DE_CONFLITOS/DESENVOLVIMENTO_DE_EQUIPE). Contexto do gerente nunca inclui PA/ticket pessoal de vendedor — só Store Summary/alertas agregados da própria loja. Backend rejeita (404) um VENDEDOR usando modo gerencial ou um GERENTE usando modo de venda.
+
+**P4 — Reunião do Dia e Reconhecimento:**
+- Reestruturada na ordem pedida: resultado do dia anterior → foco sugerido → roteiro determinístico (O QUE FALAR/PERGUNTA PRA EQUIPE/AÇÃO DO DIA, sempre com IA OFF) → destaques → temporada/competição/treinamento → assistente de IA opcional por cima.
+- **"Parabenizar"**: reaproveita 100% `Recognition`/`FeedEvent` (Fatia 8) — o gerente nunca escreve mensagem livre, só escolhe QUAL destaque real parabenizar; backend revalida contra `listarSinaisPositivosDaLoja` que o sinal ainda é real antes de criar qualquer coisa (rejeita destaque inventado/expirado).
+
+**P5 — Missões do Gerente**: novo catálogo (`targetPapel: GERENTE`, categoria `MANAGEMENT`) com 3 critérios que exigem evidência real de outro motor — `RECOGNITION_CREATED`/`ONE_ON_ONE_COMPLETED`/`PDI_REVIEWED`, verificados contra `Recognition.authorId`/`OneOnOne.managerId+status`/`ManagerAssessment.authorId` — nunca client-side `complete=true`. Mesmo motor de `MissionAssignment`/recompensa dos vendedores, catálogos sempre separados.
+
+**P6 — Certificados**: `CertificationDefinition` ganhou template de texto (`templateTitle`/`templateBody`/`signatureName`/`signatureRole` — nunca logo/upload, nenhum pipeline de upload existe no projeto). Admin configura, vendedor visualiza um certificado estilizado de verdade (antes era só uma linha de lista). Texto sempre sanitizado (tags HTML removidas) antes de persistir — mesma disciplina de todo campo livre do produto.
+
+**P7 — Ligas e Traduções**: conectada a UI de edição/arquivamento de liga ao backend já existente (`atualizarLiga`, nunca hard delete). Extraído `alertLabels.ts`/`specialistLabels.ts` compartilhados — alertas gerenciais e specialists de IA agora sempre aparecem em português na UI (Admin/Gerente), IDs internos continuam em inglês no banco.
+
+**P8 — Ranking em pista**: `RankingPista.tsx` — motor/dado 100% preservado (recebe o mesmo `RankingLinha[]` já calculado), representação visual nova (pista serpenteante em SVG, "veículo" geométrico original — nunca carro real/marca), sempre `aria-hidden` — a lista de texto já existente continua sendo a ÚNICA fonte acessível real (nunca duplicada em paralelo, pra não criar ambiguidade de leitor de tela/teste).
+
+**Achados corrigidos durante a implementação:**
+1. **Privilégio de escalonamento real** (P0, detalhado acima) — rota legada removida.
+2. **XSS real no template de certificado**: a primeira versão de `atualizarTemplate` não sanitizava nenhum dos 4 campos de texto — corrigido antes do commit, com teste dedicado.
+3. **Regressão de acessibilidade/teste real**: um resumo `sr-only` adicionado à pista de ranking duplicava o texto já visível na lista abaixo, quebrando `getByText` em 4 E2E pré-existentes (`jornada-vendedor.spec.ts` etc.) por ambiguidade — removido (a lista já existente é suficiente como fonte acessível).
+4. **3 E2E pré-existentes desatualizados pela mudança intencional do P1**: `jornada-coach.spec.ts`/`jornada-identidade.spec.ts`/`jornada-navegacao.spec.ts` navegavam Evoluir → Conselheiro (rota antiga) — atualizados pra refletir a nova entrada direto na Home.
+5. **Auto-armadilha de E2E**: um teste próprio criava uma loja de nome `Loja E2E ${timestamp}` pra testar realocação — como a tela de login sempre auto-seleciona a primeira loja em ordem alfabética e "L" < "P" ("Loja Piloto"), essa loja de teste virava a loja padrão do formulário e quebrava TODOS os logins subsequentes (efeito cascata: 4 specs falhando em uníssono). Corrigido com prefixo `ZZZ` (garante ordenação por último) + `try/finally` (nunca deixa a loja de teste vazando mesmo se uma asserção falhar no meio).
+6. **Fragilidade de teste real (não causada por mim, mas descoberta)**: `jornada-universidade-vendedor.spec.ts` usava um locator `getByText` não escopado que ficou ambíguo depois de várias fatias acumularem mais competências na mesma tela — corrigido escopando ao card da própria competência.
+7. **Bypass real do filtro de categoria do Simulador (achado MEDIUM da revisão de segurança dedicada)**: `listarCenariosAtivos(papel)` filtrava corretamente a LISTAGEM de cenários por papel, mas `POST /simulador/sessoes` (que efetivamente cria a sessão e consome cota de IA) aceitava qualquer `scenarioId` do cliente sem validar a categoria contra o papel de quem pediu — um VENDEDOR sabendo/adivinhando o ID de um cenário gerencial (ou vice-versa) conseguiria abrir uma sessão fora do seu papel. Corrigido em `resolverCenario` (agora recebe o `papel` e rejeita incompatibilidade, mesmo erro genérico de "não encontrado" — nunca revela a existência do cenário errado), com teste dedicado provando que o bypass por ID direto não funciona mais.
+
+**Revisão de segurança dedicada**: agente independente cobrindo realocação (escopo de empresa — sem achados), missões gerenciais (evidência sempre da PRÓPRIA loja/gerente — sem achados), Parabenizar (revalidação de sinal real + escopo — sem achados), contexto do Treinador Gerencial (nunca vaza dado pessoal de vendedor — sem achados), filtro de categoria do Simulador (**1 achado MEDIUM real, corrigido — item 7 acima**), sanitização do template de certificado (sem achados adicionais, já coberto pelo item 2), e `GET /admin/estrutura` (escopo de empresa — sem achados). Segunda rodada focada não identificou novos problemas após a correção.
+
+**Não implementado nesta fatia** (registrado formalmente, não esquecido): Fatia 10 (Linx real), deploy/piloto, upload de logo/arquivo (nenhum pipeline de upload no projeto), pacing intraday de meta (sem fonte de horário de loja), avatar de foto real (reaproveitado o mesmo padrão de círculo+inicial já usado no Perfil).
+
 ### Fatia 10 — Linx real
 Executar assim que contrato/credenciais reais estiverem disponíveis, sem bloquear fatias independentes.
 
