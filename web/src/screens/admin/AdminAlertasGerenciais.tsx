@@ -3,6 +3,8 @@
 // (cada parâmetro já vem com nome fixo do backend).
 import { FormEvent, useState } from 'react';
 import { AdminNav } from './AdminNav';
+import { labelAlerta } from '../../utils/alertLabels';
+import { humanizarChave } from '../../utils/labels';
 import { useApi } from '../../utils/useApi';
 import { LoadingState } from '../../components/LoadingState';
 import { ApiError } from '../../api/client';
@@ -49,7 +51,7 @@ function LinhaConfig({ config, onSalvo }: { config: ConfigAlertaDTO; onSalvo: ()
   return (
     <form onSubmit={handleSalvar} className="flex flex-col gap-2 rounded-lg border border-slate-800 p-4">
       <div className="flex items-center justify-between">
-        <p className="font-medium text-white">{config.tipo}</p>
+        <p className="font-medium text-white">{labelAlerta(config.tipo)}</p>
         <label className="flex items-center gap-2 text-xs text-slate-400">
           <input type="checkbox" checked={ativo} onChange={(e) => setAtivo(e.target.checked)} />
           Ativo
@@ -57,7 +59,7 @@ function LinhaConfig({ config, onSalvo }: { config: ConfigAlertaDTO; onSalvo: ()
       </div>
       {Object.entries(parametros).map(([chave, valor]) => (
         <label key={chave} className="flex items-center justify-between text-xs text-slate-400">
-          {chave}
+          {humanizarChave(chave)}
           <input
             type="number"
             value={valor}

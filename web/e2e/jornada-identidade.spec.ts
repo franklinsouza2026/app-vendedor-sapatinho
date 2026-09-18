@@ -25,8 +25,8 @@ test.describe('Jornada de Identidade — Fatia 7.5A', () => {
     await page.getByRole('button', { name: 'Entrar' }).click();
 
     // 2. Perfil → Administração → Usuários → Pré-autorizar
-    await page.getByRole('link', { name: 'Perfil' }).click();
-    await page.getByRole('link', { name: 'Administração' }).click();
+    // Fatia 9.7: o ADMIN aterrissa direto no shell administrativo (landing por
+    // papel), então o desvio Perfil → Administração deixou de existir.
     await expect(page.getByRole('heading', { name: 'Usuários' })).toBeVisible();
     await page.getByRole('link', { name: /Pré-autorizar vendedor/ }).click();
 
@@ -36,7 +36,8 @@ test.describe('Jornada de Identidade — Fatia 7.5A', () => {
     await page.getByRole('button', { name: 'Pré-autorizar' }).click();
 
     // 3. Código de ativação mostrado UMA vez — captura pra usar na ativação
-    await expect(page.getByText('Vendedor pré-autorizado')).toBeVisible();
+    // Fatia 9.7: o formulário passou a criar VENDEDOR ou GERENTE, daí o título genérico.
+    await expect(page.getByText('Acesso pré-autorizado')).toBeVisible();
     const codigo = await page.locator('code').textContent();
     expect(codigo).toBeTruthy();
 
@@ -78,10 +79,10 @@ test.describe('Jornada de Identidade — Fatia 7.5A', () => {
     await page.getByLabel('Matrícula').fill('ADM001');
     await page.getByLabel('Senha').fill('admin123');
     await page.getByRole('button', { name: 'Entrar' }).click();
-    await page.getByRole('link', { name: 'Perfil' }).click();
-    await page.getByRole('link', { name: 'Administração' }).click();
-    await page.getByPlaceholder('Buscar por nome...').fill('Segundo Vendedor');
-    await page.getByRole('link', { name: 'Segundo Vendedor' }).click();
+    // Fatia 9.7: o ADMIN aterrissa direto no shell administrativo (landing por
+    // papel), então o desvio Perfil → Administração deixou de existir.
+    await page.getByPlaceholder('Buscar por nome...').fill('Rafael Lima');
+    await page.getByRole('link', { name: 'Rafael Lima' }).click();
     await page.getByRole('button', { name: 'Bloquear' }).click();
     await page.getByRole('button', { name: 'Confirmar' }).click();
     await expect(page.getByText('bloqueado')).toBeVisible();
@@ -100,10 +101,10 @@ test.describe('Jornada de Identidade — Fatia 7.5A', () => {
     await page.getByLabel('Matrícula').fill('ADM001');
     await page.getByLabel('Senha').fill('admin123');
     await page.getByRole('button', { name: 'Entrar' }).click();
-    await page.getByRole('link', { name: 'Perfil' }).click();
-    await page.getByRole('link', { name: 'Administração' }).click();
-    await page.getByPlaceholder('Buscar por nome...').fill('Segundo Vendedor');
-    await page.getByRole('link', { name: 'Segundo Vendedor' }).click();
+    // Fatia 9.7: o ADMIN aterrissa direto no shell administrativo (landing por
+    // papel), então o desvio Perfil → Administração deixou de existir.
+    await page.getByPlaceholder('Buscar por nome...').fill('Rafael Lima');
+    await page.getByRole('link', { name: 'Rafael Lima' }).click();
     await page.getByRole('button', { name: 'Desbloquear' }).click();
     await page.getByRole('button', { name: 'Confirmar' }).click();
     await expect(page.getByText('ativo')).toBeVisible();
@@ -153,7 +154,7 @@ test.describe('Jornada de Identidade — Fatia 7.5A', () => {
     await page.getByLabel('Senha').fill('vendedor123');
     await page.getByRole('button', { name: 'Entrar' }).click();
 
-    await expect(page.getByText(/Bo(m|a) (dia|tarde|noite), Vendedor/)).toBeVisible();
+    await expect(page.getByText(/Bo(m|a) (dia|tarde|noite), Marina/)).toBeVisible();
 
     // Fatia 9.6, seção 17: Conselheiro agora vive logo na Home (não mais
     // dentro do hub Evoluir) — "Coach" nunca aparece como rótulo em nenhum lugar.
@@ -162,6 +163,6 @@ test.describe('Jornada de Identidade — Fatia 7.5A', () => {
 
     await page.getByText('Conselheiro', { exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Conselheiro' })).toBeVisible();
-    await expect(page.getByText(/Bo(m|a) (dia|tarde|noite), Vendedor.*Como você está chegando pra trabalhar hoje\?/)).toBeVisible();
+    await expect(page.getByText(/Bo(m|a) (dia|tarde|noite), Marina.*Como você está chegando pra trabalhar hoje\?/)).toBeVisible();
   });
 });

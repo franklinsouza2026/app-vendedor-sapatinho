@@ -19,15 +19,15 @@ async function login(page: Page, matricula: string, senha: string) {
   await page.getByLabel('Matrícula').fill(matricula);
   await page.getByLabel('Senha').fill(senha);
   await page.getByRole('button', { name: 'Entrar' }).click();
-  // Landmark universal (todo papel vê "Perfil" na bottom nav) — sem isso,
-  // ler localStorage logo em seguida corre uma condição de corrida contra o
   // login assíncrono (token ainda não salvo).
-  await page.getByRole('link', { name: 'Perfil' }).waitFor();
+  // Marco pós-login agnóstico de papel (Fatia 9.7): o ADMIN aterrissa no shell
+  // administrativo, que não tem a bottom nav do vendedor — esperar por "Perfil"
+  // só funcionava pra VENDEDOR/GERENTE.
+  await page.waitForURL((url) => !url.pathname.startsWith('/login'));
 }
 
 async function abrirIaDeTreinamento(page: Page) {
-  await page.getByRole('link', { name: 'Perfil' }).click();
-  await page.getByRole('link', { name: 'Administração' }).click();
+  // Fatia 9.7: o ADMIN já aterrissa no shell administrativo.
   await page.getByRole('link', { name: 'Treinamento' }).click();
   await page.getByRole('button', { name: 'IA de Treinamento' }).click();
 }

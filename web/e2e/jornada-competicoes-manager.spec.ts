@@ -16,7 +16,10 @@ async function login(page: Page, matricula: string, senha: string) {
   await page.getByLabel('Matrícula').fill(matricula);
   await page.getByLabel('Senha').fill(senha);
   await page.getByRole('button', { name: 'Entrar' }).click();
-  await page.getByRole('link', { name: 'Perfil' }).waitFor();
+  // Marco pós-login agnóstico de papel (Fatia 9.7): o ADMIN aterrissa no shell
+  // administrativo, que não tem a bottom nav do vendedor — esperar por "Perfil"
+  // só funcionava pra VENDEDOR/GERENTE.
+  await page.waitForURL((url) => !url.pathname.startsWith('/login'));
 }
 
 test.describe('Jornada Competições — Manager', () => {

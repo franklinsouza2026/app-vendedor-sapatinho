@@ -7,6 +7,7 @@ import { DificuldadeSimulacao, Papel } from '@prisma/client';
 import { prisma } from '../db';
 import { PersonaSimulacao } from './context.types';
 import { CriterioAvaliacao, isCriterioValido } from './rubrica';
+import { SimulationError } from './erros';
 
 export interface CenarioResolvido {
   id: string;
@@ -34,19 +35,33 @@ export async function listarCenariosAtivos(papel: Papel = 'VENDEDOR') {
   });
 }
 
-/** Resolve o cenário + a persona/maxTurns da dificuldade pedida. Lança se o cenário não existir/estiver inativo, se a categoria não bater com o papel de quem pediu (mesmo filtro de listarCenariosAtivos, agora também na criação — não só na listagem), ou se a persona da dificuldade não estiver cadastrada. */
-export async function resolverCenario(scenarioId: string, dificuldade: DificuldadeSimulacao, papel: Papel = 'VENDEDOR'): Promise<CenarioResolvido> {
-  const cenario = await prisma.simulationScenario.findUniqueOrThrow({ where: { id: scenarioId } });
-  if (!cenario.active) throw new Error('cenário inativo');
-  // Mesmo erro genérico de "não encontrado" tanto pra cenário inexistente
-  // quanto pra cenário de categoria errada pro papel — nunca revela a um
-  // vendedor que um cenário gerencial (ou vice-versa) existe (IDOR-safe).
+/**
+ * Resolve o cenário + a persona/maxTurns da dificuldade pedida.
+ *
+ * `papel` é OBRIGATÓRIO desde a Fatia 9.7: ele era opcional com default
+ * 'VENDEDOR', e dois dos três call sites não o passavam — o que fazia toda
+ * sessão gerencial quebrar do 2º turno em diante (regressão real da Fatia 9.6,
+ * encontrada em auditoria). Tornar o parâmetro obrigatório faz o compilador
+ * impedir que isso volte a acontecer, em vez de depender de revisão humana.
+ *
+ * Lança `SimulationError` (nunca `Error` cru, que virava 500): 'not_found' pra
+ * cenário inexistente/inativo/de papel incompatível — sempre a mesma mensagem,
+ * pra nunca revelar a um vendedor que um cenário gerencial existe, e vice-versa.
+ */
+export async function resolverCenario(scenarioId: string, dificuldade: DificuldadeSimulacao, papel: Papel): Promise<CenarioResolvido> {
+  const cenario = await prisma.simulationScenario.findUnique({ where: { id: scenarioId } });
+  if (!cenario) throw new SimulationError('not_found', 'cenário não encontrado');
+  if (!cenario.active) throw new SimulationError('not_found', 'cenário não encontrado');
+
   const ehGerencial = cenario.category === CATEGORIA_GERENCIAL;
-  if ((papel === 'GERENTE') !== ehGerencial) throw new Error('cenário não encontrado para este papel');
+  if ((papel === 'GERENTE') !== ehGerencial) throw new SimulationError('not_found', 'cenário não encontrado');
 
   const personas = cenario.personasPorDificuldade as unknown as Record<string, PersonaSimulacao>;
   const persona = personas[dificuldade];
-  if (!persona) throw new Error(`persona não cadastrada para dificuldade ${dificuldade} do cenário ${cenario.code}`);
+  // Erro de configuração do catálogo (não é culpa do cliente), mas ainda assim
+  // é 4xx tratado, nunca 500: o vendedor pediu uma dificuldade que este cenário
+  // não oferece.
+  if (!persona) throw new SimulationError('invalid_state', `este cenário não tem a dificuldade ${dificuldade} configurada`);
 
   const maxTurnsPorDificuldade = cenario.maxTurnsPorDificuldade as Record<string, number>;
   const maxTurns = maxTurnsPorDificuldade[dificuldade] ?? 10;

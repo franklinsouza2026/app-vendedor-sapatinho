@@ -22,7 +22,9 @@ authRouter.get('/lojas', async (_req, res) => {
   const empresa = await prisma.empresa.findFirst({ orderBy: { createdAt: 'asc' } });
   const lojas = empresa
     ? await prisma.loja.findMany({
-        where: { empresaId: empresa.id },
+        // Loja inativa (Fatia 9.7) não aparece no formulário de login — ninguém
+        // deve conseguir entrar por uma loja que a empresa desativou.
+        where: { empresaId: empresa.id, ativa: true },
         select: { id: true, nome: true, codigoErp: true },
         orderBy: { nome: 'asc' },
       })
@@ -72,7 +74,10 @@ authRouter.post('/auth/login', loginRateLimit, async (req, res) => {
 
   const { codigoErpLoja, matriculaErp, senha } = parsed.data;
 
-  const loja = await prisma.loja.findFirst({ where: { codigoErp: codigoErpLoja } });
+  // `ativa` também aqui, não só no dropdown de /lojas (Fatia 9.7): o código da
+  // loja pode ser digitado direto, então filtrar só na listagem seria esconder
+  // no frontend. Erro genérico — nunca revela que a loja existe mas está inativa.
+  const loja = await prisma.loja.findFirst({ where: { codigoErp: codigoErpLoja, ativa: true } });
   if (!loja) return res.status(401).json({ error: 'credenciais inválidas' });
 
   const vendedor = await prisma.vendedor.findUnique({

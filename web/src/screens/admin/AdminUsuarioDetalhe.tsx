@@ -1,11 +1,12 @@
 import { FormEvent, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useApi } from '../../utils/useApi';
-import { bloquearVendedor, desbloquearVendedor, desligarVendedor, detalharVendedorAdmin, reativarVendedor, realocarVendedor } from '../../api/admin';
+import { bloquearVendedor, desbloquearVendedor, desligarVendedor, detalharVendedorAdmin, reativarVendedor, realocarVendedor, reemitirAcesso } from '../../api/admin';
 import { listarLojas } from '../../api/auth';
 import { ApiError } from '../../api/client';
 import { LoadingState } from '../../components/LoadingState';
 import { ErrorState } from '../../components/ErrorState';
+import { labelPapel, labelStatusVinculoErp } from '../../utils/labels';
 
 const LABEL_STATUS: Record<string, string> = {
   PENDING_ACTIVATION: 'pendente de ativação',
@@ -70,7 +71,7 @@ export function AdminUsuarioDetalhe() {
       <div>
         <h1 className="text-2xl font-semibold text-white">{dados.nome}</h1>
         <p className="text-slate-400">
-          {dados.loja.nome} · {dados.papel} · matrícula {dados.matriculaErp}
+          {dados.loja.nome} · {labelPapel(dados.papel)} · matrícula {dados.matriculaErp}
         </p>
       </div>
 
@@ -92,7 +93,7 @@ export function AdminUsuarioDetalhe() {
           <dd className="text-white">
             {dados.identidadesExternas.length === 0
               ? 'nenhuma (fundação pra Fatia 10 — Linx real)'
-              : dados.identidadesExternas.map((i) => `${i.provider}: ${i.status}`).join(', ')}
+              : dados.identidadesExternas.map((i) => `${i.provider}: ${labelStatusVinculoErp(i.status)}`).join(', ')}
           </dd>
         </div>
       </dl>
@@ -133,9 +134,86 @@ export function AdminUsuarioDetalhe() {
 
       <SecaoRealocacao vendedorId={id!} lojaAtualId={dados.loja.id} onRealocado={recarregar} />
 
+      <SecaoReemitirAcesso vendedorId={id!} status={dados.status} onReemitido={recarregar} />
+
       <button onClick={() => navigate(-1)} className="mt-4 text-sm text-slate-500">
         Voltar
       </button>
+    </div>
+  );
+}
+
+/**
+ * Reemissão de acesso (Fatia 9.7) — é o "esqueci minha senha" possível nesta
+ * arquitetura, que não tem e-mail/SMS. O Admin NUNCA vê nem define a senha:
+ * gera um código de uso único, repassa por canal próprio, e a própria pessoa
+ * escolhe a senha na tela de ativação.
+ */
+function SecaoReemitirAcesso({ vendedorId, status, onReemitido }: { vendedorId: string; status: string; onReemitido: () => void }) {
+  const [token, setToken] = useState<string | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const [confirmando, setConfirmando] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+
+  // Conta bloqueada/desligada não reemite: reemissão não é atalho pra
+  // contornar o ciclo de vida da conta (o backend também recusa).
+  const inelegivel = status === 'BLOCKED' || status === 'OFFBOARDED';
+
+  async function reemitir() {
+    setErro(null);
+    setEnviando(true);
+    try {
+      const res = await reemitirAcesso(vendedorId);
+      setToken(res.tokenAtivacao);
+      setConfirmando(false);
+      onReemitido();
+    } catch (err) {
+      setErro(err instanceof ApiError ? err.message : 'Não foi possível reemitir o acesso agora.');
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  if (token) {
+    return (
+      <div className="mt-6 rounded-lg border border-amber-700 bg-amber-950/30 p-4">
+        <p className="mb-2 text-sm text-amber-300">
+          Novo código de ativação gerado. Repasse por um canal seguro — ele não será mostrado de novo. A senha anterior
+          deixou de valer e a própria pessoa vai escolher uma nova ao ativar.
+        </p>
+        <code className="block break-all rounded bg-base p-3 text-sm text-white">{token}</code>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-6 border-t border-slate-800 pt-4">
+      <p className="mb-1 text-sm font-medium text-white">Acesso</p>
+      <p className="mb-3 text-xs text-slate-500">
+        Use quando a pessoa perdeu a senha. Você nunca define a senha dela — só gera um código de ativação de uso único.
+      </p>
+
+      {inelegivel ? (
+        <p className="text-sm text-slate-500">
+          Conta {status === 'BLOCKED' ? 'bloqueada' : 'desligada'} não tem acesso reemitido. Desbloqueie ou reative primeiro.
+        </p>
+      ) : confirmando ? (
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-amber-300">Isso invalida a senha atual. Confirmar?</span>
+          <button onClick={reemitir} disabled={enviando} className="rounded-lg bg-accent px-3 py-1.5 text-sm text-white disabled:opacity-50">
+            {enviando ? 'Gerando...' : 'Confirmar'}
+          </button>
+          <button onClick={() => setConfirmando(false)} className="text-sm text-slate-500">
+            Cancelar
+          </button>
+        </div>
+      ) : (
+        <button onClick={() => setConfirmando(true)} className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-200">
+          Reemitir acesso
+        </button>
+      )}
+
+      {erro && <p className="mt-2 text-sm text-red-400">{erro}</p>}
     </div>
   );
 }

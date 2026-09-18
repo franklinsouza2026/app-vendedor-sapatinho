@@ -41,7 +41,9 @@ export function createSyncErpWorker() {
       const dataHora = new Date();
       dataHora.setMinutes(0, 0, 0); // normaliza pro início da hora — chave de idempotência
 
-      const lojas = await prisma.loja.findMany({ select: { id: true, empresaId: true, codigoErp: true } });
+      // Loja inativada (Fatia 9.7) sai do sync — não faz sentido puxar
+      // indicador de uma loja que não opera mais. O histórico dela permanece.
+      const lojas = await prisma.loja.findMany({ where: { ativa: true }, select: { id: true, empresaId: true, codigoErp: true } });
 
       let totalProcessados = 0;
       const empresasAfetadas = new Set<string>();

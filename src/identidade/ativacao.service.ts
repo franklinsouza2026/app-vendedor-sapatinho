@@ -91,7 +91,8 @@ function isViolacaoUnicidade(err: unknown, campos: string[]): boolean {
 export async function ativarConta(params: { codigoErpLoja: string; cpf: string; token: string; senha: string }) {
   const erroGenerico = () => new IdentidadeError(400, 'ativacao_invalida', 'dados de ativação inválidos ou token expirado');
 
-  const loja = await prisma.loja.findFirst({ where: { codigoErp: params.codigoErpLoja } });
+  // Loja inativa não ativa conta (Fatia 9.7) — mesmo motivo do login.
+  const loja = await prisma.loja.findFirst({ where: { codigoErp: params.codigoErpLoja, ativa: true } });
   if (!loja) throw erroGenerico();
 
   const cpfNormalizado = normalizarCpf(params.cpf);
@@ -136,6 +137,69 @@ export async function ativarConta(params: { codigoErpLoja: string; cpf: string; 
   });
 
   return { token, vendedor: { id: vendedor.id, nome: vendedor.nome, papel: vendedor.papel } };
+}
+
+/**
+ * Reemite o acesso de alguém que já existe (Fatia 9.7, P0) — é o caminho de
+ * "esqueci minha senha" possível nesta arquitetura, que não tem e-mail/SMS.
+ *
+ * O Admin NUNCA conhece nem define a senha final: ele gera um token novo e
+ * repassa por um canal próprio; o próprio usuário escolhe a senha ao ativar,
+ * pelo MESMO fluxo `ativarConta` já existente e já testado contra replay.
+ *
+ * Reuso total: `ActivationToken`, `StatusTokenAtivacao.REVOKED` (já existia no
+ * enum) e a transição `PENDING_ACTIVATION`. Zero migration, zero mecanismo novo.
+ *
+ * A senha anterior é apagada junto: se ela continuasse válida, existiriam dois
+ * caminhos simultâneos de entrada na conta (a senha antiga, possivelmente
+ * comprometida, e o token novo) — exatamente o que uma reemissão deveria fechar.
+ */
+export async function reemitirAcesso(params: { vendedorId: string; empresaId: string; actorId: string }) {
+  const vendedor = await prisma.vendedor.findUnique({ where: { id: params.vendedorId } });
+  // Mesmo 404 pra "não existe" e "é de outra empresa" (anti-IDOR / cross-tenant).
+  if (!vendedor || vendedor.empresaId !== params.empresaId) {
+    throw new IdentidadeError(404, 'vendedor_nao_encontrado', 'vendedor não encontrado');
+  }
+  // Nunca reabrir acesso de quem foi bloqueado ou desligado — reemissão é pra
+  // quem perdeu a senha, não é um atalho pra contornar o ciclo de vida da conta.
+  if (vendedor.status === 'BLOCKED' || vendedor.status === 'OFFBOARDED') {
+    throw new IdentidadeError(
+      409,
+      'conta_inelegivel',
+      'conta bloqueada ou desligada não tem acesso reemitido — desbloqueie ou reative primeiro'
+    );
+  }
+
+  const tokenBruto = randomBytes(32).toString('base64url');
+  const expiresAt = new Date(Date.now() + env.ACTIVATION_TOKEN_TTL_HOURS * 3600_000);
+
+  // Tudo numa transação: revogar os tokens anteriores, zerar a senha e emitir o
+  // token novo precisam acontecer juntos — senão uma falha no meio deixaria a
+  // conta sem senha E sem token válido (usuário trancado para sempre).
+  await prisma.$transaction([
+    prisma.activationToken.updateMany({
+      where: { vendedorId: vendedor.id, status: 'PENDING' },
+      data: { status: 'REVOKED' },
+    }),
+    prisma.vendedor.update({
+      where: { id: vendedor.id },
+      data: { senhaHash: null, status: 'PENDING_ACTIVATION' },
+    }),
+    prisma.activationToken.create({
+      data: { vendedorId: vendedor.id, tokenHash: hashToken(tokenBruto), expiresAt },
+    }),
+  ]);
+
+  await registrarEventoAuditoria({
+    empresaId: params.empresaId,
+    acao: 'ACCESS_REISSUED',
+    actorId: params.actorId,
+    targetId: vendedor.id,
+    metadata: { statusAnterior: vendedor.status },
+  });
+
+  // Token bruto devolvido UMA vez — só o hash fica persistido.
+  return { tokenAtivacao: tokenBruto, expiraEm: expiresAt };
 }
 
 export async function alterarSenha(vendedorId: string, senhaAtual: string, novaSenha: string) {

@@ -8,7 +8,8 @@ import { Papel, StatusConta } from '@prisma/client';
 import { prisma } from '../db';
 import { requireAuth } from '../middlewares/auth';
 import { asyncHandler } from '../middlewares/async-handler';
-import { preAutorizarVendedor } from '../identidade/ativacao.service';
+import { preAutorizarVendedor, reemitirAcesso } from '../identidade/ativacao.service';
+import { atualizarLoja, criarLoja, inativarLoja, listarLojasDaEmpresa, reativarLoja } from '../identidade/lojas.service';
 import {
   bloquearVendedor,
   desbloquearVendedor,
@@ -76,6 +77,11 @@ adminRouter.post(
     const loja = await prisma.loja.findUnique({ where: { id: parsed.data.lojaId } });
     if (!loja || loja.empresaId !== req.auth!.empresaId) {
       return res.status(403).json({ error: 'loja fora do escopo da empresa do usuário logado' });
+    }
+    // Loja inativa não recebe gente nova (Fatia 9.7): a pessoa nunca conseguiria
+    // logar (a loja some do login), virando uma conta-fantasma sem aviso.
+    if (!loja.ativa) {
+      return res.status(409).json({ error: 'esta loja está inativa — reative antes de vincular alguém a ela' });
     }
 
     try {
@@ -149,6 +155,28 @@ adminRouter.post(
   })
 );
 
+// Reemissão de acesso (Fatia 9.7, P0) — o caminho de "esqueci a senha"
+// possível sem e-mail/SMS: o Admin gera um token novo, o próprio usuário
+// escolhe a senha pelo fluxo de ativação já existente. O Admin nunca vê nem
+// define a senha final.
+adminRouter.post(
+  '/admin/vendedores/:id/reemitir-acesso',
+  requireAuth('ADMIN'),
+  asyncHandler(async (req, res) => {
+    try {
+      const resultado = await reemitirAcesso({
+        vendedorId: req.params.id,
+        empresaId: req.auth!.empresaId,
+        actorId: req.auth!.vendedorId,
+      });
+      // tokenAtivacao só existe nesta resposta — nunca é persistido em claro.
+      res.json(resultado);
+    } catch (err) {
+      tratarErro(err, res);
+    }
+  })
+);
+
 // Estrutura da Empresa (Fatia 9.6, seção 10) — Loja -> Gerente(s) ->
 // Vendedor(es), montado em memória a partir de `listarVendedores` (já
 // escopado por empresa) — nunca uma segunda fonte de verdade de vínculo.
@@ -157,20 +185,100 @@ adminRouter.get(
   requireAuth('ADMIN'),
   asyncHandler(async (req, res) => {
     const [lojas, vendedores] = await Promise.all([
-      prisma.loja.findMany({ where: { empresaId: req.auth!.empresaId }, select: { id: true, nome: true, codigoErp: true }, orderBy: { nome: 'asc' } }),
+      prisma.loja.findMany({
+        where: { empresaId: req.auth!.empresaId },
+        select: { id: true, nome: true, codigoErp: true, ativa: true },
+        orderBy: [{ ativa: 'desc' }, { nome: 'asc' }],
+      }),
       listarVendedores({ empresaId: req.auth!.empresaId }),
     ]);
 
     const estrutura = lojas.map((loja) => {
       const daLoja = vendedores.filter((v) => v.loja.id === loja.id);
       return {
-        loja: { id: loja.id, nome: loja.nome, codigoErp: loja.codigoErp },
+        loja: { id: loja.id, nome: loja.nome, codigoErp: loja.codigoErp, ativa: loja.ativa },
         gerentes: daLoja.filter((v) => v.papel === 'GERENTE').map((v) => ({ id: v.id, nome: v.nome, status: v.status })),
         vendedores: daLoja.filter((v) => v.papel === 'VENDEDOR').map((v) => ({ id: v.id, nome: v.nome, status: v.status })),
       };
     });
 
     res.json({ estrutura });
+  })
+);
+
+// --- Gestão de lojas (Fatia 9.7, P0) ---
+// Company Admin é master DENTRO da própria empresa. Criar EMPRESA fica de fora
+// por decisão explícita: seria papel de plataforma/super admin, que não existe
+// neste produto — registrado na fonte de verdade em vez de inventado aqui.
+
+adminRouter.get(
+  '/admin/lojas',
+  requireAuth('ADMIN'),
+  asyncHandler(async (req, res) => {
+    const lojas = await listarLojasDaEmpresa(req.auth!.empresaId);
+    res.json({ lojas });
+  })
+);
+
+const criarLojaSchema = z.object({
+  nome: z.string().min(1).max(120),
+  codigoErp: z.string().min(1).max(60),
+});
+
+adminRouter.post(
+  '/admin/lojas',
+  requireAuth('ADMIN'),
+  asyncHandler(async (req, res) => {
+    const parsed = criarLojaSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'dados inválidos', detalhes: parsed.error.flatten() });
+    try {
+      const loja = await criarLoja(parsed.data, req.auth!.empresaId, req.auth!.vendedorId);
+      res.status(201).json(loja);
+    } catch (err) {
+      tratarErro(err, res);
+    }
+  })
+);
+
+const atualizarLojaSchema = criarLojaSchema.partial();
+
+adminRouter.put(
+  '/admin/lojas/:id',
+  requireAuth('ADMIN'),
+  asyncHandler(async (req, res) => {
+    const parsed = atualizarLojaSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'dados inválidos' });
+    try {
+      const loja = await atualizarLoja(req.params.id, parsed.data, req.auth!.empresaId, req.auth!.vendedorId);
+      res.json(loja);
+    } catch (err) {
+      tratarErro(err, res);
+    }
+  })
+);
+
+// Nunca DELETE: loja tem histórico de venda/meta/gamificação pendurado.
+adminRouter.post(
+  '/admin/lojas/:id/inativar',
+  requireAuth('ADMIN'),
+  asyncHandler(async (req, res) => {
+    try {
+      res.json(await inativarLoja(req.params.id, req.auth!.empresaId, req.auth!.vendedorId));
+    } catch (err) {
+      tratarErro(err, res);
+    }
+  })
+);
+
+adminRouter.post(
+  '/admin/lojas/:id/reativar',
+  requireAuth('ADMIN'),
+  asyncHandler(async (req, res) => {
+    try {
+      res.json(await reativarLoja(req.params.id, req.auth!.empresaId, req.auth!.vendedorId));
+    } catch (err) {
+      tratarErro(err, res);
+    }
   })
 );
 

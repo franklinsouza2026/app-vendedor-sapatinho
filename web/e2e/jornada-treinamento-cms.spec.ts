@@ -34,8 +34,8 @@ test.describe('Jornada CMS de Treinamento — Fatia 7.5C', () => {
   test('Admin cria trilha/aula/quiz em DRAFT (invisível pro vendedor) → publica → vendedor vê e responde sem vazar gabarito nem forjar resultado', async ({ page }) => {
     // 1. Admin cria trilha + aula + quiz + questão — tudo nasce DRAFT.
     await login(page, 'ADM001', 'admin123');
-    await page.getByRole('link', { name: 'Perfil' }).click();
-    await page.getByRole('link', { name: 'Administração' }).click();
+    // Fatia 9.7: o ADMIN aterrissa direto no shell administrativo (landing por
+    // papel), então o desvio Perfil → Administração deixou de existir.
     await page.getByRole('link', { name: 'Treinamento' }).click();
     await expect(page.getByText('Conteúdo & Treinamento')).toBeVisible();
 
@@ -92,8 +92,8 @@ test.describe('Jornada CMS de Treinamento — Fatia 7.5C', () => {
     await page.goto('/perfil');
     await page.getByRole('button', { name: 'Sair' }).click();
     await login(page, 'ADM001', 'admin123');
-    await page.getByRole('link', { name: 'Perfil' }).click();
-    await page.getByRole('link', { name: 'Administração' }).click();
+    // Fatia 9.7: o ADMIN aterrissa direto no shell administrativo (landing por
+    // papel), então o desvio Perfil → Administração deixou de existir.
     await page.getByRole('link', { name: 'Treinamento' }).click();
 
     // Escopado à própria linha (nunca `.first()` solto): outras trilhas/aulas
@@ -180,8 +180,8 @@ test.describe('Jornada CMS de Treinamento — Fatia 7.5C', () => {
 
   test('13 Mandamentos — estrutura sempre presente, conteúdo nunca inventado, gate de publicação é estrutural', async ({ page }) => {
     await login(page, 'ADM001', 'admin123');
-    await page.getByRole('link', { name: 'Perfil' }).click();
-    await page.getByRole('link', { name: 'Administração' }).click();
+    // Fatia 9.7: o ADMIN aterrissa direto no shell administrativo (landing por
+    // papel), então o desvio Perfil → Administração deixou de existir.
     await page.getByRole('link', { name: 'Treinamento' }).click();
     await page.getByRole('button', { name: '13 Mandamentos' }).click();
 

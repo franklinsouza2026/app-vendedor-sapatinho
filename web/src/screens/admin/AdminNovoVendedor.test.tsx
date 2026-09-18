@@ -36,14 +36,15 @@ describe('AdminNovoVendedor', () => {
 
     renderTela();
 
-    await screen.findByRole('combobox');
+    // Fatia 9.7: o formulário passou a ter 2 selects (Papel e Loja) — espera o de Loja especificamente.
+    await screen.findByRole('combobox', { name: /Loja/i });
     await user.type(screen.getByLabelText('Nome completo'), 'Novo Vendedor');
     await user.type(screen.getByLabelText('Matrícula (loja)'), 'NOVO001');
     await user.type(screen.getByLabelText('CPF'), '111.444.777-35');
     await user.click(screen.getByRole('button', { name: 'Pré-autorizar' }));
 
     expect(await screen.findByText('codigo-secreto-123')).toBeInTheDocument();
-    expect(screen.getByText(/Vendedor pré-autorizado/)).toBeInTheDocument();
+    expect(screen.getByText(/Acesso pré-autorizado/)).toBeInTheDocument();
   });
 
   it('mostra erro específico quando o CPF já existe na empresa', async () => {
@@ -52,7 +53,8 @@ describe('AdminNovoVendedor', () => {
 
     renderTela();
 
-    await screen.findByRole('combobox');
+    // Fatia 9.7: o formulário passou a ter 2 selects (Papel e Loja) — espera o de Loja especificamente.
+    await screen.findByRole('combobox', { name: /Loja/i });
     await user.type(screen.getByLabelText('Nome completo'), 'Duplicado');
     await user.type(screen.getByLabelText('Matrícula (loja)'), 'DUP001');
     await user.type(screen.getByLabelText('CPF'), '111.444.777-35');

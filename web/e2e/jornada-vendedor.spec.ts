@@ -16,18 +16,22 @@ test.describe('Jornada do vendedor', () => {
     await page.getByRole('button', { name: 'Entrar' }).click();
 
     // 2. Home — meta do dia visível com dado real vindo do backend
-    await expect(page.getByText(/Bo(m|a) (dia|tarde|noite), Vendedor/)).toBeVisible();
+    // Saudação usa o PRIMEIRO NOME de quem logou (não um rótulo de papel):
+    // asserção pelo comportamento, pra não quebrar se o seed mudar de nome.
+    await expect(page.getByText(/Bo(m|a) (dia|tarde|noite), Marina/)).toBeVisible();
     await expect(page.getByText('Meta hoje')).toBeVisible();
-    await expect(page.getByText(/Dados atualizados às \d{2}:\d{2}/)).toBeVisible();
+    // Fatia 9.7: o rodapé passou a mostrar o frescor REAL do ERP (antes mostrava
+    // a hora do fetch do navegador, o que fazia dado de 59 min parecer "agora").
+    await expect(page.getByText(/Dados do ERP sincronizados às \d{2}:\d{2}|Ainda sem sincronização do ERP hoje/)).toBeVisible();
 
     // 3. Ranking
     await page.getByRole('link', { name: 'Ranking', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Ranking' })).toBeVisible();
-    await expect(page.getByText('Vendedor Piloto')).toBeVisible();
+    await expect(page.getByText('Marina Silva')).toBeVisible();
 
     // 4. Moedas (acesso via Perfil, conforme navegação reduzida da fatia)
     await page.getByRole('link', { name: 'Perfil' }).click();
-    await expect(page.getByRole('heading', { name: 'Vendedor Piloto' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Marina Silva' })).toBeVisible();
     await page.getByText('moedas').click();
     await expect(page.getByRole('heading', { name: 'Minhas Moedas' })).toBeVisible();
     await expect(page.getByText('Saldo atual')).toBeVisible();

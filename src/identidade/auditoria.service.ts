@@ -14,6 +14,17 @@ export type AcaoAuditoria =
   | 'USER_REACTIVATED'
   | 'USER_RELOCATED'
   | 'PASSWORD_CHANGED'
+  // Fundação operacional (Fatia 9.7) — gestão de metas, lojas e reemissão de
+  // acesso. `metadata` de meta guarda só valor/período (nunca dado pessoal);
+  // reemissão nunca guarda o token, só o status anterior da conta.
+  | 'GOAL_CREATED'
+  | 'GOAL_UPDATED'
+  | 'GOAL_DELETED'
+  | 'STORE_CREATED'
+  | 'STORE_UPDATED'
+  | 'STORE_DEACTIVATED'
+  | 'STORE_REACTIVATED'
+  | 'ACCESS_REISSUED'
   | 'ERP_IDENTITY_LINKED'
   | 'ERP_IDENTITY_UNLINKED'
   // Admin AI Control Plane (Fatia 7.5B) — nunca com o valor da credencial no metadata.

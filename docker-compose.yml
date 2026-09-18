@@ -40,14 +40,45 @@ services:
       NODE_ENV: production
       PORT: 3000
       APP_NAME: app-vendedor-sapatinho
+      # Allowlist de origens (Fatia 9.7) — obrigatória com NODE_ENV=production.
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      # Nº de proxies à frente da API. Número explícito, NUNCA `true` — com
+      # `true` o Express confia na cadeia X-Forwarded-For inteira, que o cliente
+      # controla, e um atacante ganharia um bucket de rate limit novo por
+      # request (força bruta ilimitada no login).
+      #
+      # ⚠️ VERIFICAR ANTES DE PUBLICAR: o valor tem que bater com a topologia
+      # REAL. Só o nginx deste compose = 1. Se houver um proxy/TLS no host à
+      # frente (o serviço `web` publica em 127.0.0.1, o que sugere isso), são 2.
+      # Errar pra menos faz TODOS os usuários caírem no mesmo bucket: 10
+      # logins/min para a empresa inteira, e o limitador perde o valor
+      # defensivo. Confirme com uma rota que ecoe `req.ip` antes de confiar.
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
       DATABASE_URL: postgresql://vendedor_app:${POSTGRES_PASSWORD}@postgres:5432/app_vendedor_sapatinho
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       JWT_SECRET: ${JWT_SECRET}
+      # Fatia 9.7: obrigatório em `src/config.ts` — sem ele a validação de env
+      # derruba api e worker no boot (`docker compose up` não subia).
+      CPF_HASH_SECRET: ${CPF_HASH_SECRET}
+      # Opcional: sem ele o provider MOCK segue funcionando; só impede salvar
+      # credencial real de IA.
+      AI_SECRETS_ENCRYPTION_KEY: ${AI_SECRETS_ENCRYPTION_KEY:-}
+      AI_PROVIDER: ${AI_PROVIDER:-mock}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      API_RATE_LIMIT_PER_MINUTE: ${API_RATE_LIMIT_PER_MINUTE:-120}
+      LOGIN_RATE_LIMIT_PER_MINUTE: ${LOGIN_RATE_LIMIT_PER_MINUTE:-10}
       ERP_MODE: ${ERP_MODE:-mock}
       LINX_API_URL: ${LINX_API_URL:-}
       LINX_API_KEY: ${LINX_API_KEY:-}
-    ports:
-      - "127.0.0.1:3000:3000"
+    # SEM `ports:` de propósito (Fatia 9.7). A API é alcançada só pela rede
+    # interna, via o proxy do serviço `web`.
+    #
+    # Publicar a 3000 no host anulava o rate limit: com TRUST_PROXY_HOPS=1 o
+    # Express confia no último salto de X-Forwarded-For, então qualquer um que
+    # alcançasse 127.0.0.1:3000 diretamente (usuário local, túnel SSH, outro
+    # container da rede) ganhava um bucket novo por request — força bruta
+    # ilimitada no login. Fechando a porta, o único caminho até a API é o nginx,
+    # que reescreve o header, e o "1 hop" volta a ser verdade.
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -64,9 +95,34 @@ services:
       DATABASE_URL: postgresql://vendedor_app:${POSTGRES_PASSWORD}@postgres:5432/app_vendedor_sapatinho
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       JWT_SECRET: ${JWT_SECRET}
+      # Fatia 9.7: obrigatório em `src/config.ts` — sem ele a validação de env
+      # derruba api e worker no boot (`docker compose up` não subia).
+      CPF_HASH_SECRET: ${CPF_HASH_SECRET}
+      # Opcional: sem ele o provider MOCK segue funcionando; só impede salvar
+      # credencial real de IA.
+      AI_SECRETS_ENCRYPTION_KEY: ${AI_SECRETS_ENCRYPTION_KEY:-}
+      AI_PROVIDER: ${AI_PROVIDER:-mock}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      API_RATE_LIMIT_PER_MINUTE: ${API_RATE_LIMIT_PER_MINUTE:-120}
+      LOGIN_RATE_LIMIT_PER_MINUTE: ${LOGIN_RATE_LIMIT_PER_MINUTE:-10}
       ERP_MODE: ${ERP_MODE:-mock}
       LINX_API_URL: ${LINX_API_URL:-}
       LINX_API_KEY: ${LINX_API_KEY:-}
+    depends_on:
+      api: { condition: service_started }
+    networks:
+      - app_net
+
+  # Fatia 9.7: o PWA não tinha caminho de deploy nenhum neste repo — o compose
+  # subia api+worker+postgres+redis e nada servia `web/dist`. Nginx estático,
+  # que também faz o proxy de /api pro backend (daí TRUST_PROXY_HOPS=1).
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:80"
     depends_on:
       api: { condition: service_started }
     networks:

@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { buscarCenarios, buscarHistorico, buscarSessaoDetalhada, criarSessao, encerrarSessao, enviarMensagem } from '../api/simulador';
 import { ApiError } from '../api/client';
+import { labelCategoriaCenario } from '../utils/labels';
 import { AvaliacaoSimulador, CenarioSimulador, DificuldadeSimulacao, HistoricoSimuladorItem, MensagemSimulador, SessaoSimulador } from '../types';
 import { LoadingState } from '../components/LoadingState';
 import { ErrorState } from '../components/ErrorState';
@@ -168,7 +169,7 @@ export function Simulador() {
                 <div>
                   <p className="font-medium text-white">{h.scenarioTitle}</p>
                   <p className="text-xs text-slate-400">
-                    {h.category} · {LABEL_DIFICULDADE[h.difficulty]}
+                    {labelCategoriaCenario(h.category)} · {LABEL_DIFICULDADE[h.difficulty]}
                   </p>
                 </div>
                 <p className="text-lg font-semibold text-accent">{h.scoreFinal ?? '—'}</p>
@@ -323,7 +324,7 @@ export function Simulador() {
             }}
           >
             <Card>
-              <p className="text-xs uppercase tracking-wide text-slate-500">{c.category}</p>
+              <p className="text-xs uppercase tracking-wide text-slate-500">{labelCategoriaCenario(c.category)}</p>
               <p className="font-medium text-white">{c.title}</p>
               <p className="text-sm text-slate-400">{c.description}</p>
               <p className="mt-1 text-xs text-slate-500">Objetivo: {c.objective}</p>

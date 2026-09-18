@@ -7,6 +7,7 @@ import { ErrorState } from '../../components/ErrorState';
 import { EmptyState } from '../../components/EmptyState';
 import { StatusConta } from '../../types';
 import { AdminNav } from './AdminNav';
+import { labelPapel } from '../../utils/labels';
 
 const LABEL_STATUS: Record<StatusConta, string> = {
   PENDING_ACTIVATION: 'pendente de ativação',
@@ -84,7 +85,7 @@ export function AdminUsuarios() {
                   </td>
                   <td className="px-4 py-3">{v.matriculaErp}</td>
                   <td className="px-4 py-3">{v.loja.nome}</td>
-                  <td className="px-4 py-3">{v.papel}</td>
+                  <td className="px-4 py-3">{labelPapel(v.papel)}</td>
                   <td className={`px-4 py-3 font-medium ${COR_STATUS[v.status]}`}>{LABEL_STATUS[v.status]}</td>
                   <td className="px-4 py-3 text-slate-500">{v.cpfMascarado ?? '—'}</td>
                 </tr>

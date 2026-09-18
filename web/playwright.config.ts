@@ -14,6 +14,15 @@ export default defineConfig({
     baseURL: 'http://localhost:5173',
     screenshot: 'only-on-failure',
   },
+  // Fatia 9.7: o Playwright passa a subir o próprio dev server. Antes o Vite
+  // precisava estar rodando por fora, o que impedia o E2E de rodar no CI.
+  // Localmente, reusa o servidor que já estiver de pé (não mata o seu `npm run dev`).
+  webServer: {
+    command: 'npm run dev',
+    url: 'http://localhost:5173',
+    reuseExistingServer: !process.env.CI,
+    timeout: 120_000,
+  },
   projects: [
     {
       name: 'mobile-chromium',

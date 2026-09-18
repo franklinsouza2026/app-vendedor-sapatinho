@@ -1,5 +1,10 @@
 // Reseta missões/desafios (e o progresso de Academia que os E2Es de missão
-// completam) pra VEND001/VEND002 antes dos E2Es de web/e2e/jornada-missoes*.
+// completam) antes dos E2Es de web/e2e/jornada-missoes*.
+//
+// Fatia 9.7: passou a incluir a fixture `E2E-VEND-MISSOES`. Antes, o spec criava
+// um vendedor NOVO a cada execução (estado sempre limpo de graça, ao custo de
+// acumular lixo no banco); agora ele reusa uma identidade fixa, então o estado
+// precisa ser zerado aqui explicitamente.
 // Sem isso, uma segunda execução no mesmo dia/semana encontraria a missão já
 // COMPLETED da rodada anterior. Roda só contra dev, nunca contra produção.
 import { PrismaClient } from '@prisma/client';
@@ -8,7 +13,7 @@ const prisma = new PrismaClient();
 
 async function main() {
   const vendedores = await prisma.vendedor.findMany({
-    where: { matriculaErp: { in: ['VEND001', 'VEND002'] } },
+    where: { matriculaErp: { in: ['VEND001', 'VEND002', 'E2E-VEND-MISSOES'] } },
     select: { id: true },
   });
   const ids = vendedores.map((v) => v.id);

@@ -21,8 +21,8 @@ test.describe('Jornada Admin IA — Fatia 7.5B', () => {
     await page.getByLabel('Senha').fill('admin123');
     await page.getByRole('button', { name: 'Entrar' }).click();
 
-    await page.getByRole('link', { name: 'Perfil' }).click();
-    await page.getByRole('link', { name: 'Administração' }).click();
+    // Fatia 9.7: o ADMIN aterrissa direto no shell administrativo (landing por
+    // papel), então o desvio Perfil → Administração deixou de existir.
     await page.getByRole('link', { name: 'IA', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Central de IA' })).toBeVisible();
 

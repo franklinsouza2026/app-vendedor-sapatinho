@@ -60,6 +60,23 @@ export async function realizadoNoPeriodo(vendedorId: string, desde: Date, ate: D
   return { faturamento, ticketMedio, pa, numAtendimentos };
 }
 
+/**
+ * Hora do último snapshot do ERP para este vendedor (Fatia 9.7, P1).
+ *
+ * A Home mostrava "Dados atualizados às X" usando o relógio do NAVEGADOR no
+ * momento do fetch — ou seja, um dado de 59 minutos atrás aparecia como
+ * "atualizado agora". Isto devolve o frescor REAL. Null quando ainda não houve
+ * nenhuma sincronização.
+ */
+export async function ultimaSincronizacao(vendedorId: string): Promise<Date | null> {
+  const ultimo = await prisma.indicadorRealizado.findFirst({
+    where: { vendedorId },
+    orderBy: { dataHora: 'desc' },
+    select: { dataHora: true },
+  });
+  return ultimo?.dataHora ?? null;
+}
+
 export async function metaDoPeriodo(vendedorId: string, tipo: TipoMeta, periodo: PeriodoMeta, referencia: Date) {
   const meta = await prisma.meta.findUnique({
     where: { vendedorId_tipo_periodo_referencia: { vendedorId, tipo, periodo, referencia } },

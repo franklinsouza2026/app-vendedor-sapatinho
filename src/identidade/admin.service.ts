@@ -147,6 +147,11 @@ export async function realocarVendedor(id: string, novaLojaId: string, empresaId
   if (!novaLoja || novaLoja.empresaId !== empresaId) {
     throw new IdentidadeError(400, 'loja_fora_do_escopo', 'loja de destino não pertence à empresa do usuário logado');
   }
+  // Loja inativa não recebe gente (Fatia 9.7): realocar pra lá deixaria a
+  // pessoa sem conseguir logar (a loja some do login), sem nenhum aviso.
+  if (!novaLoja.ativa) {
+    throw new IdentidadeError(409, 'loja_inativa', 'loja de destino está inativa — reative antes de realocar alguém pra ela');
+  }
   if (novaLoja.id === vendedor.lojaId) {
     throw new IdentidadeError(409, 'ja_esta_nesta_loja', 'vendedor já está nesta loja');
   }

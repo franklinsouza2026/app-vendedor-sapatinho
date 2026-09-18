@@ -30,6 +30,7 @@ import { Competicoes } from './screens/Competicoes';
 import { AdminGamificacao } from './screens/admin/AdminGamificacao';
 import { Pendencias } from './screens/Pendencias';
 import { AdminEstrutura } from './screens/admin/AdminEstrutura';
+import { AdminMetas } from './screens/admin/AdminMetas';
 import { ReuniaoDoDia } from './screens/ReuniaoDoDia';
 import { AdminAlertasGerenciais } from './screens/admin/AdminAlertasGerenciais';
 
@@ -87,6 +88,14 @@ export function App() {
             element={
               <RequireAuth papeis={['ADMIN']}>
                 <AdminEstrutura />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/admin/metas"
+            element={
+              <RequireAuth papeis={['ADMIN']}>
+                <AdminMetas />
               </RequireAuth>
             }
           />
@@ -162,10 +171,34 @@ export function App() {
             <Route path="/missoes" element={<Missoes />} />
             <Route path="/universidade" element={<Universidade />} />
             <Route path="/universidade/revisao" element={<Revisao />} />
-            <Route path="/equipe" element={<Equipe />} />
             <Route path="/competicoes" element={<Competicoes />} />
-            <Route path="/gerente/pendencias" element={<Pendencias />} />
-            <Route path="/gerente/reuniao-do-dia" element={<ReuniaoDoDia />} />
+            {/* Telas exclusivas do gerente (Fatia 9.7): o backend já barrava
+                (403), mas sem `papeis=` aqui o vendedor via a tela carregar e
+                só depois quebrar. Agora é redirecionado antes de renderizar. */}
+            <Route
+              path="/equipe"
+              element={
+                <RequireAuth papeis={['GERENTE']}>
+                  <Equipe />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/gerente/pendencias"
+              element={
+                <RequireAuth papeis={['GERENTE']}>
+                  <Pendencias />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/gerente/reuniao-do-dia"
+              element={
+                <RequireAuth papeis={['GERENTE']}>
+                  <ReuniaoDoDia />
+                </RequireAuth>
+              }
+            />
           </Route>
         </Routes>
       </BrowserRouter>

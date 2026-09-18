@@ -44,11 +44,87 @@ export interface PessoaEstrutura {
 }
 
 export interface LinhaEstrutura {
-  loja: { id: string; nome: string; codigoErp: string };
+  loja: { id: string; nome: string; codigoErp: string; ativa: boolean };
   gerentes: PessoaEstrutura[];
   vendedores: PessoaEstrutura[];
 }
 
 export function buscarEstruturaDaEmpresa() {
   return apiFetch<{ estrutura: LinhaEstrutura[] }>('/admin/estrutura');
+}
+
+// --- Reemissão de acesso (Fatia 9.7) ---
+// O Admin nunca define a senha: recebe um token de uso único pra repassar, e
+// o próprio usuário escolhe a senha na tela de ativação.
+export function reemitirAcesso(id: string) {
+  return apiFetch<{ tokenAtivacao: string; expiraEm: string }>(`/admin/vendedores/${id}/reemitir-acesso`, { method: 'POST' });
+}
+
+// --- Gestão de lojas (Fatia 9.7) ---
+
+export interface LojaAdmin {
+  id: string;
+  nome: string;
+  codigoErp: string;
+  ativa: boolean;
+  gerentes: number;
+  vendedores: number;
+}
+
+export function listarLojasAdmin() {
+  return apiFetch<{ lojas: LojaAdmin[] }>('/admin/lojas');
+}
+
+export function criarLoja(dados: { nome: string; codigoErp: string }) {
+  return apiFetch<LojaAdmin>('/admin/lojas', { method: 'POST', body: JSON.stringify(dados) });
+}
+
+export function atualizarLoja(id: string, dados: { nome?: string; codigoErp?: string }) {
+  return apiFetch<LojaAdmin>(`/admin/lojas/${id}`, { method: 'PUT', body: JSON.stringify(dados) });
+}
+
+export function inativarLoja(id: string) {
+  return apiFetch<LojaAdmin>(`/admin/lojas/${id}/inativar`, { method: 'POST' });
+}
+
+export function reativarLoja(id: string) {
+  return apiFetch<LojaAdmin>(`/admin/lojas/${id}/reativar`, { method: 'POST' });
+}
+
+// --- Gestão de metas (Fatia 9.7) ---
+
+export type TipoMeta = 'FATURAMENTO' | 'TICKET_MEDIO' | 'PA';
+export type PeriodoMeta = 'DIA' | 'SEMANA' | 'MES';
+
+export interface MetaAdmin {
+  id: string;
+  vendedorId: string;
+  vendedorNome: string;
+  matriculaErp: string;
+  lojaId: string;
+  tipo: TipoMeta;
+  periodo: PeriodoMeta;
+  referencia: string;
+  valorMeta: number;
+  /** false quando o período já encerrou — histórico é imutável. */
+  editavel: boolean;
+}
+
+export function listarMetasAdmin(filtros: { lojaId?: string; vendedorId?: string; periodo?: PeriodoMeta } = {}) {
+  const params = new URLSearchParams();
+  for (const [chave, valor] of Object.entries(filtros)) if (valor) params.set(chave, valor);
+  const query = params.toString();
+  return apiFetch<{ metas: MetaAdmin[] }>(`/admin/metas${query ? `?${query}` : ''}`);
+}
+
+export function criarMetaAdmin(dados: { vendedorId: string; tipo: TipoMeta; periodo: PeriodoMeta; referencia: string; valorMeta: number }) {
+  return apiFetch<{ id: string }>('/admin/metas', { method: 'POST', body: JSON.stringify(dados) });
+}
+
+export function atualizarMetaAdmin(id: string, valorMeta: number) {
+  return apiFetch<{ id: string }>(`/admin/metas/${id}`, { method: 'PUT', body: JSON.stringify({ valorMeta }) });
+}
+
+export function removerMetaAdmin(id: string) {
+  return apiFetch<void>(`/admin/metas/${id}`, { method: 'DELETE' });
 }

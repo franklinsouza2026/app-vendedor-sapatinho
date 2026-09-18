@@ -6,12 +6,12 @@
 import { execSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcryptjs';
 import { expect, test } from '@playwright/test';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import { MATRICULAS_E2E, SENHA_E2E, garantirPessoaE2E } from './fixtures';
+
 const prisma = new PrismaClient();
 
 test.describe('Jornada de Missões', () => {
@@ -27,16 +27,20 @@ test.describe('Jornada de Missões', () => {
     // (recomendacao.service.ts), em vez de depender de VEND001 nunca ter
     // batido meta/ticket/streak "por acaso" no momento em que o E2E roda
     // (o sync-erp horário real muda esse estado ao longo do dia).
+    // Fixture de identidade ESTÁVEL (Fatia 9.7): antes isto criava um vendedor
+    // novo a cada execução e nunca removia, acumulando lixo no banco.
     const vend001 = await prisma.vendedor.findFirstOrThrow({ where: { matriculaErp: 'VEND001' } });
-    const senhaHash = await bcrypt.hash('missoes123', 10);
-    const matricula = `MISSAO-E2E-${randomUUID().slice(0, 8)}`;
-    await prisma.vendedor.create({
-      data: { empresaId: vend001.empresaId, lojaId: vend001.lojaId, matriculaErp: matricula, nome: 'Vendedor Missões E2E', senhaHash, status: 'ACTIVE' },
+    const matricula = MATRICULAS_E2E.vendedorMissoes;
+    await garantirPessoaE2E(prisma, {
+      matriculaErp: matricula,
+      nome: 'Vendedor Missões E2E',
+      empresaId: vend001.empresaId,
+      lojaId: vend001.lojaId,
     });
 
     await page.goto('/login');
     await page.getByLabel('Matrícula').fill(matricula);
-    await page.getByLabel('Senha').fill('missoes123');
+    await page.getByLabel('Senha').fill(SENHA_E2E);
     await page.getByRole('button', { name: 'Entrar' }).click();
 
     // 1. Home mostra o bloco "Missões de hoje" com a missão de Academia

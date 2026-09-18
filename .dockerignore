@@ -1,6 +1,9 @@
 node_modules
-.env
-.env.*
+**/node_modules
+# Recursivo de propósito (Fatia 9.7): `.env` sozinho só casa na raiz do
+# contexto, então `web/.env` entrava na imagem de build.
+**/.env
+**/.env.*
 !.env.example
 .git
 .github

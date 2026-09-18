@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { useApi } from '../../utils/useApi';
 import { AdminNav } from './AdminNav';
+import { labelPublico, labelStatusConteudo, labelStatusPDI } from '../../utils/labels';
 import { LoadingState } from '../../components/LoadingState';
 import { ApiError } from '../../api/client';
 import { listarTrilhasAdmin } from '../../api/adminTraining';
@@ -94,7 +95,7 @@ function AbaEscolas() {
             <div>
               <p className="font-medium text-white">{e.name}</p>
               <p className="text-xs text-slate-500">
-                {e.code} · {e.audience}
+                {e.code} · {labelPublico(e.audience)}
               </p>
             </div>
             <button onClick={() => handleToggleActive(e)} className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">
@@ -150,7 +151,7 @@ function AbaCompetencias() {
               <div>
                 <p className="font-medium text-white">{c.name}</p>
                 <p className="text-xs text-slate-500">
-                  {c.code} · {c.audience} · {c.status}
+                  {c.code} · {labelPublico(c.audience)} · {labelStatusConteudo(c.status)}
                 </p>
               </div>
               <div className="flex gap-2">
@@ -213,9 +214,9 @@ function AbaMapeamento() {
 
   const opcoesConteudo =
     tipo === 'track'
-      ? trilhas?.trilhas.map((t) => ({ id: t.id, label: `${t.title} (${t.status})` })) ?? []
+      ? trilhas?.trilhas.map((t) => ({ id: t.id, label: `${t.title} (${labelStatusConteudo(t.status)})` })) ?? []
       : tipo === 'lesson'
-        ? trilhas?.trilhas.flatMap((t) => t.aulas.map((a) => ({ id: a.id, label: `${a.title} — ${t.title} (${a.status})` }))) ?? []
+        ? trilhas?.trilhas.flatMap((t) => t.aulas.map((a) => ({ id: a.id, label: `${a.title} — ${t.title} (${labelStatusConteudo(a.status)})` }))) ?? []
         : [];
 
   function toggleCompetencia(id: string) {
@@ -454,7 +455,7 @@ function AbaPDI() {
               Vendedor: {p.subjectUserId} · Meta {p.targetScore}
             </p>
           </div>
-          <span className="text-xs text-slate-500">{p.status}</span>
+          <span className="text-xs text-slate-500">{labelStatusPDI(p.status)}</span>
         </div>
       ))}
       {dados?.planos.length === 0 && <p className="text-sm text-slate-400">Nenhum plano de desenvolvimento ainda.</p>}

@@ -26,7 +26,8 @@ describe('AdminAlertasGerenciais', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText('NO_SALES_RECENTLY')).toBeInTheDocument();
+    // Fatia 9.7: rótulo em PT-BR na tela — o enum continua sendo o que vai pra API (asserção abaixo).
+    expect(await screen.findByText('Sem venda registrada recentemente')).toBeInTheDocument();
     const input = screen.getByDisplayValue('2');
     await user.clear(input);
     await user.type(input, '3');

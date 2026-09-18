@@ -1,5 +1,6 @@
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { rotaInicialPara } from '../auth/rotaInicial';
 import { useApi } from '../utils/useApi';
 import { GerenteHome } from './GerenteHome';
 import { buscarMinhasMetas } from '../api/metas';
@@ -26,7 +27,7 @@ async function carregarHome(vendedorId: string) {
   const dia = metas.progresso.find((p) => p.periodo === 'DIA')!;
   const posicao = ranking.ranking.find((r) => r.vendedorId === vendedorId)?.posicao ?? null;
   const missoesPendentes = missoes.missoes.filter((m) => m.status === 'ASSIGNED' || m.status === 'IN_PROGRESS');
-  return { dia, carteira, streak, posicao, totalNoRanking: ranking.ranking.length, missoesPendentes, temporada: temporada.season };
+  return { dia, carteira, streak, posicao, totalNoRanking: ranking.ranking.length, missoesPendentes, temporada: temporada.season, sincronizadoEm: metas.sincronizadoEm };
 }
 
 export function Home() {
@@ -35,13 +36,16 @@ export function Home() {
   // genérica de vendedor (sem meta/ticket/PA própria, sem sentido pra quem
   // não vende) — vê a situação da LOJA em vez da própria.
   if (sessao!.vendedor.papel === 'GERENTE') return <GerenteHome />;
+  // ADMIN chegando em "/" por deep-link ou refresh (Fatia 9.7): a Home de
+  // vendedor não é a experiência dele — meta, missão e ranking não são dele.
+  if (sessao!.vendedor.papel === 'ADMIN') return <Navigate to={rotaInicialPara('ADMIN')} replace />;
   return <HomeVendedor />;
 }
 
 function HomeVendedor() {
   const { sessao } = useAuth();
   const vendedorId = sessao!.vendedor.id;
-  const { dados, carregando, erro, atualizadoEm, recarregar } = useApi(() => carregarHome(vendedorId), [vendedorId]);
+  const { dados, carregando, erro, recarregar } = useApi(() => carregarHome(vendedorId), [vendedorId]);
 
   if (carregando && !dados) return <LoadingState texto="Carregando sua meta de hoje..." />;
   if (erro) return <ErrorState mensagem={erro} onRetry={recarregar} />;
@@ -225,7 +229,16 @@ function HomeVendedor() {
         </Card>
       </Link>
 
-      {atualizadoEm && <p className="text-center text-xs text-slate-600">Dados atualizados às {formatarHora(atualizadoEm)}</p>}
+      {/* Frescor REAL do ERP (Fatia 9.7): antes isto mostrava a hora do fetch
+          do navegador, então um dado de 59 min atrás aparecia como "agora".
+          O sync é horário — a tela não deve sugerir tempo real. */}
+      {dados.sincronizadoEm ? (
+        <p className="text-center text-xs text-slate-600">
+          Dados do ERP sincronizados às {formatarHora(new Date(dados.sincronizadoEm))} · atualiza a cada hora
+        </p>
+      ) : (
+        <p className="text-center text-xs text-slate-600">Ainda sem sincronização do ERP hoje.</p>
+      )}
     </div>
   );
 }

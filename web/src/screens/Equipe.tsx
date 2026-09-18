@@ -24,6 +24,7 @@ import {
   TipoItemPlanoAcao,
 } from '../api/managerPanel';
 import { formatarMoeda } from '../utils/format';
+import { labelItemPlano, labelReconhecimento, labelStatusAcompanhamento, labelStatusPDI } from '../utils/labels';
 
 const TIPOS_RECONHECIMENTO: TipoReconhecimento[] = ['PERFORMANCE', 'EVOLUTION', 'LEARNING', 'TEAMWORK', 'CONSISTENCY', 'LEADERSHIP', 'CUSTOM'];
 const TIPOS_ITEM_PLANO: TipoItemPlanoAcao[] = ['TALK', 'OBSERVE', 'TRAIN', 'ASSIGN_MISSION', 'ASSIGN_CONTENT', 'CREATE_PDI', 'REVIEW_PDI', 'RECOGNIZE', 'FOLLOW_UP', 'CUSTOM_TEXT'];
@@ -182,7 +183,7 @@ function Desenvolvimento({ vendedorId, onVoltar }: { vendedorId: string; onVolta
         <select value={tipoReconhecimento} onChange={(e) => setTipoReconhecimento(e.target.value as TipoReconhecimento)} className="rounded-lg bg-surface px-3 py-2 text-sm text-white">
           {TIPOS_RECONHECIMENTO.map((t) => (
             <option key={t} value={t}>
-              {t}
+              {labelReconhecimento(t)}
             </option>
           ))}
         </select>
@@ -200,7 +201,7 @@ function Desenvolvimento({ vendedorId, onVoltar }: { vendedorId: string; onVolta
           <Card key={p.id}>
             <p className="font-medium text-white">{p.competencia?.name ?? 'Plano'}</p>
             <p className="text-xs text-slate-400">
-              Meta {p.targetScore} · {p.status}
+              Meta {p.targetScore} · {labelStatusPDI(p.status)}
             </p>
           </Card>
         ))}
@@ -322,7 +323,7 @@ function PainelGerencial({ vendedorId }: { vendedorId: string }) {
           <Card key={p.id}>
             <div className="flex items-center justify-between">
               <p className="font-medium text-white">{p.title}</p>
-              <span className="text-xs text-slate-400">{p.status}</span>
+              <span className="text-xs text-slate-400">{labelStatusAcompanhamento(p.status)}</span>
             </div>
             {p.itens.map((item) => (
               <div key={item.id} className="mt-1 flex items-center justify-between">
@@ -352,7 +353,7 @@ function PainelGerencial({ vendedorId }: { vendedorId: string }) {
           <input placeholder="Título" value={tituloPlano} onChange={(e) => setTituloPlano(e.target.value)} required maxLength={200} className="rounded-lg bg-surface px-3 py-2 text-sm text-white" />
           <select value={tipoItemPlano} onChange={(e) => setTipoItemPlano(e.target.value as TipoItemPlanoAcao)} className="rounded-lg bg-surface px-3 py-2 text-sm text-white">
             {TIPOS_ITEM_PLANO.map((t) => (
-              <option key={t} value={t}>{t}</option>
+              <option key={t} value={t}>{labelItemPlano(t)}</option>
             ))}
           </select>
           <input placeholder="Descrição do 1º item (opcional)" value={descricaoItemPlano} onChange={(e) => setDescricaoItemPlano(e.target.value)} maxLength={500} className="rounded-lg bg-surface px-3 py-2 text-sm text-white" />
@@ -368,7 +369,7 @@ function PainelGerencial({ vendedorId }: { vendedorId: string }) {
         {oneOnOnes?.encontros.map((o) => (
           <Card key={o.id}>
             <div className="flex items-center justify-between">
-              <p className="text-sm text-white">{o.status}</p>
+              <p className="text-sm text-white">{labelStatusAcompanhamento(o.status)}</p>
               {(o.status === 'SCHEDULED' || o.status === 'IN_PROGRESS') && (
                 <button onClick={() => setOneOnOneAtivoId(oneOnOneAtivoId === o.id ? null : o.id)} className="text-xs text-accentSoft underline">
                   {oneOnOneAtivoId === o.id ? 'fechar' : 'concluir com notas'}

@@ -44,6 +44,20 @@ const envSchema = z.object({
   API_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(120),
   LOGIN_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(10),
 
+  // Origens permitidas no CORS (Fatia 9.7). Lista separada por vírgula, ex.:
+  // "https://app.exemplo.com,https://admin.exemplo.com". Vazio = libera
+  // qualquer origem, aceitável só fora de produção — a exigência em produção é
+  // validada em `app.ts`, e NÃO aqui: este módulo é compartilhado com o worker,
+  // que não serve HTTP e não teria por que exigir configuração de CORS.
+  CORS_ORIGINS: z.string().default(''),
+
+  // Nº de proxies confiáveis à frente da API (Fatia 9.7). Sem isso, atrás de um
+  // proxy o Express enxerga o IP do proxy em TODA requisição, e o rate limit
+  // vira global: um único usuário abusivo bloquearia o login de todo mundo.
+  // Valor numérico explícito (nunca `true`, que confia em qualquer X-Forwarded-For
+  // e permite forjar IP pra escapar do limite). 0 = sem proxy (padrão local).
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(10).default(0),
+
   // Simulador (Fatia 6) — mínimo de turnos do vendedor pra uma sessão ser
   // elegível a recompensa (anti-farm de "abrir e fechar na hora"). Não vem
   // da fonte de verdade (não havia regra definida) — v1 documentado, fácil
@@ -60,10 +74,17 @@ const envSchema = z.object({
   // secrets.ts). OPCIONAL de propósito (seção 24): sua ausência nunca derruba
   // o processo — só impede salvar uma credencial real de provider até
   // existir, MOCK continua 100% funcional em dev/test/CI sem ela.
+  // String vazia é tratada como ausente (mesma convenção já usada em
+  // LINX_API_URL): orquestradores costumam injetar `VAR=` para variável não
+  // definida, e `.optional()` sozinho não cobre isso — `""` falharia a regex e
+  // derrubaria o boot por uma variável que é opcional de propósito.
   AI_SECRETS_ENCRYPTION_KEY: z
-    .string()
-    .regex(/^[0-9a-f]{64}$/i, 'AI_SECRETS_ENCRYPTION_KEY deve ter exatamente 64 caracteres hex (32 bytes)')
-    .optional(),
+    .union([
+      z.string().regex(/^[0-9a-f]{64}$/i, 'AI_SECRETS_ENCRYPTION_KEY deve ter exatamente 64 caracteres hex (32 bytes)'),
+      z.literal(''),
+    ])
+    .optional()
+    .transform((v) => (v === '' ? undefined : v)),
 });
 
 export type Env = z.infer<typeof envSchema>;

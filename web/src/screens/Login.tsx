@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { rotaInicialPara } from '../auth/rotaInicial';
 import { listarLojas } from '../api/auth';
 import { ApiError } from '../api/client';
 import { Loja } from '../types';
@@ -24,7 +25,8 @@ export function Login() {
       .catch(() => setErro('Não foi possível carregar as lojas. Verifique sua conexão.'));
   }, []);
 
-  if (sessao) return <Navigate to="/" replace />;
+  // Landing por papel (Fatia 9.7) — ADMIN nunca cai na Home de vendedor.
+  if (sessao) return <Navigate to={rotaInicialPara(sessao.vendedor.papel)} replace />;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();

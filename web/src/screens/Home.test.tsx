@@ -61,7 +61,7 @@ function renderHome() {
 describe('Home', () => {
   it('mostra saudação com o primeiro nome e a meta do dia com a "meta inteligente"', async () => {
     vi.mocked(metasApi.buscarMinhasMetas).mockResolvedValue({
-      vendedorId: 'v1',
+      vendedorId: 'v1', sincronizadoEm: '2026-09-17T14:00:00.000Z',
       progresso: [
         {
           periodo: 'DIA',
@@ -86,7 +86,7 @@ describe('Home', () => {
 
   it('nunca mostra "undefined"/"null" cru na tela quando não há meta cadastrada', async () => {
     vi.mocked(metasApi.buscarMinhasMetas).mockResolvedValue({
-      vendedorId: 'v1',
+      vendedorId: 'v1', sincronizadoEm: '2026-09-17T14:00:00.000Z',
       progresso: [
         { periodo: 'DIA', metaFaturamento: null, realizado: { faturamento: 0, ticketMedio: 0, pa: 0, numAtendimentos: 0 }, faltaParaMeta: null },
         { periodo: 'SEMANA', metaFaturamento: null, realizado: { faturamento: 0, ticketMedio: 0, pa: 0, numAtendimentos: 0 }, faltaParaMeta: null },
@@ -103,7 +103,7 @@ describe('Home', () => {
 
   it('mostra o bloco "Missões de hoje" com CTA pra rota certa quando há missões pendentes', async () => {
     vi.mocked(metasApi.buscarMinhasMetas).mockResolvedValue({
-      vendedorId: 'v1',
+      vendedorId: 'v1', sincronizadoEm: '2026-09-17T14:00:00.000Z',
       progresso: [
         { periodo: 'DIA', metaFaturamento: null, realizado: { faturamento: 0, ticketMedio: 0, pa: 0, numAtendimentos: 0 }, faltaParaMeta: null },
         { periodo: 'SEMANA', metaFaturamento: null, realizado: { faturamento: 0, ticketMedio: 0, pa: 0, numAtendimentos: 0 }, faltaParaMeta: null },
@@ -135,7 +135,7 @@ describe('Home', () => {
 
   it('não mostra o bloco de missões quando não há nenhuma pendente', async () => {
     vi.mocked(metasApi.buscarMinhasMetas).mockResolvedValue({
-      vendedorId: 'v1',
+      vendedorId: 'v1', sincronizadoEm: '2026-09-17T14:00:00.000Z',
       progresso: [
         { periodo: 'DIA', metaFaturamento: null, realizado: { faturamento: 0, ticketMedio: 0, pa: 0, numAtendimentos: 0 }, faltaParaMeta: null },
         { periodo: 'SEMANA', metaFaturamento: null, realizado: { faturamento: 0, ticketMedio: 0, pa: 0, numAtendimentos: 0 }, faltaParaMeta: null },

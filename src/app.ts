@@ -4,6 +4,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import pinoHttp from 'pino-http';
+import { env } from './config';
 import { logger } from './utils/logger';
 import { healthRouter } from './routes/health';
 import { authRouter } from './routes/auth';
@@ -16,6 +17,7 @@ import { simuladorRouter } from './routes/simulador';
 import { academiaRouter } from './routes/academia';
 import { missoesRouter } from './routes/missoes';
 import { adminRouter } from './routes/admin';
+import { adminMetasRouter } from './routes/admin-metas';
 import { adminAiRouter } from './routes/admin-ai';
 import { adminTrainingRouter } from './routes/admin-training';
 import { adminTrainingAiRouter } from './routes/admin-training-ai';
@@ -32,8 +34,29 @@ import { errorHandler } from './middlewares/error-handler';
 
 export const app = express();
 
+// Confiança em proxy (Fatia 9.7) — número explícito de hops, nunca `true`.
+// Com `true`, qualquer cliente poderia forjar X-Forwarded-For e escapar do
+// rate limit; com 0 (padrão local) o Express usa o IP da conexão direta.
+app.set('trust proxy', env.TRUST_PROXY_HOPS);
+
 app.use(helmet());
-app.use(cors());
+
+// CORS por allowlist (Fatia 9.7). Sem CORS_ORIGINS definido, mantém o
+// comportamento aberto de dev.
+const origensPermitidas = env.CORS_ORIGINS.split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+// Produção nunca deve aceitar origem arbitrária: falha no boot em vez de subir
+// silenciosamente com CORS aberto. A checagem vive AQUI, não em `config.ts`,
+// porque só o processo que serve HTTP tem CORS — o worker compartilha o mesmo
+// config e não deve morrer por falta de uma configuração que não usa.
+if (env.NODE_ENV === 'production' && origensPermitidas.length === 0) {
+  logger.fatal('NODE_ENV=production exige CORS_ORIGINS (lista de origens separadas por vírgula)');
+  process.exit(1);
+}
+app.use(cors(origensPermitidas.length > 0 ? { origin: origensPermitidas, credentials: true } : {}));
+
 app.use(express.json());
 app.use(pinoHttp({ logger }));
 app.use(apiRateLimit);
@@ -49,6 +72,7 @@ app.use(simuladorRouter);
 app.use(academiaRouter);
 app.use(missoesRouter);
 app.use(adminRouter);
+app.use(adminMetasRouter);
 app.use(adminAiRouter);
 app.use(adminTrainingRouter);
 app.use(adminTrainingAiRouter);

@@ -11,6 +11,7 @@ import { AIProviderError } from '../ai-platform/providers';
 import { gerarViaGateway, providerEModeloParaTelemetria } from '../ai-platform/gateway.service';
 import { verificarBudgetMensal } from '../ai-platform/budget.service';
 import { resolverCenario } from './scenario.service';
+import { SimulationError } from './erros';
 import { buildSimulationContext, buildEvaluationContext } from './context-builder.service';
 import { getSystemPromptCliente } from './prompts/system-prompt-cliente';
 import { getSystemPromptAvaliador } from './prompts/system-prompt-avaliador';
@@ -24,23 +25,11 @@ import { createLogger } from '../utils/logger';
 
 const log = createLogger('simulador:sessao');
 
-export type SimulationErrorType =
-  | 'not_found'
-  | 'message_too_long'
-  | 'rate_limited'
-  | 'budget_exceeded'
-  | 'generation_in_progress'
-  | 'invalid_state'
-  | 'provider_unavailable';
-
-export class SimulationError extends Error {
-  constructor(
-    public type: SimulationErrorType,
-    message: string
-  ) {
-    super(message);
-  }
-}
+// Reexportados de `./erros` pra não quebrar quem já importava daqui (rotas e
+// testes das Fatias 6/9.6) — a definição vive em `erros.ts` desde a Fatia 9.7
+// pra que `scenario.service.ts` também possa lançar erro de domínio.
+export { SimulationError };
+export type { SimulationErrorType } from './erros';
 
 async function getVendedor(vendedorId: string) {
   return prisma.vendedor.findUniqueOrThrow({ where: { id: vendedorId } });
@@ -227,7 +216,10 @@ export async function enviarMensagem(input: EnviarMensagemInput) {
     }
 
     const novoTurnCount = sessaoAtual.turnCount + 1;
-    const cenario = await resolverCenario(sessaoAtual.scenarioId, sessaoAtual.difficulty);
+    // `papel` vem do vendedor resolvido no banco (getVendedor, acima), nunca do
+    // corpo da requisição — e é obrigatório desde a Fatia 9.7 justamente porque
+    // esquecê-lo aqui quebrava toda sessão gerencial do 2º turno em diante.
+    const cenario = await resolverCenario(sessaoAtual.scenarioId, sessaoAtual.difficulty, vendedor.papel);
     const contexto = await buildSimulationContext(vendedorId, cenario, sessaoAtual.difficulty);
     const systemPrompt = `${getSystemPromptCliente()}\n\n${formatarContextoCliente(contexto)}`;
 
@@ -318,7 +310,9 @@ async function finalizarEAvaliar(sessionId: string, motivo: string, apenasRetryA
 
   const sessao = await prisma.simulationSession.findUniqueOrThrow({ where: { id: sessionId } });
   const vendedor = await getVendedor(sessao.vendedorId);
-  const cenario = await resolverCenario(sessao.scenarioId, sessao.difficulty);
+  // Mesmo motivo do call site de `enviarMensagem`: sem o papel real, toda
+  // avaliação de sessão gerencial falhava (regressão da Fatia 9.6).
+  const cenario = await resolverCenario(sessao.scenarioId, sessao.difficulty, vendedor.papel);
 
   if (cenario.criteriosAvaliacao.length === 0) {
     // cenário sem critérios cadastrados — não há o que avaliar (config incompleta no seed)

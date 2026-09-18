@@ -36,6 +36,21 @@ async function main() {
   await prisma.aIUsage.deleteMany({ where: { vendedorId: { in: ids } } });
   await prisma.coachCheckIn.deleteMany({ where: { vendedorId: { in: ids } } });
   await prisma.professionalMemory.deleteMany({ where: { vendedorId: { in: ids } } });
+  // Fatia 9.7: a lista acima estava INCOMPLETA e o delete final quebrava por FK
+  // assim que a conta de teste tocava Academia/Coach/Treinador/Simulador. A
+  // lista completa das 18 tabelas que referenciam vendedorId veio do DMMF do
+  // Prisma (mesma fonte de `web/e2e/fixtures.ts`). Netos primeiro.
+  await prisma.coachMessage.deleteMany({ where: { conversation: { vendedorId: { in: ids } } } });
+  await prisma.trainerMessage.deleteMany({ where: { conversation: { vendedorId: { in: ids } } } });
+  await prisma.simulationMessage.deleteMany({ where: { sessao: { vendedorId: { in: ids } } } });
+  await prisma.simulationEvaluation.deleteMany({ where: { sessao: { vendedorId: { in: ids } } } });
+  await prisma.academyProgress.deleteMany({ where: { vendedorId: { in: ids } } });
+  await prisma.coachConversation.deleteMany({ where: { vendedorId: { in: ids } } });
+  await prisma.trainerConversation.deleteMany({ where: { vendedorId: { in: ids } } });
+  await prisma.simulationSession.deleteMany({ where: { vendedorId: { in: ids } } });
+  await prisma.activationToken.deleteMany({ where: { vendedorId: { in: ids } } });
+  await prisma.externalIdentity.deleteMany({ where: { vendedorId: { in: ids } } });
+  await prisma.auditEvent.deleteMany({ where: { OR: [{ actorId: { in: ids } }, { targetId: { in: ids } }] } });
   await prisma.vendedor.deleteMany({ where: { id: { in: ids } } });
 
   // VEND002 é reaproveitado pelo E2E de bloqueio — garante que começa ACTIVE.

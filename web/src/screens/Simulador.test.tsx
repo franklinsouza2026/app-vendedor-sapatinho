@@ -54,7 +54,8 @@ describe('Simulador — lista de cenários', () => {
     renderSimulador();
 
     expect(await screen.findByRole('button', { name: /Cliente "só olhando"/ })).toBeInTheDocument();
-    expect(screen.getByText('ABORDAGEM')).toBeInTheDocument();
+    // Fatia 9.7: categoria exibida em PT-BR (o valor do enum segue 'ABORDAGEM' no backend).
+    expect(screen.getByText('Abordagem')).toBeInTheDocument();
     expect(screen.getByText(/Engajar a cliente sem forçar a venda/)).toBeInTheDocument();
   });
 
@@ -220,7 +221,7 @@ describe('Simulador — histórico', () => {
 
     expect(await screen.findByRole('heading', { name: 'Histórico de simulações' })).toBeInTheDocument();
     expect(screen.getByText('Cliente "só olhando"')).toBeInTheDocument();
-    expect(screen.getByText(/ABORDAGEM.*Fácil/)).toBeInTheDocument();
+    expect(screen.getByText(/Abordagem.*Fácil/)).toBeInTheDocument();
     expect(screen.getByText('60')).toBeInTheDocument();
   });
 

@@ -13,6 +13,7 @@ import {
   TrainingIntelligenceJob,
 } from '../../api/trainingIntelligence';
 import { ApiError } from '../../api/client';
+import { labelStatusConteudo } from '../../utils/labels';
 import { LoadingState } from '../../components/LoadingState';
 
 const LABEL_STATUS_JOB: Record<StatusJobTreinamento, string> = {
@@ -174,7 +175,7 @@ function DetalheJob({ jobId, onFechar, onMudou }: { jobId: string; onFechar: () 
 
       {draftLesson && (
         <div className="rounded-lg bg-surface p-3">
-          <p className="text-xs uppercase tracking-wide text-slate-500">Rascunho de aula ({draftLesson.status})</p>
+          <p className="text-xs uppercase tracking-wide text-slate-500">Rascunho de aula ({labelStatusConteudo(draftLesson.status)})</p>
           <p className="mt-1 text-sm font-medium text-white">{draftLesson.title}</p>
           <p className="mt-1 whitespace-pre-wrap text-xs text-slate-300">{draftLesson.content}</p>
           {draftQuestions.length > 0 && <p className="mt-2 text-xs text-slate-400">{draftQuestions.length} questão(ões) de quiz em rascunho (revise em Aulas → Configurar quiz)</p>}
@@ -219,7 +220,7 @@ function CenariosDraft() {
         <div key={c.id} className="flex items-center justify-between rounded-lg border border-slate-800 p-3">
           <div>
             <p className="text-sm text-white">{c.title}</p>
-            <p className="text-xs text-slate-500">{c.status}</p>
+            <p className="text-xs text-slate-500">{labelStatusConteudo(c.status)}</p>
           </div>
           <BotaoTransicaoCenario id={c.id} status={c.status} onMudou={recarregar} />
         </div>

@@ -7,11 +7,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcryptjs';
 import { expect, Page, test } from '@playwright/test';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const API = 'http://localhost:3010';
+import { MATRICULAS_E2E, SENHA_E2E, garantirLojaAuxiliarE2E, garantirPessoaE2E } from './fixtures';
+
 const prisma = new PrismaClient();
 
 async function login(page: Page, matricula: string, senha: string) {
@@ -19,7 +20,10 @@ async function login(page: Page, matricula: string, senha: string) {
   await page.getByLabel('Matrícula').fill(matricula);
   await page.getByLabel('Senha').fill(senha);
   await page.getByRole('button', { name: 'Entrar' }).click();
-  await page.getByRole('link', { name: 'Perfil' }).waitFor();
+  // Marco pós-login agnóstico de papel (Fatia 9.7): o ADMIN aterrissa no shell
+  // administrativo, que não tem a bottom nav do vendedor — esperar por "Perfil"
+  // só funcionava pra VENDEDOR/GERENTE.
+  await page.waitForURL((url) => !url.pathname.startsWith('/login'));
 }
 
 test.describe('Jornada Universidade — Manager', () => {
@@ -32,19 +36,29 @@ test.describe('Jornada Universidade — Manager', () => {
     const vend001 = await prisma.vendedor.findFirstOrThrow({ where: { matriculaErp: 'VEND001' } });
     const loja = await prisma.loja.findUniqueOrThrow({ where: { id: vend001.lojaId } });
 
-    const senhaHash = await bcrypt.hash('gerente123', 10);
-    const matricula = `GER-E2E-${randomUUID().slice(0, 8)}`;
-    await prisma.vendedor.create({
-      data: { empresaId: loja.empresaId, lojaId: loja.id, matriculaErp: matricula, nome: 'Gerente E2E', senhaHash, papel: 'GERENTE', status: 'ACTIVE' },
+    // Fixtures de identidade ESTÁVEL (Fatia 9.7) — antes cada execução criava
+    // um gerente, uma loja e um vendedor novos, sem nunca remover.
+    const matricula = MATRICULAS_E2E.gerenteUniversidade;
+    await garantirPessoaE2E(prisma, {
+      matriculaErp: matricula,
+      nome: 'Gerente E2E',
+      empresaId: loja.empresaId,
+      lojaId: loja.id,
+      papel: 'GERENTE',
     });
 
-    const outraLoja = await prisma.loja.create({ data: { empresaId: loja.empresaId, nome: 'Outra Loja E2E', codigoErp: `OUTRA-E2E-${randomUUID().slice(0, 8)}` } });
-    const vendedorDeOutraLoja = await prisma.vendedor.create({
-      data: { empresaId: loja.empresaId, lojaId: outraLoja.id, matriculaErp: `V-OUTRA-${randomUUID().slice(0, 8)}`, nome: 'Vendedor de Outra Loja', senhaHash: 'x', status: 'ACTIVE' },
+    const outraLoja = await garantirLojaAuxiliarE2E(prisma, loja.empresaId);
+    const vendedorDeOutraLoja = await garantirPessoaE2E(prisma, {
+      matriculaErp: MATRICULAS_E2E.vendedorOutraLoja,
+      nome: 'Vendedor de Outra Loja',
+      empresaId: loja.empresaId,
+      lojaId: outraLoja.id,
     });
+    // Competência é catálogo global e não polui a visão de estrutura/ranking —
+    // segue com id único por execução, mas com `code` marcado como E2E.
     const competencia = await prisma.competency.create({ data: { code: `e2e-mgr-${randomUUID()}`, name: 'Comunicação (E2E)', description: 'd' } });
 
-    await login(page, matricula, 'gerente123');
+    await login(page, matricula, SENHA_E2E);
 
     // 1. Vai pro Perfil, vê o link "Minha Equipe" (só GERENTE vê isso).
     await page.goto('/perfil');

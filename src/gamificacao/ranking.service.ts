@@ -103,7 +103,12 @@ async function coletarDadosVendedor(
 async function coletarDadosEmpresa(empresaId: string, periodo: PeriodoMeta, hoje: Date): Promise<DadosVendedor[]> {
   const referencia = referenciaDoPeriodo(periodo, hoje);
   const vendedores = await prisma.vendedor.findMany({
-    where: { empresaId, status: 'ACTIVE' },
+    // Fatia 9.7: o ranking comercial é de VENDEDOR. ADMIN e GERENTE também são
+    // linhas de `Vendedor` (papel é atributo, não tabela separada — Fatia 7.5A)
+    // e entravam no ranking junto com o time, competindo com quem de fato vende.
+    // Filtrado no BACKEND, nunca escondido só na tela: o snapshot persistido
+    // também não deve conter quem não é elegível.
+    where: { empresaId, status: 'ACTIVE', papel: 'VENDEDOR' },
     select: { id: true, lojaId: true },
   });
 

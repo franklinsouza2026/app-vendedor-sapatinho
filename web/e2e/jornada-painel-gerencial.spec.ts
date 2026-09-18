@@ -12,7 +12,10 @@ async function login(page: Page, matricula: string, senha: string) {
   await page.getByLabel('Matrícula').fill(matricula);
   await page.getByLabel('Senha').fill(senha);
   await page.getByRole('button', { name: 'Entrar' }).click();
-  await page.getByRole('link', { name: 'Perfil' }).waitFor();
+  // Marco pós-login agnóstico de papel (Fatia 9.7): o ADMIN aterrissa no shell
+  // administrativo, que não tem a bottom nav do vendedor — esperar por "Perfil"
+  // só funcionava pra VENDEDOR/GERENTE.
+  await page.waitForURL((url) => !url.pathname.startsWith('/login'));
 }
 
 test.describe('Jornada Painel Gerencial', () => {
@@ -58,7 +61,8 @@ test.describe('Jornada Painel Gerencial', () => {
     expect(plano.subjectId).toBe(vend001.id);
 
     await page.getByRole('button', { name: 'Concluir plano' }).first().click();
-    await expect(page.getByText('COMPLETED').first()).toBeVisible();
+    // Fatia 9.7: status exibido em PT-BR (o enum segue COMPLETED no backend).
+    await expect(page.getByText('Concluído').first()).toBeVisible();
   });
 
   test('Gerente agenda e conclui um 1:1 com notas privadas (nunca visível ao vendedor)', async ({ page }) => {

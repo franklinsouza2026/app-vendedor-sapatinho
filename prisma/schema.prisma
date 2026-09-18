@@ -34,11 +34,19 @@ model Loja {
   empresaId String
   nome      String
   codigoErp String
+  // Fatia 9.7: loja nunca é apagada (tem histórico de venda/meta/gamificação
+  // pendurado) — é inativada. Loja inativa some do login e do sync do ERP,
+  // mas todo o histórico dos vendedores dela continua íntegro.
+  ativa     Boolean  @default(true)
   createdAt DateTime @default(now())
 
   empresa    Empresa    @relation(fields: [empresaId], references: [id])
   vendedores Vendedor[]
 
+  // codigoErp é a chave que o ERP usa pra casar a loja (e que o vendedor usa
+  // pra logar) — precisa ser único dentro da empresa. Sem isso, duas lojas com
+  // o mesmo código fariam `findFirst` escolher uma em silêncio.
+  @@unique([empresaId, codigoErp])
   @@index([empresaId])
   @@map("loja")
 }

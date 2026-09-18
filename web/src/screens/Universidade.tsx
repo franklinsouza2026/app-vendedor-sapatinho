@@ -15,8 +15,7 @@ import {
   listarMinhasCertificacoes,
 } from '../api/universidade';
 import { ApiError } from '../api/client';
-
-const LABEL_NIVEL: Record<string, string> = { INICIANTE: 'Iniciante', EM_DESENVOLVIMENTO: 'Em desenvolvimento', COMPETENTE: 'Competente', AVANCADO: 'Avançado' };
+import { labelConfianca, labelNivelCompetencia, labelStatusPDI, labelTipoItemPDI } from '../utils/labels';
 
 export function Universidade() {
   const [aba, setAba] = useState<'evolucao' | 'plano' | 'certificacoes'>('evolucao');
@@ -70,7 +69,7 @@ function MinhaEvolucao() {
                 {c.score} <span className="text-sm font-normal text-slate-400">/ 100</span>
               </p>
               <p className="text-xs text-slate-400">
-                {LABEL_NIVEL[c.nivel ?? '']} · meta {c.target} · confiança {c.confidence}
+                {labelNivelCompetencia(c.nivel)} · meta {c.target} · confiança {labelConfianca(c.confidence)}
               </p>
               {c.gap !== null && c.gap > 0 && <p className="mt-1 text-xs text-amber-400">Faltam {c.gap} pontos pra bater a meta.</p>}
             </>
@@ -96,7 +95,7 @@ function MeuPlano() {
           <Card>
             <p className="font-medium text-white">{p.competencia?.name ?? 'Plano de desenvolvimento'}</p>
             <p className="text-xs text-slate-400">
-              Meta: {p.targetScore} · Status: {p.status}
+              Meta: {p.targetScore} · Status: {labelStatusPDI(p.status)}
             </p>
           </Card>
         </button>
@@ -131,8 +130,8 @@ function DetalhePlano({ id, onVoltar }: { id: string; onVoltar: () => void }) {
         <p className="text-xs uppercase tracking-wide text-slate-500">Etapas</p>
         {dados.plano.itens.map((item) => (
           <div key={item.id} className="flex items-center justify-between rounded-lg border border-slate-800 p-3">
-            <p className="text-sm text-white">{item.tipo}</p>
-            <span className="text-xs text-slate-500">{item.status}</span>
+            <p className="text-sm text-white">{labelTipoItemPDI(item.tipo)}</p>
+            <span className="text-xs text-slate-500">{labelStatusPDI(item.status)}</span>
           </div>
         ))}
       </div>

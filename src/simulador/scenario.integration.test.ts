@@ -7,26 +7,39 @@ describe('resolverCenario', () => {
   it('resolve persona e maxTurns corretos pra dificuldade pedida', async () => {
     const cenario = await criarCenarioTeste({ maxTurnsPorDificuldade: { EASY: 8, MEDIUM: 11, HARD: 15 } });
 
-    const easy = await resolverCenario(cenario.id, 'EASY');
-    const hard = await resolverCenario(cenario.id, 'HARD');
+    const easy = await resolverCenario(cenario.id, 'EASY', 'VENDEDOR');
+    const hard = await resolverCenario(cenario.id, 'HARD', 'VENDEDOR');
 
     expect(easy.maxTurns).toBe(8);
     expect(hard.maxTurns).toBe(15);
     expect(easy.persona.initialNeed).toContain('tênis casual');
   });
 
-  it('lança erro quando o cenário está inativo', async () => {
+  // Fatia 9.7: cenário inativo, inexistente e de papel incompatível devolvem
+  // todos o MESMO erro de domínio ('not_found', mensagem idêntica) — de
+  // propósito, pra nunca revelar a existência de um cenário fora do escopo.
+  it('cenário inativo vira not_found tratado, nunca Error cru (que virava 500)', async () => {
     const cenario = await criarCenarioTeste({ active: false });
-    await expect(resolverCenario(cenario.id, 'EASY')).rejects.toThrow(/inativo/);
+    await expect(resolverCenario(cenario.id, 'EASY', 'VENDEDOR')).rejects.toMatchObject({ type: 'not_found' });
   });
 
-  it('lança erro quando a dificuldade pedida não tem persona cadastrada', async () => {
+  it('dificuldade sem persona cadastrada vira erro de domínio tratado, nunca 500', async () => {
     const cenario = await criarCenarioTeste({ apenasDificuldades: ['EASY'] });
-    await expect(resolverCenario(cenario.id, 'HARD')).rejects.toThrow(/persona não cadastrada/);
+    await expect(resolverCenario(cenario.id, 'HARD', 'VENDEDOR')).rejects.toMatchObject({ type: 'invalid_state' });
   });
 
-  it('lança erro quando o cenário não existe', async () => {
-    await expect(resolverCenario('00000000-0000-0000-0000-000000000000', 'EASY')).rejects.toThrow();
+  it('cenário inexistente vira not_found tratado (não PrismaClientKnownRequestError)', async () => {
+    await expect(resolverCenario('00000000-0000-0000-0000-000000000000', 'EASY', 'VENDEDOR')).rejects.toMatchObject({ type: 'not_found' });
+  });
+
+  it('cenário inexistente e cenário de papel errado devolvem exatamente a mesma mensagem (não vaza existência)', async () => {
+    const cenarioGerencial = await criarCenarioTeste({ category: 'GESTAO_DE_PESSOAS' });
+
+    const erroInexistente = await resolverCenario('00000000-0000-0000-0000-000000000000', 'EASY', 'VENDEDOR').catch((e) => e);
+    const erroPapelErrado = await resolverCenario(cenarioGerencial.id, 'EASY', 'VENDEDOR').catch((e) => e);
+
+    expect(erroPapelErrado.message).toBe(erroInexistente.message);
+    expect(erroPapelErrado.type).toBe(erroInexistente.type);
   });
 
   it('filtra critérios de avaliação inválidos guardados no JSON (defesa contra dado corrompido)', async () => {
@@ -47,7 +60,7 @@ describe('resolverCenario', () => {
       },
     });
 
-    const resolvido = await resolverCenario(cenario.id, 'EASY');
+    const resolvido = await resolverCenario(cenario.id, 'EASY', 'VENDEDOR');
     expect(resolvido.criteriosAvaliacao).toEqual(['ABORDAGEM']);
   });
 });

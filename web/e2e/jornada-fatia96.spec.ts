@@ -1,7 +1,9 @@
 // E2E real — Fatia 9.6: Admin Estrutura/Realocação, Treinador Gerencial,
-// Simulador Gerencial (cenários próprios) e Ranking em pista.
+// Simulador Gerencial (cenários próprios) e Ranking.
 import { PrismaClient } from '@prisma/client';
 import { expect, Page, test } from '@playwright/test';
+
+import { garantirLojaAuxiliarE2E } from './fixtures';
 
 const prisma = new PrismaClient();
 
@@ -10,7 +12,10 @@ async function login(page: Page, matricula: string, senha: string) {
   await page.getByLabel('Matrícula').fill(matricula);
   await page.getByLabel('Senha').fill(senha);
   await page.getByRole('button', { name: 'Entrar' }).click();
-  await page.getByRole('link', { name: 'Perfil' }).waitFor();
+  // Marco pós-login agnóstico de papel (Fatia 9.7): o ADMIN aterrissa no shell
+  // administrativo, que não tem a bottom nav do vendedor — esperar por "Perfil"
+  // só funcionava pra VENDEDOR/GERENTE.
+  await page.waitForURL((url) => !url.pathname.startsWith('/login'));
 }
 
 test.describe('Jornada Fatia 9.6', () => {
@@ -28,13 +33,11 @@ test.describe('Jornada Fatia 9.6', () => {
   test('Admin vê a Estrutura da Empresa e realoca um vendedor pra outra loja', async ({ page }) => {
     const vend002 = await prisma.vendedor.findFirstOrThrow({ where: { matriculaErp: 'VEND002' } });
     const lojaOriginalId = vend002.lojaId;
-    // Prefixo "ZZZ" de propósito: a Home/Login busca a loja pelo nome em
-    // ordem alfabética e a UI de login sempre auto-seleciona a primeira da
-    // lista — um nome que ordene ANTES de "Loja Piloto" vira sem querer a
-    // loja padrão do formulário de login e quebra TODOS os outros logins
-    // desta e de outras suítes (achado real, causou 4 falhas em cascata
-    // antes de ser corrigido).
-    const outraLoja = await prisma.loja.create({ data: { empresaId: vend002.empresaId, nome: `ZZZ Loja E2E ${Date.now()}`, codigoErp: `E2E-${Date.now()}` } });
+    // Loja auxiliar de identidade ESTÁVEL (upsert — ver `fixtures.ts`, que
+    // também documenta por que o nome dela começa com "ZZZ"). O `finally`
+    // continua devolvendo o vendedor pra loja original; a loja em si é reusada
+    // entre execuções em vez de criada e apagada.
+    const outraLoja = await garantirLojaAuxiliarE2E(prisma, vend002.empresaId);
 
     try {
       await login(page, 'ADM001', 'admin123');
@@ -53,7 +56,6 @@ test.describe('Jornada Fatia 9.6', () => {
       // Sempre limpa, mesmo se uma asserção falhar no meio — nunca deixa
       // uma loja/vínculo de teste vazando pra outras suítes E2E.
       await prisma.vendedor.update({ where: { id: vend002.id }, data: { lojaId: lojaOriginalId } });
-      await prisma.loja.delete({ where: { id: outraLoja.id } });
     }
   });
 
@@ -80,13 +82,18 @@ test.describe('Jornada Fatia 9.6', () => {
     await expect(page.getByText('Cliente reservada')).toHaveCount(0);
   });
 
-  test('Vendedor vê a pista de ranking (visual novo) sem perder a lista acessível', async ({ page }) => {
+  // Fatia 9.7: a pista de corrida foi revertida por decisão do proprietário —
+  // o ranking voltou ao modelo tradicional de lista. O motor nunca soube que a
+  // pista existia, então a reversão foi só remoção da camada visual.
+  test('Vendedor vê o ranking tradicional em lista, com filtros e sua posição', async ({ page }) => {
     await login(page, 'VEND001', 'vendedor123');
     await page.goto('/ranking');
 
     await expect(page.getByRole('heading', { name: 'Ranking' })).toBeVisible();
-    // A pista é decorativa (aria-hidden) — a lista de texto continua visível e única fonte confiável.
-    const pista = page.locator('[aria-hidden="true"] svg');
-    await expect(pista.first()).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Minha loja' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Rede toda' })).toBeVisible();
+    await expect(page.getByText('Sua posição')).toBeVisible();
+    // Nenhum resquício da pista decorativa.
+    await expect(page.locator('[aria-hidden="true"] svg')).toHaveCount(0);
   });
 });

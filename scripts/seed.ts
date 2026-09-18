@@ -35,12 +35,14 @@ async function main() {
 
   await prisma.vendedor.upsert({
     where: { lojaId_matriculaErp: { lojaId: loja.id, matriculaErp: 'ADM001' } },
-    update: {},
+    // Nome no `update` de propósito (Fatia 9.7): com `update: {}` uma
+    // correção de nome no seed nunca chegava a bancos já existentes.
+    update: { nome: 'Helena Costa' },
     create: {
       empresaId: empresa.id,
       lojaId: loja.id,
       matriculaErp: 'ADM001',
-      nome: 'Admin Piloto',
+      nome: 'Helena Costa',
       senhaHash: senhaHashAdmin,
       papel: 'ADMIN',
     },
@@ -48,12 +50,14 @@ async function main() {
 
   await prisma.vendedor.upsert({
     where: { lojaId_matriculaErp: { lojaId: loja.id, matriculaErp: 'VEND001' } },
-    update: {},
+    // Nome no `update` de propósito (Fatia 9.7): com `update: {}` uma
+    // correção de nome no seed nunca chegava a bancos já existentes.
+    update: { nome: 'Marina Silva' },
     create: {
       empresaId: empresa.id,
       lojaId: loja.id,
       matriculaErp: 'VEND001',
-      nome: 'Vendedor Piloto',
+      nome: 'Marina Silva',
       senhaHash: senhaHashVendedor,
       papel: 'VENDEDOR',
     },
@@ -63,12 +67,14 @@ async function main() {
   // entre lojas/pessoas e privacidade de conversas do Coach exigem >1 vendedor).
   await prisma.vendedor.upsert({
     where: { lojaId_matriculaErp: { lojaId: loja.id, matriculaErp: 'VEND002' } },
-    update: {},
+    // Nome no `update` de propósito (Fatia 9.7): com `update: {}` uma
+    // correção de nome no seed nunca chegava a bancos já existentes.
+    update: { nome: 'Rafael Lima' },
     create: {
       empresaId: empresa.id,
       lojaId: loja.id,
       matriculaErp: 'VEND002',
-      nome: 'Segundo Vendedor',
+      nome: 'Rafael Lima',
       senhaHash: senhaHashVendedor,
       papel: 'VENDEDOR',
     },
@@ -79,12 +85,14 @@ async function main() {
   // estável pra login manual.
   await prisma.vendedor.upsert({
     where: { lojaId_matriculaErp: { lojaId: loja.id, matriculaErp: 'GER001' } },
-    update: {},
+    // Nome no `update` de propósito (Fatia 9.7): com `update: {}` uma
+    // correção de nome no seed nunca chegava a bancos já existentes.
+    update: { nome: 'Paulo Santos' },
     create: {
       empresaId: empresa.id,
       lojaId: loja.id,
       matriculaErp: 'GER001',
-      nome: 'Gerente Piloto',
+      nome: 'Paulo Santos',
       senhaHash: senhaHashGerente,
       papel: 'GERENTE',
     },
