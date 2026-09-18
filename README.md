@@ -52,4 +52,23 @@ Ver `docs/ARCHITECTURE.md`.
 
 ## Deploy
 
-Ainda não definido — pendente de decidir onde este app vai rodar em produção (VPS própria, junto do Diretor Comercial IA, etc.).
+**Onde** ainda não foi definido (VPS própria, junto do Diretor Comercial IA, etc.). O **como** passou a existir na Fatia 9.7:
+
+```bash
+docker compose up -d   # postgres + redis + api + worker + web (nginx servindo o PWA)
+```
+
+O serviço `web` serve o build do frontend e faz proxy de `/api` pra API, de modo que
+frontend e backend compartilhem a mesma origem.
+
+Variáveis obrigatórias (ver `.env.example`): `JWT_SECRET`, `CPF_HASH_SECRET`,
+`POSTGRES_PASSWORD`, `REDIS_PASSWORD` e, **em produção**, `CORS_ORIGINS` — sem ela o
+processo recusa subir em vez de aceitar qualquer origem.
+
+⚠️ Antes de publicar, conferir `TRUST_PROXY_HOPS` contra a topologia real: ele precisa
+contar os saltos de proxy até a API. Errar pra menos joga todos os usuários no mesmo
+bucket de rate limit (10 logins/min pra empresa inteira); errar pra mais deixa o cliente
+forjar o IP de origem.
+
+Nenhum provider de IA real foi validado contra API real até aqui — o produto roda em
+`AI_PROVIDER=mock` por padrão.
