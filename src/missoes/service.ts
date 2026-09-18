@@ -55,6 +55,11 @@ export async function getMissoesAtivas(vendedorId: string, agora: Date = new Dat
       title: a.definicao.title,
       description: a.definicao.description,
       category: a.definicao.category,
+      // Aditivo (Etapa 2B.1): o Conselheiro roteia a missão pelo CRITÉRIO, não
+      // pela ação — "Supere seu PA de referência" tem ação de Treinador e é
+      // medida por KPI. Sem isto, uma missão comercial entraria numa conversa
+      // de acolhimento como se fosse de aprendizagem.
+      criterionType: a.definicao.criterionType,
       actionType: a.definicao.actionType,
       actionReference: a.definicao.actionReference,
     },
@@ -135,5 +140,9 @@ export async function getMissaoPrioritariaParaCoach(vendedorId: string, agora: D
     title: pendente.missao.title,
     progresso: pendente.progressoAlvo > 0 ? Math.round((pendente.progressoAtual / pendente.progressoAlvo) * 100) : 0,
     actionType: pendente.missao.actionType,
+    // O Conselheiro roteia a missão pelo CRITÉRIO (Etapa 2B.1): "Supere seu PA
+    // de referência" tem ação de Treinador mas é medida por KPI — é contexto
+    // comercial, não de desenvolvimento.
+    criterionType: pendente.missao.criterionType,
   };
 }

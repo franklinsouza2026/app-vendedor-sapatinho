@@ -4,15 +4,41 @@ import { AIProviderError } from './ai-provider.interface';
 import { CoachContext } from '../../coach/context.types';
 import { TrainerContext } from '../../treinador/context.types';
 
+// Contexto COM bloco comercial autorizado (Etapa 2B.1) — o vendedor perguntou
+// pelos próprios números.
 const CONTEXTO_COACH: CoachContext = {
   seller: { displayName: 'Ana Vendedora' },
   store: { name: 'Loja Piloto' },
-  goal: { todayGoal: 1000, realized: 700, goalPercent: 70, amountRemaining: 300, estimatedSalesRemaining: 3 },
-  performance: { ticket: 100, pa: 2, salesCount: 7 },
-  baseline: { ticket: 90, pa: 1.8, status: 'disponivel' },
-  gamification: { xp: 250, level: 'Bronze', streak: 2, recentBadges: [] },
-  development: { currentFocus: null, currentMission: null, recentTrainings: [], professionalMemorySummary: null, competencyGaps: [] },
+  pertinencia: { intencao: 'DUVIDA_COMERCIAL', estado: 'REFLETIR', dominios: ['HUMANO', 'DESENVOLVIMENTO', 'COMERCIAL'], origem: 'DETERMINISTICO' },
+  humano: { checkinHoje: null },
+  desenvolvimento: { competencyGaps: [], recentTrainings: [], positiveSignals: [], currentMission: null },
+  comercial: {
+    goal: { todayGoal: 1000, realized: 700, goalPercent: 70, amountRemaining: 300, estimatedSalesRemaining: 3 },
+    performance: { ticket: 100, pa: 2, salesCount: 7 },
+    baseline: { ticket: 90, pa: 1.8, status: 'disponivel' },
+    gamification: { xp: 250, level: 'Bronze', streak: 2, recentBadges: [] },
+    professionalMemorySummary: null,
+    currentFocus: null,
+    currentMission: null,
+  },
   freshness: { lastDataSyncAt: new Date().toISOString() },
+};
+
+/** O MESMO vendedor, os MESMOS números — mas sem bloco comercial autorizado. */
+const CONTEXTO_COACH_SEM_COMERCIAL: CoachContext = {
+  ...CONTEXTO_COACH,
+  pertinencia: { intencao: 'CONVERSA', estado: 'REFLETIR', dominios: ['HUMANO', 'DESENVOLVIMENTO'], origem: 'LLM' },
+  humano: { checkinHoje: 'NEUTRAL' },
+  comercial: null,
+};
+
+/** O MESMO vendedor, os MESMOS números — mas em acolhimento. */
+const CONTEXTO_COACH_ACOLHER: CoachContext = {
+  ...CONTEXTO_COACH,
+  pertinencia: { intencao: 'DESABAFO', estado: 'ACOLHER', dominios: ['HUMANO'], origem: 'DETERMINISTICO' },
+  humano: { checkinHoje: 'NOT_GOOD' },
+  desenvolvimento: null,
+  comercial: null,
 };
 
 const CONTEXTO_TREINADOR: TrainerContext = {
@@ -67,6 +93,64 @@ describe('MockAIProvider — especialista Coach (padrão)', () => {
       metadata: { context: CONTEXTO_COACH },
     });
     expect(res.content).toContain('300.00');
+  });
+
+  // Sem isto, o mock continuaria sendo um segundo motor comercial independente
+  // do formatter — e dev, CI e todos os E2E veriam um produto que ainda cobra,
+  // com a suíte verde.
+  it('REGRESSÃO: sem bloco comercial autorizado, o mock NÃO cita número nenhum', async () => {
+    const provider = new MockAIProvider();
+    const res = await provider.generateResponse({
+      systemPrompt: 'sp',
+      messages: [{ role: 'user', content: 'qual minha meta?' }],
+      metadata: { specialist: 'coach', context: CONTEXTO_COACH_ACOLHER },
+    });
+
+    expect(res.content).not.toContain('300.00');
+    expect(res.content).not.toContain('1000');
+    expect(res.content).not.toMatch(/pra bater sua meta/);
+  });
+
+  // O caso acima sai no early-return de ACOLHER e NÃO exercita o ramo
+  // `if (!comercial)` — que é o caminho real de CONVERSA e CELEBRACAO.
+  it('REGRESSÃO: em REFLETIR sem bloco comercial, perguntar por meta não produz número', async () => {
+    const provider = new MockAIProvider();
+    const res = await provider.generateResponse({
+      systemPrompt: 'sp',
+      messages: [{ role: 'user', content: 'qual minha meta?' }],
+      metadata: { specialist: 'coach', context: CONTEXTO_COACH_SEM_COMERCIAL },
+    });
+
+    expect(res.content).not.toContain('300.00');
+    expect(res.content).not.toMatch(/R\$/);
+    // E oferece o caminho, em vez de simplesmente ignorar o que foi perguntado.
+    expect(res.content).toMatch(/é só pedir/i);
+  });
+
+  it('em ACOLHER o mock acolhe, mesmo com os números disponíveis no banco', async () => {
+    const provider = new MockAIProvider();
+    const res = await provider.generateResponse({
+      systemPrompt: 'sp',
+      messages: [{ role: 'user', content: 'hoje estou mal' }],
+      metadata: { specialist: 'coach', context: CONTEXTO_COACH_ACOLHER },
+    });
+
+    expect(res.content).toMatch(/quer me contar|prefere/i);
+    expect(res.content).not.toMatch(/R\$/);
+  });
+
+  it('classificador de intenção devolve JSON com enum fechado', async () => {
+    const provider = new MockAIProvider();
+    // Mensagem AMBÍGUA de propósito: o curto-circuito determinístico não a
+    // resolve, então este é o caminho que o classificador de fato percorre.
+    const res = await provider.generateResponse({
+      systemPrompt: 'classifique',
+      messages: [{ role: 'user', content: 'preciso dar um jeito nisso aqui' }],
+      metadata: { specialist: 'intent_classifier' },
+    });
+
+    const { intencao } = JSON.parse(res.content);
+    expect(['DESABAFO', 'CONVERSA', 'DUVIDA_COMERCIAL', 'DESENVOLVIMENTO', 'CELEBRACAO', 'OUTRO']).toContain(intencao);
   });
 
   it('responde de forma segura mesmo sem contexto (nunca quebra)', async () => {

@@ -50,6 +50,35 @@ export interface MemoriaProfissional {
 /** Só os gaps que valem virar foco — nunca a matriz inteira no prompt. */
 const MAX_GAPS_NO_CONTEXTO = 3;
 
+/**
+ * Seleciona os gaps que valem contexto: ordenados por prioridade e tamanho,
+ * cortados em MAX_GAPS_NO_CONTEXTO. Competência com evidência insuficiente
+ * (`score === null`) fica de fora, pra a IA nunca falar de um gap que o motor
+ * ainda não sabe se existe.
+ */
+function selecionarGaps(matriz: Awaited<ReturnType<typeof calcularMatrizCompetencias>>): GapDeCompetencia[] {
+  const ordemPrioridade = { HIGH: 0, MEDIUM: 1, LOW: 2 } as const;
+  return matriz
+    .filter((c): c is typeof c & { score: number; gap: number } => c.score !== null && c.gap !== null && c.gap > 0)
+    .sort((a, b) => ordemPrioridade[a.priority] - ordemPrioridade[b.priority] || b.gap - a.gap)
+    .slice(0, MAX_GAPS_NO_CONTEXTO)
+    .map((c) => ({ nome: c.name, score: c.score, target: c.target, gap: c.gap, prioridade: c.priority }));
+}
+
+/**
+ * Gaps de competência SEM arrastar o cálculo de KPI junto (Etapa 2B.1).
+ *
+ * `getMemoria` computa baseline, delta de PA/ticket e persiste a memória — tudo
+ * derivado de indicador comercial. Numa conversa de acolhimento, em que o
+ * domínio COMERCIAL não foi autorizado, nada disso deve sequer ser consultado:
+ * o que não é carregado não vaza. Esta função é o caminho enxuto pra quem só
+ * precisa de evidência.
+ */
+export async function getGapsDeCompetencia(vendedorId: string, agora: Date = new Date()): Promise<GapDeCompetencia[]> {
+  const vendedor = await prisma.vendedor.findUniqueOrThrow({ where: { id: vendedorId }, select: { papel: true } });
+  return selecionarGaps(await calcularMatrizCompetencias(vendedorId, vendedor.papel, agora));
+}
+
 export async function getMemoria(vendedorId: string, agora: Date = new Date()): Promise<MemoriaProfissional> {
   const vendedor = await prisma.vendedor.findUniqueOrThrow({ where: { id: vendedorId } });
   const hoje = inicioDoDia(agora);
@@ -91,16 +120,7 @@ export async function getMemoria(vendedorId: string, agora: Date = new Date()): 
           .filter(Boolean)
           .join(' ');
 
-  // Gaps de competência (Etapa 2A) — ordenados por prioridade e tamanho do
-  // gap, cortados em MAX_GAPS_NO_CONTEXTO. Só entram competências que já têm
-  // evidência suficiente: `NOT_ENOUGH_DATA` tem score null e fica de fora, pra
-  // a IA nunca falar de um gap que o motor ainda não sabe se existe.
-  const ordemPrioridade = { HIGH: 0, MEDIUM: 1, LOW: 2 } as const;
-  const competencyGaps: GapDeCompetencia[] = matriz
-    .filter((c): c is typeof c & { score: number; gap: number } => c.score !== null && c.gap !== null && c.gap > 0)
-    .sort((a, b) => ordemPrioridade[a.priority] - ordemPrioridade[b.priority] || b.gap - a.gap)
-    .slice(0, MAX_GAPS_NO_CONTEXTO)
-    .map((c) => ({ nome: c.name, score: c.score, target: c.target, gap: c.gap, prioridade: c.priority }));
+  const competencyGaps = selecionarGaps(matriz);
 
   const memoria: MemoriaProfissional = { strengths, developmentAreas, currentFocus, summary, competencyGaps };
 

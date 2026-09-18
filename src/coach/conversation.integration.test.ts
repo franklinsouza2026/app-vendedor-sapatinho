@@ -78,10 +78,16 @@ describe('enviarMensagem — funcionalidade básica e uso do contexto', () => {
     const conversa = await getOrCreateConversaAtual(vendedor.id);
     await enviarMensagem(conversa.id, vendedor.id, 'oi');
 
-    const usos = await prisma.aIUsage.findMany({ where: { vendedorId: vendedor.id } });
-    expect(usos).toHaveLength(1);
-    expect(Number(usos[0].estimatedCostUSD)).toBe(0);
-    expect(usos[0].status).toBe('SUCESSO');
+    // Etapa 2B.1: uma mensagem ambígua gera DUAS chamadas — a de classificação
+    // de intenção e a do Conselheiro. Ambas entram no ledger, senão o orçamento
+    // mensal subcontaria. A do Conselheiro é a que carrega `conversationId`.
+    const usoDaResposta = await prisma.aIUsage.findMany({ where: { vendedorId: vendedor.id, conversationId: conversa.id } });
+    expect(usoDaResposta).toHaveLength(1);
+    expect(Number(usoDaResposta[0].estimatedCostUSD)).toBe(0);
+    expect(usoDaResposta[0].status).toBe('SUCESSO');
+
+    const usoDaClassificacao = await prisma.aIUsage.findMany({ where: { vendedorId: vendedor.id, conversationId: null } });
+    expect(usoDaClassificacao).toHaveLength(1);
   });
 });
 
@@ -124,7 +130,9 @@ describe('enviarMensagem — idempotência de clientMessageId', () => {
     expect(r2.id).toBe(r1.id); // retornou a MESMA resposta, não gerou outra
     const mensagens = await listarMensagens(conversa.id, vendedor.id);
     expect(mensagens).toHaveLength(2); // 1 USER + 1 ASSISTANT, nunca duplicado
-    const usos = await prisma.aIUsage.findMany({ where: { vendedorId: vendedor.id } });
+    // Idempotência é sobre a RESPOSTA: a segunda chamada devolve a mesma
+    // mensagem sem chamar o provider de novo.
+    const usos = await prisma.aIUsage.findMany({ where: { vendedorId: vendedor.id, conversationId: conversa.id } });
     expect(usos).toHaveLength(1); // não cobrou 2x
   });
 

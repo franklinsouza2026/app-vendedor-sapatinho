@@ -120,7 +120,11 @@ export const labelStatusConta = (v?: string | null) => traduzir(STATUS_CONTA, v)
 const TIPO_META: Record<string, string> = {
   FATURAMENTO: 'Faturamento',
   TICKET_MEDIO: 'Ticket médio',
-  PA: 'PA (peças por atendimento)',
+  // "por venda", não "por atendimento": a auditoria da Etapa 2B.0 provou que o
+  // denominador que vem do ERP (`numAtendimentos`) conta transações fechadas,
+  // não clientes atendidos. O rótulo antigo fazia o Admin — e o vendedor —
+  // procurar a causa de um PA baixo no lugar errado.
+  PA: 'PA (peças por venda)',
 };
 export const labelTipoMeta = (v?: string | null) => traduzir(TIPO_META, v);
 

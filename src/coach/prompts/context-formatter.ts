@@ -1,7 +1,48 @@
 // Formata o CoachContext em texto legível pro system prompt — nunca como
-// mensagem "do usuário" (evita confundir contexto com entrada do vendedor,
-// e reduz superfície de prompt injection via mistura de canais).
+// mensagem "do usuário" (evita confundir contexto com entrada do vendedor, e
+// reduz superfície de prompt injection via mistura de canais).
+//
+// ETAPA 2B.1: renderiza apenas os blocos que o gate de pertinência autorizou.
+// Um bloco ausente aqui não foi filtrado na renderização — ele **nunca foi
+// carregado do banco** (ver `context-builder.service.ts`). Este arquivo é a
+// última camada, não a única.
+import { MoodCheckIn } from '@prisma/client';
 import { CoachContext } from '../context.types';
+import { EstadoComportamental } from '../../pertinencia/tipos';
+
+/**
+ * Como o vendedor DECLAROU estar. Sempre em linguagem de relato — "relatou
+ * que" — nunca de diagnóstico. A Constituição §20 (G1) proíbe derivar condição
+ * clínica, e a redação é a primeira barreira: um rótulo como "vendedor
+ * desanimado" convida o modelo a tratar isso como característica da pessoa.
+ */
+const RELATO_DE_CHECKIN: Record<MoodCheckIn, string> = {
+  VERY_GOOD: 'muito bem',
+  GOOD: 'bem',
+  NEUTRAL: 'mais ou menos',
+  NOT_GOOD: 'não muito bem',
+};
+
+/** O prompt inteiro é PT-BR; enum cru ("simulacao", "high") destoa e confunde. */
+const ROTULO_ATIVIDADE: Record<'AULA' | 'QUIZ' | 'SIMULACAO', string> = {
+  AULA: 'aula',
+  QUIZ: 'quiz',
+  SIMULACAO: 'simulação',
+};
+
+const ROTULO_PRIORIDADE: Record<string, string> = { HIGH: 'alta', MEDIUM: 'média', LOW: 'baixa' };
+
+/** Orientação de condução por estado — tom, nunca script. */
+const ORIENTACAO_POR_ESTADO: Record<EstadoComportamental, string> = {
+  ACOLHER:
+    'A pessoa trouxe como está antes de trazer uma pergunta. Ouça primeiro. Não ofereça número, meta nem tarefa — ' +
+    'se ela quiser falar de resultado, ela pede. Uma pergunta aberta costuma valer mais que um conselho.',
+  REFLETIR: 'Ajude a pessoa a pensar sobre a situação. Pergunte mais do que afirme. Nem toda conversa precisa terminar em tarefa.',
+  DESENVOLVER: 'A conversa é sobre crescer. Traga no máximo um caminho concreto, não um catálogo.',
+  TREINAR: 'Há uma habilidade concreta pra praticar. Aponte um destino só (Academia, Treinador ou Simulador) e diga por quê.',
+  AGIR: 'Transforme a conversa em UMA ação pequena, concreta e possível hoje. Nunca uma lista.',
+  CELEBRAR: 'Reconheça o que de fato aconteceu, com o fato na mão. Não emende cobrança no reconhecimento — parabéns e "mas" não cabem na mesma resposta.',
+};
 
 export function formatarContextoParaPrompt(ctx: CoachContext): string {
   const linhas: string[] = [];
@@ -9,52 +50,90 @@ export function formatarContextoParaPrompt(ctx: CoachContext): string {
   linhas.push(`CONTEXTO ATUAL (fatos, use apenas o que estiver aqui — nunca invente além disso):`);
   linhas.push(`Vendedor: ${ctx.seller.displayName} — Loja: ${ctx.store.name}`);
 
-  if (ctx.goal.todayGoal !== null) {
+  // --- HUMANO: sempre presente. A pessoa vem antes dos números. ---
+  if (ctx.humano.checkinHoje) {
+    linhas.push(`Hoje, ao abrir o app, o vendedor relatou estar ${RELATO_DE_CHECKIN[ctx.humano.checkinHoje]}. É um relato dele, não um diagnóstico — nunca trate como condição ou traço.`);
+  }
+
+  // --- DESENVOLVIMENTO: evolução por evidência. ---
+  if (ctx.desenvolvimento) {
+    const d = ctx.desenvolvimento;
+
+    if (d.positiveSignals.length > 0) {
+      linhas.push(`Conquistas de desenvolvimento recentes (fato, pode reconhecer): ${d.positiveSignals.map((s) => s.descricao).join('; ')}`);
+    }
+    if (d.recentTrainings.length > 0) {
+      const atividades = d.recentTrainings
+        .map((a) => `${a.titulo} (${ROTULO_ATIVIDADE[a.tipo]}${a.resultado !== null ? `, nota ${a.resultado}` : ''})`)
+        .join('; ');
+      linhas.push(`Atividades de aprendizagem concluídas recentemente: ${atividades}`);
+    }
+    // Rotulado como "avaliado por evidência" pra a IA não confundir com foco
+    // derivado de KPI — são origens diferentes e o prompt deixa isso claro.
+    if (d.competencyGaps.length > 0) {
+      const gaps = d.competencyGaps.map((c) => `${c.nome} (${c.score}/${c.target}, prioridade ${ROTULO_PRIORIDADE[c.prioridade] ?? c.prioridade})`).join('; ');
+      linhas.push(`Competências abaixo da meta, avaliadas por evidência de treinamento e prática: ${gaps}`);
+    }
+    if (d.currentMission) {
+      linhas.push(`Missão de aprendizagem de hoje: ${d.currentMission}`);
+    }
+  }
+
+  // --- COMERCIAL: opcional por desenho. Só entra quando a pertinência liberou. ---
+  if (ctx.comercial) {
+    const c = ctx.comercial;
+
+    if (c.goal.todayGoal !== null) {
+      linhas.push(
+        `Meta de hoje: R$ ${c.goal.todayGoal.toFixed(2)} | Realizado: R$ ${c.goal.realized.toFixed(2)} | ` +
+          `Atingido: ${c.goal.goalPercent?.toFixed(1) ?? '?'}% | Falta: R$ ${c.goal.amountRemaining?.toFixed(2) ?? '?'}` +
+          (c.goal.estimatedSalesRemaining !== null ? ` (~${c.goal.estimatedSalesRemaining} vendas no ticket atual)` : '')
+      );
+    } else {
+      linhas.push('Meta de hoje: não cadastrada.');
+    }
+
+    // "Vendas", não "Atendimentos": a 2B.0 provou que o campo de origem conta
+    // transações fechadas, não clientes atendidos. Chamar de atendimento fazia
+    // o vendedor procurar a causa no lugar errado.
+    linhas.push(`PA hoje: ${c.performance.pa.toFixed(2)} | Ticket hoje: R$ ${c.performance.ticket.toFixed(2)} | Vendas: ${c.performance.salesCount}`);
+
+    if (c.baseline.status === 'disponivel') {
+      linhas.push(`Baseline pessoal — PA: ${c.baseline.pa?.toFixed(2)} | Ticket: R$ ${c.baseline.ticket?.toFixed(2)}`);
+    } else {
+      linhas.push('Baseline pessoal: ainda em formação (poucos dias de histórico) — não compare com média ainda.');
+    }
+
+    linhas.push(`Gamificação: nível ${c.gamification.level} | XP ${c.gamification.xp} | sequência ${c.gamification.streak} dias`);
+    if (c.gamification.recentBadges.length > 0) {
+      linhas.push(`Conquistas de gamificação: ${c.gamification.recentBadges.join(', ')}`);
+    }
+    if (c.professionalMemorySummary) {
+      linhas.push(`Resumo de desenvolvimento: ${c.professionalMemorySummary}`);
+    }
+    if (c.currentFocus) {
+      linhas.push(`Foco sugerido atual: ${c.currentFocus}`);
+    }
+    if (c.currentMission) {
+      linhas.push(`Missão prioritária de hoje: ${c.currentMission}`);
+    }
+
     linhas.push(
-      `Meta de hoje: R$ ${ctx.goal.todayGoal.toFixed(2)} | Realizado: R$ ${ctx.goal.realized.toFixed(2)} | ` +
-        `Atingido: ${ctx.goal.goalPercent?.toFixed(1) ?? '?'}% | Falta: R$ ${ctx.goal.amountRemaining?.toFixed(2) ?? '?'}` +
-        (ctx.goal.estimatedSalesRemaining !== null ? ` (~${ctx.goal.estimatedSalesRemaining} vendas no ticket atual)` : '')
+      ctx.freshness.lastDataSyncAt
+        ? `Dados sincronizados pela última vez em: ${ctx.freshness.lastDataSyncAt}`
+        : 'Ainda sem sincronização de indicadores para este vendedor.'
     );
   } else {
-    linhas.push('Meta de hoje: não cadastrada.');
+    // A ausência é explicada ao modelo. Sem isto, ele tende a preencher a
+    // lacuna com número de um turno anterior do histórico — o único caminho
+    // comercial que a arquitetura não consegue cortar na origem.
+    linhas.push(
+      'Indicadores comerciais (meta, vendas, PA, ticket) NÃO estão disponíveis nesta conversa. ' +
+        'Não os cite, não os estime e não repita números de mensagens anteriores. Se o vendedor pedir os números, ele os terá — basta ele pedir.'
+    );
   }
 
-  linhas.push(`PA hoje: ${ctx.performance.pa.toFixed(2)} | Ticket hoje: R$ ${ctx.performance.ticket.toFixed(2)} | Atendimentos: ${ctx.performance.salesCount}`);
-
-  if (ctx.baseline.status === 'disponivel') {
-    linhas.push(`Baseline pessoal — PA: ${ctx.baseline.pa?.toFixed(2)} | Ticket: R$ ${ctx.baseline.ticket?.toFixed(2)}`);
-  } else {
-    linhas.push('Baseline pessoal: ainda em formação (poucos dias de histórico) — não compare com média ainda.');
-  }
-
-  linhas.push(`Gamificação: nível ${ctx.gamification.level} | XP ${ctx.gamification.xp} | sequência ${ctx.gamification.streak} dias`);
-  if (ctx.gamification.recentBadges.length > 0) {
-    linhas.push(`Conquistas recentes: ${ctx.gamification.recentBadges.join(', ')}`);
-  }
-
-  if (ctx.development.professionalMemorySummary) {
-    linhas.push(`Resumo de desenvolvimento: ${ctx.development.professionalMemorySummary}`);
-  }
-  if (ctx.development.currentFocus) {
-    linhas.push(`Foco sugerido atual: ${ctx.development.currentFocus}`);
-  }
-  if (ctx.development.currentMission) {
-    linhas.push(`Missão prioritária de hoje: ${ctx.development.currentMission}`);
-  }
-  // Rotulado como "avaliado por evidência" pra a IA não confundir com o foco
-  // derivado de KPI acima — são origens diferentes e o prompt deixa isso claro.
-  if (ctx.development.competencyGaps.length > 0) {
-    const gaps = ctx.development.competencyGaps
-      .map((c) => `${c.nome} (${c.score}/${c.target}, prioridade ${c.prioridade.toLowerCase()})`)
-      .join('; ');
-    linhas.push(`Competências abaixo da meta, avaliadas por evidência de treinamento e prática: ${gaps}`);
-  }
-
-  linhas.push(
-    ctx.freshness.lastDataSyncAt
-      ? `Dados sincronizados pela última vez em: ${ctx.freshness.lastDataSyncAt}`
-      : 'Ainda sem sincronização de indicadores para este vendedor.'
-  );
+  linhas.push(`COMO CONDUZIR AGORA: ${ORIENTACAO_POR_ESTADO[ctx.pertinencia.estado]}`);
 
   return linhas.join('\n');
 }

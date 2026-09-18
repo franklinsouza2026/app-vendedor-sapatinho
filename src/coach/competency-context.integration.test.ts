@@ -17,6 +17,7 @@ import { seedCompetenciasV1 } from '../universidade/competency.service';
 import { gerarEvidenciaDeConclusao, gerarEvidenciaDeQuiz } from '../universidade/evidence.service';
 import { getMemoria } from './memory.service';
 import { buildCoachContext } from './context-builder.service';
+import { decidirPertinencia } from '../pertinencia/gate.service';
 import { formatarContextoParaPrompt } from './prompts/context-formatter';
 
 /** Cria 2 evidências fracas numa competência — o mínimo pra sair de NOT_ENOUGH_DATA com gap. */
@@ -68,7 +69,7 @@ describe('Gap de competência chega ao contexto da IA', () => {
     const { vendedor } = await criarFixtureEmpresa();
     const competencia = await criarGapReal(vendedor.id, 'FECHAMENTO');
 
-    const contexto = await buildCoachContext(vendedor.id);
+    const contexto = await buildCoachContext(vendedor.id, decidirPertinencia('DESENVOLVIMENTO', null, 'DETERMINISTICO'));
     const prompt = formatarContextoParaPrompt(contexto);
 
     expect(prompt).toContain(competencia.name);
@@ -83,7 +84,7 @@ describe('Gap de competência chega ao contexto da IA', () => {
     const memoria = await getMemoria(vendedor.id);
     expect(memoria.competencyGaps).toEqual([]);
 
-    const contexto = await buildCoachContext(vendedor.id);
+    const contexto = await buildCoachContext(vendedor.id, decidirPertinencia('DESENVOLVIMENTO', null, 'DETERMINISTICO'));
     expect(formatarContextoParaPrompt(contexto)).not.toMatch(/avaliadas por evidência/i);
   });
 

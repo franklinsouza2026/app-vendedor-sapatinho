@@ -30,12 +30,30 @@ export const MARCADOR_INJECAO_PROMPT =
 // (seção 36/86) em vez de aceitar cegamente o que o provider devolve.
 export const MARCADOR_ID_INVENTADO = '__FORCE_INVENTED_ID__';
 
+// Força o classificador de intenção (Etapa 2B.1) a devolver um valor fora do
+// enum — o teste precisa provar que enum inválido cai no silêncio comercial,
+// não que "quase todo valor inválido" cai.
+export const MARCADOR_INTENCAO_INVALIDA = '__FORCE_INTENCAO_INVALIDA__';
+
+// Espelha a estrutura em blocos do CoachContext (Etapa 2B.1). `comercial` é
+// NULO quando o gate de pertinência não autorizou performance — e o mock
+// precisa respeitar isso, senão ele continua sendo um segundo motor comercial
+// independente do formatter, e dev/test/CI nunca veriam a diferença.
 interface ContextoCoachMinimo {
   seller: { displayName: string };
-  goal: { todayGoal: number | null; amountRemaining: number | null; estimatedSalesRemaining: number | null };
-  performance: { pa: number; ticket: number };
-  baseline: { status: 'disponivel' | 'em_formacao' };
-  development: { currentFocus: string | null };
+  pertinencia?: { estado: string };
+  humano?: { checkinHoje: string | null };
+  desenvolvimento?: {
+    competencyGaps: { nome: string }[];
+    recentTrainings: { titulo: string; tipo: string }[];
+    positiveSignals: { descricao: string }[];
+  } | null;
+  comercial?: {
+    goal: { todayGoal: number | null; amountRemaining: number | null; estimatedSalesRemaining: number | null };
+    performance: { pa: number; ticket: number };
+    baseline: { status: 'disponivel' | 'em_formacao' };
+    currentFocus: string | null;
+  } | null;
 }
 
 interface ContextoTreinadorMinimo {
@@ -314,6 +332,7 @@ export class MockAIProvider implements AIProvider {
       | 'seller_training_agent'
       | 'manager_training_agent'
       | 'manager_advisor'
+      | 'intent_classifier'
       | undefined;
     const modo = input.metadata?.mode as 'client' | 'evaluator' | undefined;
     let content: string;
@@ -343,6 +362,8 @@ export class MockAIProvider implements AIProvider {
       content = gerarRecomendacaoAprendizado(input.metadata?.context as ContextoRecomendacaoMinimo | undefined);
     } else if (especialista === 'manager_advisor') {
       content = gerarConselhoGerencial(input.metadata?.context as ContextoManagerAdvisorMinimo | undefined);
+    } else if (especialista === 'intent_classifier') {
+      content = gerarClassificacaoDeIntencao(ultimaMensagem);
     } else {
       content = gerarRespostaCoach(ultimaMensagem, input.metadata?.context as ContextoCoachMinimo | undefined);
     }
@@ -363,6 +384,27 @@ function estimarTokens(texto: string): number {
   return Math.max(1, Math.ceil(texto.length / 4)); // aproximação grosseira, só pra o mock ter números plausíveis
 }
 
+/**
+ * Classificador de intenção (Etapa 2B.1) — só a mensagem, nunca KPI.
+ *
+ * Só é chamado quando o curto-circuito determinístico NÃO resolveu, ou seja,
+ * quando a mensagem é genuinamente ambígua. O default é `CONVERSA`, que é o
+ * lado seguro: não libera performance.
+ */
+function gerarClassificacaoDeIntencao(mensagemUsuario: string): string {
+  const texto = mensagemUsuario.toLowerCase();
+  // Marcadores são comparados em minúsculas dos dois lados — `texto` já foi
+  // rebaixado, e as constantes são maiúsculas.
+  if (texto.includes(MARCADOR_SAIDA_INVALIDA.toLowerCase())) return '{ isto não é JSON válido de propósito';
+  if (texto.includes(MARCADOR_INTENCAO_INVALIDA.toLowerCase())) return JSON.stringify({ intencao: 'INTENCAO_QUE_NAO_EXISTE' });
+
+  if (/consegui|bati|passei|fechei|deu certo/.test(texto)) return JSON.stringify({ intencao: 'CELEBRACAO' });
+  if (/meta|vendas|faturamento|ticket/.test(texto)) return JSON.stringify({ intencao: 'DUVIDA_COMERCIAL' });
+  if (/melhorar|evoluir|estudar|treinar|aprender/.test(texto)) return JSON.stringify({ intencao: 'DESENVOLVIMENTO' });
+  if (/cansad|desanimad|triste|mal|dif[íi]cil/.test(texto)) return JSON.stringify({ intencao: 'DESABAFO' });
+  return JSON.stringify({ intencao: 'CONVERSA' });
+}
+
 function gerarRespostaCoach(mensagemUsuario: string, contexto?: ContextoCoachMinimo): string {
   const nome = contexto?.seller.displayName?.split(' ')[0] ?? 'vendedor';
 
@@ -371,30 +413,62 @@ function gerarRespostaCoach(mensagemUsuario: string, contexto?: ContextoCoachMin
   }
 
   const texto = mensagemUsuario.toLowerCase();
+  const comercial = contexto.comercial ?? null;
+  const desenvolvimento = contexto.desenvolvimento ?? null;
+
+  // ACOLHER: a pessoa trouxe como está antes de trazer pergunta. O mock não
+  // cita número aqui nem por acidente — se citasse, o E2E passaria verde sobre
+  // um produto que continua cobrando.
+  if (contexto.pertinencia?.estado === 'ACOLHER') {
+    return `Poxa, ${nome}. Obrigado por dizer. Quer me contar o que aconteceu, ou prefere que a gente fale de outra coisa agora?`;
+  }
+
+  if (contexto.pertinencia?.estado === 'CELEBRAR' && desenvolvimento && desenvolvimento.positiveSignals.length > 0) {
+    return `Boa, ${nome}! Vi que você ${desenvolvimento.positiveSignals[0].descricao}. Como foi?`;
+  }
+
+  // Sem bloco comercial autorizado, o mock NÃO tem número pra citar — é
+  // exatamente o que acontece com o provider real, que recebe o mesmo prompt.
+  if (!comercial) {
+    if (texto.includes('como estou') || texto.includes('meta') || texto.includes('ticket')) {
+      return `Posso puxar seus números se você quiser, ${nome} — é só pedir. Antes disso, como está sendo seu dia?`;
+    }
+    if (texto.includes('foco') || texto.includes('organizar')) {
+      const alvo = desenvolvimento?.competencyGaps[0]?.nome;
+      return `Vamos organizar seu foco, ${nome}.${alvo ? ` Uma coisa concreta pra hoje: ${alvo}.` : ' O que você quer que saia do dia de hoje?'}`;
+    }
+    if (desenvolvimento && desenvolvimento.competencyGaps.length > 0) {
+      return `Dá pra trabalhar ${desenvolvimento.competencyGaps[0].nome}, ${nome}. Quer começar por aí?`;
+    }
+    if (desenvolvimento && desenvolvimento.recentTrainings.length > 0) {
+      return `Vi que você concluiu "${desenvolvimento.recentTrainings[0].titulo}". Deu pra aplicar em algum atendimento?`;
+    }
+    return `Entendi, ${nome}. Me conta um pouco mais?`;
+  }
 
   if (texto.includes('como estou') || texto.includes('meta')) {
-    if (contexto.goal.todayGoal === null) {
+    if (comercial.goal.todayGoal === null) {
       return `Ainda não vi uma meta de hoje cadastrada pra você, ${nome}. Assim que houver, já te aviso como está o progresso.`;
     }
-    if (contexto.goal.amountRemaining !== null && contexto.goal.amountRemaining > 0) {
+    if (comercial.goal.amountRemaining !== null && comercial.goal.amountRemaining > 0) {
       const vendas =
-        contexto.goal.estimatedSalesRemaining !== null
-          ? ` Com seu ticket atual, isso é aproximadamente ${contexto.goal.estimatedSalesRemaining} ${contexto.goal.estimatedSalesRemaining === 1 ? 'venda' : 'vendas'}.`
+        comercial.goal.estimatedSalesRemaining !== null
+          ? ` Com seu ticket atual, isso é aproximadamente ${comercial.goal.estimatedSalesRemaining} ${comercial.goal.estimatedSalesRemaining === 1 ? 'venda' : 'vendas'}.`
           : '';
-      return `Faltam R$ ${contexto.goal.amountRemaining.toFixed(2)} pra bater sua meta de hoje.${vendas} Vamos focar na próxima oportunidade?`;
+      return `Faltam R$ ${comercial.goal.amountRemaining.toFixed(2)} pra bater sua meta de hoje.${vendas} Vamos focar na próxima oportunidade?`;
     }
     return `Você já bateu a meta de hoje! Parabéns, ${nome}.`;
   }
 
   if (texto.includes('pa') || texto.includes('ticket')) {
-    if (contexto.baseline.status === 'em_formacao') {
+    if (comercial.baseline.status === 'em_formacao') {
       return 'Ainda estou juntando dados suficientes pra comparar seu PA/ticket com sua média — em alguns dias já consigo te dar uma orientação mais precisa.';
     }
-    return `Hoje seu PA está em ${contexto.performance.pa.toFixed(2)} e o ticket em R$ ${contexto.performance.ticket.toFixed(2)}. Vamos trabalhar uma oferta complementar natural na próxima venda?`;
+    return `Hoje seu PA está em ${comercial.performance.pa.toFixed(2)} e o ticket em R$ ${comercial.performance.ticket.toFixed(2)}. Vamos trabalhar uma oferta complementar natural na próxima venda?`;
   }
 
   if (texto.includes('foco') || texto.includes('organizar')) {
-    return `Vamos organizar seu foco, ${nome}. Prioridade agora: ${contexto.development.currentFocus ?? 'bater a meta do dia com atendimentos de qualidade'}.`;
+    return `Vamos organizar seu foco, ${nome}. Prioridade agora: ${comercial.currentFocus ?? 'bater a meta do dia com vendas bem feitas'}.`;
   }
 
   return `Entendi. Como posso te ajudar a evoluir sua venda hoje, ${nome}?`;

@@ -8,6 +8,8 @@ import { AIProviderError } from '../ai-platform/providers';
 import { gerarViaGateway, providerEModeloParaTelemetria } from '../ai-platform/gateway.service';
 import { verificarBudgetMensal } from '../ai-platform/budget.service';
 import { buildCoachContext } from './context-builder.service';
+import { getCheckinHoje } from './checkin.service';
+import { classificarIntencao } from '../pertinencia/classificador.service';
 import { getSystemPrompt } from './prompts/system-prompt';
 import { formatarContextoParaPrompt } from './prompts/context-formatter';
 import { verificarRateLimitDiario } from './limites.service';
@@ -174,7 +176,22 @@ export async function enviarMensagem(conversationId: string, vendedorId: string,
       if (respostaJaGerada) return respostaJaGerada;
     }
 
-    const contexto = await buildCoachContext(vendedorId);
+    // PERTINÊNCIA ANTES DO CONTEXTO (Etapa 2B.1).
+    //
+    // O classificador vê a mensagem e o check-in — nunca um KPI. O gate
+    // determinístico converte a intenção em domínios autorizados, e o builder
+    // só carrega o que foi autorizado. Por isso o silêncio comercial é uma
+    // garantia de arquitetura: numa conversa de acolhimento, os números não
+    // são filtrados na renderização — eles nunca saem do banco.
+    const checkin = await getCheckinHoje(vendedorId);
+    const pertinencia = await classificarIntencao({
+      empresaId: vendedor.empresaId,
+      vendedorId,
+      mensagem: content,
+      checkin: checkin?.mood ?? null,
+    });
+
+    const contexto = await buildCoachContext(vendedorId, pertinencia, new Date(), checkin?.mood ?? null);
     const systemPrompt = `${getSystemPrompt()}\n\n${formatarContextoParaPrompt(contexto)}`;
 
     const historico = await prisma.coachMessage.findMany({
