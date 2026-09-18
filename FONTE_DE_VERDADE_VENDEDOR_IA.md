@@ -1805,6 +1805,55 @@ Etapa de **definição de comportamento antes de código**. Nenhum service, rota
 
 **Gate:** a Etapa 2B.1 só começa após aprovação humana desta metodologia.
 
+### Etapa 2B.1 — Pessoa Primeiro (check-in, pertinência, celebração) — CONCLUÍDA (2026-09-18, 932 testes: 718 backend + 173 frontend + 41 E2E Playwright)
+
+Primeira etapa de implementação derivada da Constituição do Conselheiro Pessoal. **Zero migration, zero dependência nova.**
+
+**A inversão que esta fatia começa a fazer.** A 2B.0 provou que a arquitetura estava de cabeça pra baixo: `context-formatter.ts` injetava meta, realizado, gap, PA, ticket, baseline e gamificação em **toda** conversa, incondicionalmente, enquanto o `CoachCheckIn` — coletado todo dia, guardado pra sempre — **nunca chegava à IA**. O Conselheiro sabia quanto faltava pra meta e não sabia que a pessoa tinha declarado estar mal.
+
+Agora o fluxo é `PESSOA → MOMENTO → INTENÇÃO → PERTINÊNCIA → CONTEXTO AUTORIZADO → CONSELHEIRO`.
+
+**O gate de pertinência (`src/pertinencia/`, serviço próprio — Decisão 166).** Três peças:
+1. **Classificador híbrido.** Um curto-circuito determinístico resolve os casos óbvios (medido: **67% de uma amostra de 18 mensagens típicas, incluindo as 5 quick actions da tela**), e só o ambíguo vai ao LLM. O classificador **nunca recebe KPI** — vê a mensagem e nada mais. Ele não consegue "decidir falar do PA" porque nunca soube que existe um PA.
+2. **Gate determinístico.** Converte a intenção (enum fechado, validado por Zod) em domínios autorizados. O LLM **não devolve domínio nenhum** — se devolvesse, haveria o que forjar.
+3. **Carregamento condicional.** O builder só busca no banco os domínios autorizados. **Não é filtro de renderização: o bloco não autorizado nunca sai do banco**, então não há caminho secundário por onde vazar.
+
+**Contexto em três blocos.** HUMANO (check-in, sempre presente) · DESENVOLVIMENTO (competências, gaps, atividades recentes, conquistas, missão de aprendizagem) · COMERCIAL (**opcional por desenho**: meta, realizado, PA, ticket, baseline, gamificação, foco e resumo derivados de KPI, missão comercial).
+
+**Cinco caminhos de vazamento fechados, não um.** A auditoria mapeou todos antes da implementação: (1) o bloco óbvio do formatter; (2) `professionalMemorySummary`/`currentFocus`, que são KPI em prosa ("Em desenvolvimento: ticket médio") e foram para o bloco COMERCIAL; (3) `currentMission` — **4 dos 7 títulos de missão do vendedor são comerciais**, então a missão passou a ser roteada pelo **critério**, não pela ação ("Supere seu PA de referência" tem ação de Treinador e é medida por KPI); (4) o **`MockAIProvider`, que era um segundo motor comercial independente do formatter** — sem tratá-lo, dev, CI e todos os E2E continuariam vendo um produto que cobra, com a suíte verde; (5) o histórico de até 16 mensagens, tratado por instrução explícita no prompt (ver Limitações).
+
+**A agência do vendedor vence a inclinação do check-in.** Check-in `NOT_GOOD` inclina conversa aberta para ACOLHER e silencia performance — mas um pedido explícito (*"quero saber quanto falta pra minha meta"*) libera o bloco comercial de qualquer forma. O check-in orienta o Conselheiro; **não tira do vendedor o direito de falar dos próprios números.**
+
+**Fallback: em dúvida, silêncio comercial.** Provider fora, timeout, budget estourado, JSON inválido ou enum inválido → a conversa continua, o contexto humano permanece, e COMERCIAL **nunca** é liberado. E o curto-circuito determinístico funciona sem IA nenhuma, então o vendedor não perde acesso aos próprios números quando o provider cai.
+
+**Celebração ligada ao vendedor.** `positive-signals.service.ts` detectava 9 tipos de coisa boa — só para o gerente. Agora conquistas factuais do próprio vendedor chegam ao Conselheiro, reusando a **mesma fonte** (`FeedEvent`), nunca um motor paralelo. **Só entraram sinais factuais e sem limiar** (`CERTIFICATION_ISSUED`, `PDI_COMPLETED`): `PA_IMPROVEMENT`, `TICKET_IMPROVEMENT` e `STREAK` dependem de limiares calibrados pra montar a lista de destaques de um gerente, e reaproveitá-los seria inventar limiar com legitimidade emprestada. `BADGE_EARNED` e `MISSION_COMPLETED` ficaram de fora porque o domínio é ambíguo (existe badge comercial e badge de aprendizagem). `TRACK_COMPLETED` foi descartado por não ser publicado por código nenhum. **CELEBRAR não puxa contexto comercial** — parabéns não vem emendado com cobrança.
+
+**`recentTrainings` deixou de ser `[]`.** Estava fixo em vazio desde a Fatia 4, com o comentário `// Academia é Fatia 6` — oito fatias atrás. Aula, quiz e simulação concluídos nos últimos 14 dias, com a nota real quando existe.
+
+**"Atendimentos" corrigido onde mentia.** O campo de origem conta **vendas fechadas**, não clientes atendidos. O prompt agora diz `Vendas: N`, e o rótulo do Admin virou `PA (peças por venda)`. **Conversão continua indisponível** — falta o denominador, e usar `vendas/numAtendimentos` seria dividir vendas por vendas.
+
+**Custo.** Antes: 1 chamada de IA por mensagem. Agora: 1 quando o curto-circuito resolve (a maioria), 2 quando a mensagem é ambígua. **A chamada de classificação é registrada em `AIUsage`** e atribuída a `COACH` — sem isso o orçamento mensal subcontaria sistematicamente (achado da revisão de segurança). Rate limit e budget existentes continuam intactos e são checados **antes** da nova chamada.
+
+**Revisão de código dedicada: 2 ALTA, 8 MÉDIA, 8 BAIXA — todos os ALTA e MÉDIA corrigidos.** Os que mais ensinam:
+1. **O system prompt V2 estava corrompido por uma colagem malfeita minha** — carregava um bloco inteiro do V1 dentro dele, com instruções contraditórias ("não termine toda conversa com tarefa" convivendo com "focadas em ação prática" e tom "motivador") e **um valor em reais literal que entrava em toda conversa, inclusive de acolhimento**. A suíte inteira ficava verde porque **nenhum teste lia o conteúdo do prompt**. Agora existe `system-prompt.test.ts`, que falha se uma seção aparecer duas vezes ou se um `R$` literal voltar.
+2. **Regex largas demais classificavam desabafo como pedido comercial.** Reproduzido executando o classificador: *"me ajuda, não tô dando conta das vendas"*, *"Fala sério, tô desanimado com as vendas de hoje"* e *"não sei como estou aguentando essa semana"* liberavam meta, PA e ticket — exatamente a falha que a fatia existe pra impedir. Corrigido ancorando os padrões e **invertendo a precedência: relato pessoal é avaliado ANTES**, e só um pedido *inequívoco* ("quanto falta pra minha meta?") atravessa um desabafo.
+3. **`\b` depois de vogal acentuada nunca casa em JS** (é definido sobre `[A-Za-z0-9_]`), então `t[ôo]\b` **nunca** reconhecia "tô" — que é como o vendedor escreve.
+4. **"estou bem desanimado" não era reconhecido** — o padrão exigia o adjetivo colado ao verbo. É a frase do próprio E2E da fatia, que só passava porque o mock acertava.
+5. **`JSON.parse` estrito derrubava tudo em fallback silencioso** — provider real embrulha a resposta em cerca de markdown. Passou a extrair o primeiro objeto JSON.
+6. **`AIUsage` dentro do `try` transformava falha de escrita em silêncio comercial** — uma classificação bem-sucedida era descartada por erro de contabilidade. Movido pra fora do caminho de decisão.
+7. **A lista de critérios de missão não era exaustiva** — os 3 critérios gerenciais caíam no "senão → comercial", e um critério novo seria silenciosamente classificado como comercial sem erro de compilação. Virou `Record` sobre o enum inteiro.
+8. **Cinco testes não provavam o que o título dizia** — incluindo o de regressão do mock, que saía no early-return de ACOLHER e **nunca exercitava o ramo sem bloco comercial**.
+
+**Revisão de segurança dedicada: nenhum achado.** Confirmado que não há caminho para forjar domínio ou estado; que `vendedorId` vem sempre do JWT em todos os call sites; que o check-in não vazou para nenhuma rota/tela de gerente ou admin, nem para log, `AuditEvent` ou telemetria; e que a injeção de prompt, no pior caso, libera os KPIs **do próprio vendedor** — aos quais ele já tem acesso pela tela.
+
+**Limitações registradas, não escondidas:**
+- **O histórico de conversa não é sanitizado.** Uma resposta anterior do Conselheiro pode conter números já ditos, e ela volta ao provider pelas últimas 16 mensagens. Mitigado por instrução explícita no prompt quando o bloco comercial não está autorizado (*"não repita números de mensagens anteriores"*), que é a única camada possível sem quebrar a coerência da conversa. Anti-repetição persistente é a **Etapa 2B.2**.
+- **Não existe registro de "já mencionei este sinal".** Continua sendo a maior lacuna da experiência.
+- **Score Geral sem meta continua tratando como zero** (peso 40%), enquanto todo outro motor trata como neutro. **Não alterado de propósito** — é decisão metodológica pendente, registrada na 2B.0 (Decisão Humana #2).
+- **Nenhuma skill nova, nenhum RAG, nenhum conteúdo de desenvolvimento pessoal.** O acervo continua sendo decisão editorial.
+- **`feed_event` não tem índice por `subjectId`**, e a busca de conquistas roda em toda conversa com desenvolvimento autorizado. Hoje a tabela é pequena; conforme o feed crescer, isso pesa. **Não criado nesta fatia de propósito** — migration é gate de parada declarado no comando, e o problema é de performance, não de correção. Recomendado para a 2B.2.
+- **O Treinador continua injetando KPI incondicionalmente.** O gate é só do Conselheiro; estender para os outros especialistas é trabalho próprio.
+
 ### Fatia 10 — Linx real
 Executar assim que contrato/credenciais reais estiverem disponíveis, sem bloquear fatias independentes.
 

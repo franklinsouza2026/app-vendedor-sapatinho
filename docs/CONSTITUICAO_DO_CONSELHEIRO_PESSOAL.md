@@ -501,16 +501,18 @@ O caminho legítimo de convergência é **o vendedor levar**: *"Isso parece um a
 
 ## 23. O que esta Constituição exige que ainda não existe
 
-Registrado honestamente, para a Etapa 2B.1 não começar com premissa falsa:
+> **Atualizado em 2026-09-18, após a Etapa 2B.1.** Os itens 1, 2, 3, 4, 6 e parte do 8 foram implementados — ver a Fonte de Verdade, seção "Etapa 2B.1 — Pessoa Primeiro". O que segue marcado com ✅ está feito; o resto continua sendo dívida real.
 
-1. **O check-in não chega ao Conselheiro.** Não existe campo de estado relatado no `CoachContext`. A pessoa está ausente do contexto.
-2. **Performance é injetada incondicionalmente** em toda conversa, nas primeiras linhas do prompt.
-3. **Não existe noção de estado comportamental** — nem interna, nem de orquestração.
-4. **Não existe motor de pertinência.** Todo o contexto vai sempre, e a decisão de mencionar é inteiramente do LLM.
-5. **Não existe registro de "já mencionei isto".** Anti-repetição é hoje impossível: a memória da conversa é uma janela de 16 mensagens (`AI_CONVERSATION_WINDOW`) dentro de uma conversa que pode durar semanas.
-6. **Não existe sinal positivo para o vendedor.** Existe detecção de sinais positivos para o **gerente**; o Conselheiro não os consome.
+Registrado honestamente, para as etapas seguintes não começarem com premissa falsa:
+
+1. ✅ **O check-in chega ao Conselheiro** (2B.1) — como relato datado, em bloco próprio, nunca como diagnóstico.
+2. ✅ **Performance deixou de ser contexto obrigatório** (2B.1) — o bloco comercial só é carregado quando a pertinência o autoriza.
+3. ✅ **Estados comportamentais existem** (2B.1) — seis, como orientação interna de orquestração, invisíveis ao vendedor.
+4. ✅ **O motor de pertinência existe** (2B.1), no modelo híbrido: LLM classifica intenção sem ver KPI, código decide domínio.
+5. ❌ **Não existe registro de "já mencionei isto".** Segue impossível: a memória da conversa é uma janela de 16 mensagens (`AI_CONVERSATION_WINDOW`) dentro de uma conversa que pode durar semanas. **É a Etapa 2B.2.**
+6. ✅ **Sinais positivos chegam ao vendedor** (2B.1) — os factuais e sem limiar; os que dependem de limiar de gerente ficaram de fora de propósito.
 7. **Não existe classificação de memória** além das quatro colunas derivadas de KPI — e elas são sobrescritas como efeito colateral de leitura, a cada request, sem histórico e sem expiração.
-8. **Não existe biblioteca de conhecimento de desenvolvimento pessoal.** E mais: **o Conselheiro não tem acesso a conteúdo nenhum** — nem ao Playbook que já existe e que o Treinador usa. O campo `recentTrainings` está fixo em `[]` desde a Fatia 4, com o comentário `// Academia é Fatia 6` — a Academia existe há oito fatias.
+8. ⚠️ **Não existe biblioteca de conhecimento de desenvolvimento pessoal**, e o Conselheiro continua sem acesso ao Playbook que o Treinador usa. Mas `recentTrainings` **deixou de ser `[]`** (2B.1): aula, quiz e simulação concluídos chegam ao contexto.
 9. **O Conselheiro não sanitiza texto do vendedor** (o Treinador e o Gerente sanitizam). Hoje é seguro porque esse texto nunca entra no system prompt — premissa que a Etapa 2B tende a quebrar.
 10. **Não há proveniência.** O Treinador grava em cada mensagem a versão do Playbook usada; o Conselheiro não grava nem a versão do próprio prompt.
 
