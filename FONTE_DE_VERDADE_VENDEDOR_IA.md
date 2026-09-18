@@ -1768,6 +1768,43 @@ Segunda etapa derivada da **Auditoria Final de Completude**. Não cria motor de 
 
 **Não implementado nesta etapa** (registrado, não esquecido): a régua KPI→Competência (**Etapa 2B**, decisão de negócio deliberadamente adiada), o mapeamento dos 2 itens de pós-venda (falta a competência no catálogo — decisão humana), conteúdo dos 13 Mandamentos, provider de IA real validado, Linx real e deploy.
 
+### Etapa 2B.0 — Constituição do Conselheiro Pessoal + Metodologia do Motor de Sinais — CONCLUÍDA (2026-09-18) — ARQUITETURA E METODOLOGIA, ZERO IMPLEMENTAÇÃO
+
+Etapa de **definição de comportamento antes de código**. Nenhum service, rota, schema, migration, prompt, seed ou teste funcional foi alterado — só documentação.
+
+**A decisão estrutural registrada:**
+
+> **O Conselheiro não é um fiscal de performance. Ele é o conselheiro pessoal do vendedor.**
+> Performance é **contexto, não identidade**. KPI gera **sinal, não diagnóstico**. O Conselheiro **sabe mais do que necessariamente fala** — o silêncio pode ser a decisão correta. **Celebrar é função de primeira classe.** Conversa privada não alimenta dashboard emocional de gerente. Sem diagnóstico psicológico. Futuras skills são **conhecimento governado, não novos agentes**. Conteúdo espiritual/"quântico" deve distinguir crença/metáfora de afirmação científica. **KPI→Competência direto permanece proibido** sem metodologia aprovada.
+
+**Três documentos criados** (em `docs/`, versionados com o código pela mesma razão que a Fonte de Verdade veio para o repo na Fatia 5): `CONSTITUICAO_DO_CONSELHEIRO_PESSOAL.md` (20 seções + anti-chat-chato), `METODOLOGIA_MOTOR_DE_SINAIS.md` (matrizes de Meta/PA/Ticket/Consistência/Conversão + 12 exemplos de conversa) e `ARQUITETURA_CONSELHEIRO_2B.md` (pipeline alvo, o que existe, o que falta, sequenciamento).
+
+**O achado central da auditoria — a hierarquia está invertida no código.** `context-formatter.ts:12-30` injeta em **toda** conversa, incondicionalmente e nas primeiras linhas do prompt: meta, realizado, percentual, gap, PA, ticket, atendimentos, baseline e gamificação. E `context.types.ts` **não tem nenhum campo de check-in**. Ou seja: o Conselheiro sabe exatamente quanto falta para a meta e **não sabe que a pessoa declarou estar mal**. A pessoa está estruturalmente ausente do contexto; a performance é o contexto inteiro. Não é bug — é consequência de o módulo ter nascido "Coach de performance" na Fatia 4 e nunca ter sido reconstituído.
+
+**Correção de premissa registrada:** a Etapa 2A conectou os **gaps de competência** ao contexto — **não o check-in**. O `CoachCheckIn` é coletado todo dia, guardado para sempre, muda o fluxo de UI quando é `NOT_GOOD`, e **nunca chega à IA**.
+
+**Achados de auditoria que mudam o desenho da 2B:**
+1. **`numAtendimentos` é venda fechada, não atendimento.** Logo "PA" é peças por **venda** e ticket é faturamento por **venda** — e **conversão é estruturalmente impossível** (falta o denominador). O atendimento que não virou venda é invisível, então o sinal de PA não distingue dificuldade de abordagem de dificuldade de composição. **É a Decisão Humana #1 e a pergunta mais importante da Etapa 2B.**
+2. **Conversão não existe em lugar nenhum** — nem dado, nem campo no adapter, nem placeholder. Fora da V1.
+3. **Nenhum indicador comercial é real:** `ERP_MODE=mock`; o adapter Linx tem contrato não confirmado. Calibrar threshold contra o mock é calibrar contra distribuição inventada — **gate, não detalhe**.
+4. **Falta de meta pune no ranking:** todo motor trata como neutro, mas Score Geral/`PERCENTUAL_META` tratam como **zero** — e meta pesa 40% do score. Contradiz a doutrina "nunca punir por falta de dado".
+5. **Duas fórmulas para a mesma métrica:** realizado usa média ponderada recalculada; baseline usa média simples das colunas cruas do ERP. O `deltaPercentual` — base de quase todo sinal — compara os dois caminhos.
+6. **O sistema não sabe o que é folga.** Não há escala/expediente/feriado. Um dia de folga com meta cadastrada **quebra o streak**.
+7. **Não existe tendência.** Toda comparação é pontual vs. média de 14 dias — então **"abaixo da meta, mas melhorando" é hoje indetectável**, apesar de ser o sinal mais valioso a celebrar.
+8. **Não existe registro de "já mencionei isto".** A memória do Conselheiro é uma janela de 16 mensagens numa conversa que fica `ABERTA` indefinidamente — **repetir "seu PA está baixo" todo dia é o comportamento esperado hoje**.
+9. **Sinais positivos existem — mas são do gerente.** `positive-signals.service.ts` detecta 9 tipos de coisa boa e o Conselheiro não consome nenhum. Celebrar não precisa de motor novo: precisa de ligação.
+10. **O Conselheiro não tem acesso a conteúdo nenhum** — nem ao Playbook que o Treinador usa. `recentTrainings` está fixo em `[]` com o comentário `// Academia é Fatia 6`, oito fatias atrás.
+
+**Privacidade: verificada e limpa.** Nenhuma rota, service ou tela de gerente/admin acessa `CoachMessage`, `CoachConversation` ou `CoachCheckIn`; as rotas do Conselheiro nunca aceitam `vendedorId` como parâmetro; o painel de IA do Admin agrega custo por especialista sem tocar conteúdo. Confirmado por nove buscas independentes. **Contradição latente registrada:** `regras.service.ts:69` define `CHECKIN_DIARIO: 5` XP, sem nenhum consumidor — se for ligada, o check-in emocional vira recompensa e contraria o próprio system prompt.
+
+**Futuras skills: o padrão já existe e não exige agente novo.** O Treinador já injeta conhecimento governado em conversa com rótulo de origem (`[OFICIAL]`/`[DEMONSTRATIVO]`), selecionado por chave determinística, com regra no system prompt e teste de regressão — **sem RAG, sem embedding, sem busca semântica** (nenhum dos três existe no repositório). Dar conhecimento de desenvolvimento pessoal ao Conselheiro é **replicar esse padrão**, não construir capacidade nova. Faltam quatro peças, nenhuma delas exigindo RAG: o acervo, a taxonomia, o seletor tema→conteúdo (o Conselheiro é chat aberto e não recebe `mode`, mas `competencyGaps` já está no contexto e é uma chave pronta) e a injeção rotulada.
+
+**Motor de Pertinência — recomendação:** **híbrido**. O LLM classifica a intenção da mensagem (e **nunca vê KPI**); o **código** decide o que entra no contexto, aplicando estado, cooldown, confiança, precedência do positivo e o teto de um sinal negativo por conversa. Assim o silêncio vira **garantia**, não instrução de prompt. Determinístico puro erra na classificação de linguagem informal — exatamente onde dói (confundir desabafo com pedido de análise). LLM puro é o que existe hoje, e não garante nada.
+
+**Dez decisões humanas registradas**, nenhuma tomada. Nenhum threshold numérico foi arbitrado — inclusive rejeitando reaproveitar por inércia os limiares que já existem no código (`LIMIAR_MELHORA_PCT = 5`, `−15%` dos alertas), calibrados para conceder recompensa e alertar gerente, não para decidir o que um conselheiro diz a uma pessoa.
+
+**Gate:** a Etapa 2B.1 só começa após aprovação humana desta metodologia.
+
 ### Fatia 10 — Linx real
 Executar assim que contrato/credenciais reais estiverem disponíveis, sem bloquear fatias independentes.
 
