@@ -41,6 +41,14 @@ export function formatarContextoParaPrompt(ctx: CoachContext): string {
   if (ctx.development.currentMission) {
     linhas.push(`Missão prioritária de hoje: ${ctx.development.currentMission}`);
   }
+  // Rotulado como "avaliado por evidência" pra a IA não confundir com o foco
+  // derivado de KPI acima — são origens diferentes e o prompt deixa isso claro.
+  if (ctx.development.competencyGaps.length > 0) {
+    const gaps = ctx.development.competencyGaps
+      .map((c) => `${c.nome} (${c.score}/${c.target}, prioridade ${c.prioridade.toLowerCase()})`)
+      .join('; ');
+    linhas.push(`Competências abaixo da meta, avaliadas por evidência de treinamento e prática: ${gaps}`);
+  }
 
   linhas.push(
     ctx.freshness.lastDataSyncAt

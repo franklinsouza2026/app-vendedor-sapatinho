@@ -59,6 +59,7 @@ export async function buildTrainerContext(vendedorId: string, entrada: EntradaTr
         strengths: memoria.strengths,
         developmentAreas: memoria.developmentAreas,
         currentFocus: memoria.currentFocus,
+        competencyGaps: memoria.competencyGaps,
         recentTrainings: [], // Academia de Vendas é Fatia 6 — sem estrutura determinística pra isso ainda
       },
       playbook: { version: playbookInfo.version, relevantSections: playbookInfo.sections },

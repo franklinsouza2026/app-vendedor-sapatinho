@@ -65,6 +65,13 @@ export function formatarContextoParaPrompt(ctx: TrainerContext): string {
   if (ctx.development.strengths.length > 0) linhas.push(`Pontos fortes: ${ctx.development.strengths.join(', ')}`);
   if (ctx.development.developmentAreas.length > 0) linhas.push(`Em desenvolvimento: ${ctx.development.developmentAreas.join(', ')}`);
   if (ctx.development.currentFocus) linhas.push(`Foco sugerido atual: ${ctx.development.currentFocus}`);
+  // Origem distinta da de cima (KPI) — o rótulo evita que a IA trate as duas
+  // como a mesma coisa. É o que permite ao Treinador orientar a técnica exata
+  // em que o vendedor está abaixo da meta, em vez de só falar de PA/ticket.
+  if (ctx.development.competencyGaps.length > 0) {
+    const gaps = ctx.development.competencyGaps.map((c) => `${c.nome} (${c.score}/${c.target})`).join('; ');
+    linhas.push(`Competências abaixo da meta, avaliadas por evidência de treinamento e prática: ${gaps}`);
+  }
 
   // objection/situation são texto livre digitado pelo vendedor — ao contrário
   // do resto deste contexto (números/nomes computados pelo backend), aqui é

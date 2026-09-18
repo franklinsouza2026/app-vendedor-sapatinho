@@ -3,6 +3,9 @@
 // E2Es desta fatia geram pra VEND001/VEND002. Roda só contra dev, nunca
 // contra produção.
 import { PrismaClient } from '@prisma/client';
+import { seedCompetenciasV1 } from '../src/universidade/competency.service';
+import { seedConteudoAcademia } from '../src/academia/content-seed';
+import { seedCenariosSimulador } from '../src/simulador/scenario-seed';
 
 const prisma = new PrismaClient();
 
@@ -31,7 +34,26 @@ async function main() {
   const aula = await prisma.academyLesson.findUnique({ where: { code: 'FUND_ABERTURA' } });
   if (aula) await prisma.academyProgress.deleteMany({ where: { vendedorId: { in: ids }, lessonId: aula.id } });
 
-  console.log(`Universidade E2E reset: limpo para ${ids.length} vendedor(es), ${competenciaIds.length} competência(s) de teste removida(s).`);
+  // Restaura o mapeamento conteúdo→competência do seed.
+  //
+  // `jornada-universidade-vendedor.spec.ts` mapeia uma competência 'e2e-' na
+  // aula FUND_ABERTURA pela API de Admin — e essa API SUBSTITUI a lista, não
+  // acrescenta. Depois, a limpeza acima apaga a competência 'e2e-' e a aula
+  // fica apontando pra um id que não existe mais: a cadeia de evidência morre
+  // em silêncio no banco de dev, exatamente o estado que a auditoria
+  // encontrou. Reaplicar o seed reconcilia (é upsert por code, não recria).
+  // Garante o catálogo ANTES do conteúdo: seedar conteúdo sem competência
+  // gravaria `competencyIds: []` em tudo (o campo vai no `update`) e devolveria
+  // o motor ao estado inerte. `seedConteudoAcademia` recusa esse cenário, mas o
+  // certo é não chegar nele.
+  await seedCompetenciasV1();
+  const academia = await seedConteudoAcademia();
+  const cenarios = await seedCenariosSimulador();
+
+  console.log(
+    `Universidade E2E reset: limpo para ${ids.length} vendedor(es), ${competenciaIds.length} competência(s) de teste removida(s); ` +
+      `mapeamento restaurado (${academia.aulasMapeadas} aula(s), ${cenarios.mapeados} cenário(s)).`
+  );
 }
 
 main()

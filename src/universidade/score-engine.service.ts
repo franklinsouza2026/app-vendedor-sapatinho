@@ -123,7 +123,7 @@ export async function calcularMatrizCompetencias(subjectUserId: string, papel: P
   }
   const targetPorCompetencia = new Map(targets.map((t) => [t.competencyId, t.targetScore]));
 
-  return competencias.map((c) => {
+  const matriz = competencias.map((c) => {
     const scoreInfo = computarScore(c.id, evidenciasPorCompetencia.get(c.id) ?? [], agora);
     const gapInfo = computarGap(scoreInfo, targetPorCompetencia.get(c.id) ?? TARGET_SCORE_DEFAULT);
     return {
@@ -137,5 +137,27 @@ export async function calcularMatrizCompetencias(subjectUserId: string, papel: P
       gap: gapInfo.gap,
       priority: gapInfo.priority,
     };
+  });
+
+  // Ordenação por PRIORIDADE, não alfabética (Etapa 2A). A matriz é a resposta
+  // à pergunta "por onde eu começo?" — listar em ordem alfabética obrigava o
+  // vendedor a comparar 11 cartões pra descobrir isso sozinho.
+  //
+  // Critério: maior prioridade primeiro; empate desempata pelo gap maior;
+  // quem ainda não tem evidência suficiente (NOT_ENOUGH_DATA) vai pro fim,
+  // porque não é uma recomendação — é ausência de informação. Nome como
+  // último critério, pra a ordem ser estável entre chamadas.
+  const ordemPrioridade = { HIGH: 0, MEDIUM: 1, LOW: 2 } as const;
+  return matriz.sort((a, b) => {
+    const aSemDados = a.status === 'NOT_ENOUGH_DATA';
+    const bSemDados = b.status === 'NOT_ENOUGH_DATA';
+    if (aSemDados !== bSemDados) return aSemDados ? 1 : -1;
+    if (!aSemDados) {
+      const porPrioridade = ordemPrioridade[a.priority] - ordemPrioridade[b.priority];
+      if (porPrioridade !== 0) return porPrioridade;
+      const porGap = (b.gap ?? 0) - (a.gap ?? 0);
+      if (porGap !== 0) return porGap;
+    }
+    return a.name.localeCompare(b.name, 'pt-BR');
   });
 }

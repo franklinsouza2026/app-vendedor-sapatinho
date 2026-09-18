@@ -9,6 +9,8 @@ import { Papel, PublicoConteudo } from '@prisma/client';
 import { prisma } from '../db';
 import { chamarAgente } from '../training-intelligence/agent-runtime';
 import { montarPrompt } from '../training-intelligence/prompts';
+import { UniversidadeError } from './constantes';
+import { DESTINO_POR_TIPO } from './pdi.service';
 
 const recomendacaoItemSchema = z.object({ tipo: z.enum(['LESSON', 'TRACK', 'QUIZ', 'SIMULATION', 'MISSION']), sourceId: z.string(), rationale: z.string() });
 const recomendacaoOutputSchema = z.object({ items: z.array(recomendacaoItemSchema) });
@@ -18,6 +20,8 @@ export interface RecomendacaoValidada {
   sourceId: string;
   rationale: string;
   title: string;
+  /** Tela onde a pessoa de fato faz isso (Etapa 2A) — mesma tabela do PDI. */
+  href: string | null;
 }
 
 /** Valida CADA id proposto pelo LLM contra o conteúdo real — publicado,
@@ -28,19 +32,19 @@ async function validarEResolverItens(items: z.infer<typeof recomendacaoItemSchem
   for (const item of items) {
     if (item.tipo === 'LESSON') {
       const aula = await prisma.academyLesson.findFirst({ where: { id: item.sourceId, status: 'PUBLISHED', active: true } });
-      if (aula) validados.push({ ...item, title: aula.title });
+      if (aula) validados.push({ ...item, title: aula.title, href: DESTINO_POR_TIPO[item.tipo] });
     } else if (item.tipo === 'TRACK') {
       const trilha = await prisma.academyTrack.findFirst({ where: { id: item.sourceId, status: 'PUBLISHED', active: true } });
-      if (trilha) validados.push({ ...item, title: trilha.title });
+      if (trilha) validados.push({ ...item, title: trilha.title, href: DESTINO_POR_TIPO[item.tipo] });
     } else if (item.tipo === 'QUIZ') {
       const quiz = await prisma.academyQuiz.findFirst({ where: { id: item.sourceId }, include: { aula: true } });
-      if (quiz && quiz.aula.status === 'PUBLISHED' && quiz.aula.active) validados.push({ ...item, title: `Quiz — ${quiz.aula.title}` });
+      if (quiz && quiz.aula.status === 'PUBLISHED' && quiz.aula.active) validados.push({ ...item, title: `Quiz — ${quiz.aula.title}`, href: DESTINO_POR_TIPO[item.tipo] });
     } else if (item.tipo === 'SIMULATION') {
       const cenario = await prisma.simulationScenario.findFirst({ where: { id: item.sourceId, active: true } });
-      if (cenario) validados.push({ ...item, title: cenario.title });
+      if (cenario) validados.push({ ...item, title: cenario.title, href: DESTINO_POR_TIPO[item.tipo] });
     } else if (item.tipo === 'MISSION') {
       const missao = await prisma.missionDefinition.findFirst({ where: { id: item.sourceId, active: true } });
-      if (missao) validados.push({ ...item, title: missao.title });
+      if (missao) validados.push({ ...item, title: missao.title, href: DESTINO_POR_TIPO[item.tipo] });
     }
   }
   return validados;
@@ -53,7 +57,10 @@ async function validarEResolverItens(items: z.infer<typeof recomendacaoItemSchem
  * novo). Backend sempre valida os ids antes de devolver ao chamador.
  */
 export async function sugerirSequenciaDeAprendizado(params: { empresaId: string; vendedorId: string; papel: Papel; competencyId: string }): Promise<RecomendacaoValidada[]> {
-  const competencia = await prisma.competency.findUniqueOrThrow({ where: { id: params.competencyId } });
+  // UUID bem formado mas inexistente é 404, não 500: `findUniqueOrThrow`
+  // lançava P2025 cru, que o tratador de erro não reconhece.
+  const competencia = await prisma.competency.findUnique({ where: { id: params.competencyId } });
+  if (!competencia) throw new UniversidadeError('not_found', 'competência não encontrada');
 
   const audienciasPermitidas: PublicoConteudo[] = params.papel === 'GERENTE' ? ['MANAGER', 'BOTH'] : ['SELLER', 'BOTH'];
   // Filtro de competencyIds feito NO BANCO via `array_contains` (JSONB

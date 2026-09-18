@@ -11,7 +11,7 @@ const CONTEXTO_COACH: CoachContext = {
   performance: { ticket: 100, pa: 2, salesCount: 7 },
   baseline: { ticket: 90, pa: 1.8, status: 'disponivel' },
   gamification: { xp: 250, level: 'Bronze', streak: 2, recentBadges: [] },
-  development: { currentFocus: null, currentMission: null, recentTrainings: [], professionalMemorySummary: null },
+  development: { currentFocus: null, currentMission: null, recentTrainings: [], professionalMemorySummary: null, competencyGaps: [] },
   freshness: { lastDataSyncAt: new Date().toISOString() },
 };
 
@@ -20,7 +20,7 @@ const CONTEXTO_TREINADOR: TrainerContext = {
   store: { name: 'Loja Piloto' },
   performance: { ticket: 100, pa: 2, goalPercent: 70 },
   baseline: { ticket: 90, pa: 1.8 },
-  development: { strengths: [], developmentAreas: [], currentFocus: null, recentTrainings: [] },
+  development: { strengths: [], developmentAreas: [], currentFocus: null, recentTrainings: [], competencyGaps: [] },
   playbook: {
     version: 1,
     relevantSections: [{ category: 'OBJECOES', title: 'Objeção de preço', content: 'Reconheça, investigue, responda, reconecte ao valor, avance.', origin: 'DEMONSTRATIVO' }],

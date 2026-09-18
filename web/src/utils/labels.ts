@@ -35,22 +35,35 @@ export const labelPublico = (v?: string | null) => traduzir(PUBLICO_CONTEUDO, v)
 
 // --- Universidade: PDI, competências, evidência ---
 
+// Cobre TODOS os valores de `TipoItemPDI` no schema — faltando um, o vendedor
+// lê o enum cru ("MANAGER_ACTION") na etapa do seu próprio plano.
 const TIPO_ITEM_PDI: Record<string, string> = {
   LESSON: 'Aula',
   TRACK: 'Trilha',
   SIMULATION: 'Simulação',
   QUIZ: 'Quiz',
+  MISSION: 'Missão',
+  PRACTICE: 'Prática em loja',
+  MANAGER_ACTION: 'Ação com o gerente',
+  REVIEW: 'Revisão',
   CERTIFICATION: 'Certificação',
 };
 export const labelTipoItemPDI = (v?: string | null) => traduzir(TIPO_ITEM_PDI, v);
 
+// Atende DOIS enums do schema — `StatusPDI` (o plano) e `StatusItemPDI` (a
+// etapa). Precisa cobrir os dois por inteiro: faltando um valor, o vendedor lê
+// o enum cru no próprio plano de desenvolvimento.
 const STATUS_PDI: Record<string, string> = {
+  // StatusItemPDI
   PENDING: 'Pendente',
   IN_PROGRESS: 'Em andamento',
-  COMPLETED: 'Concluído',
+  SKIPPED: 'Dispensado',
+  // StatusPDI
   ACTIVE: 'Ativo',
+  PAUSED: 'Pausado',
   CANCELLED: 'Cancelado',
-  DRAFT: 'Rascunho',
+  // comum aos dois
+  COMPLETED: 'Concluído',
 };
 export const labelStatusPDI = (v?: string | null) => traduzir(STATUS_PDI, v);
 

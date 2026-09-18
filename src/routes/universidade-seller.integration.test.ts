@@ -77,3 +77,38 @@ describe('Revisão (spaced repetition) — nunca expõe gabarito antes de respon
     expect(bruto).not.toContain('"correct"');
   });
 });
+
+// Etapa 2A — o vendedor passou a poder pedir a recomendação pra própria
+// competência. O sujeito vem SEMPRE do token.
+describe('POST /universidade/minha-matriz/:competencyId/sugestao', () => {
+  it('exige autenticação', async () => {
+    const res = await request(app).post(`/universidade/minha-matriz/${randomUUID()}/sugestao`);
+    expect(res.status).toBe(401);
+  });
+
+  it('id malformado é 400, nunca 500', async () => {
+    const { empresa, loja, vendedor } = await criarFixtureEmpresa();
+    const token = assinarToken({ vendedorId: vendedor.id, empresaId: empresa.id, lojaId: loja.id, papel: 'VENDEDOR' });
+
+    const res = await request(app).post('/universidade/minha-matriz/nao-e-uuid/sugestao').set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(400);
+  });
+
+  it('UUID válido de competência inexistente é 404, nunca 500', async () => {
+    const { empresa, loja, vendedor } = await criarFixtureEmpresa();
+    const token = assinarToken({ vendedorId: vendedor.id, empresaId: empresa.id, lojaId: loja.id, papel: 'VENDEDOR' });
+
+    const res = await request(app).post(`/universidade/minha-matriz/${randomUUID()}/sugestao`).set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(404);
+  });
+
+  it('competência sem conteúdo mapeado devolve lista vazia, nunca item inventado', async () => {
+    const { empresa, loja, vendedor } = await criarFixtureEmpresa();
+    const token = assinarToken({ vendedorId: vendedor.id, empresaId: empresa.id, lojaId: loja.id, papel: 'VENDEDOR' });
+    const competencia = await prisma.competency.create({ data: { code: `sug-${randomUUID()}`, name: 'C', description: 'd' } });
+
+    const res = await request(app).post(`/universidade/minha-matriz/${competencia.id}/sugestao`).set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.sugestoes).toEqual([]);
+  });
+});

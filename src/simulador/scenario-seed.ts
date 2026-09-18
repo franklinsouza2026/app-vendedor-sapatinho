@@ -7,6 +7,7 @@ import { CategoriaPlaybook, DificuldadeSimulacao, Prisma } from '@prisma/client'
 import { prisma } from '../db';
 import { PersonaSimulacao } from './context.types';
 import { CriterioAvaliacao } from './rubrica';
+import { carregarCompetenciasPorCode, resolverCompetencias } from '../academia/content-seed';
 
 interface PersonaBase {
   profile: string;
@@ -57,12 +58,22 @@ interface CenarioSeed {
   objective: string;
   playbookCategorias: CategoriaPlaybook[];
   criteriosAvaliacao: CriterioAvaliacao[];
+  /**
+   * Competências que praticar este cenário desenvolve, por `code` (Etapa 2A).
+   * Espelha a `category` que o cenário já declarava — é associação verificável,
+   * não arbitrada. Cenário sem competência evidente fica sem mapeamento.
+   *
+   * Eixo diferente de `criteriosAvaliacao`: aquilo é a rubrica de como a
+   * sessão é pontuada; isto é o que a prática desenvolve no vendedor.
+   */
+  competencias?: string[];
   persona: PersonaBase;
 }
 
 const CENARIOS: CenarioSeed[] = [
   {
     code: 'ABORDAGEM_CLIENTE_FRIO',
+    competencias: ['ABORDAGEM'],
     title: 'Cliente reservada',
     description: 'Uma cliente entra na loja sem demonstrar entusiasmo. O desafio é criar conexão logo na abertura.',
     category: 'ABORDAGEM',
@@ -80,6 +91,7 @@ const CENARIOS: CenarioSeed[] = [
   },
   {
     code: 'CLIENTE_APRESSADO',
+    competencias: ['ABORDAGEM'],
     title: 'Cliente com pressa',
     description: 'Cliente com pouco tempo disponível, precisa de um atendimento objetivo e rápido.',
     category: 'ABORDAGEM',
@@ -97,6 +109,7 @@ const CENARIOS: CenarioSeed[] = [
   },
   {
     code: 'CLIENTE_SO_OLHANDO',
+    competencias: ['ABORDAGEM'],
     title: 'Cliente "só olhando"',
     description: 'Cliente que entra na loja e imediatamente diz que só está olhando.',
     category: 'ABORDAGEM',
@@ -114,6 +127,7 @@ const CENARIOS: CenarioSeed[] = [
   },
   {
     code: 'CLIENTE_PRECO',
+    competencias: ['QUEBRA_DE_OBJECOES'],
     title: 'Objeção de preço',
     description: 'Cliente interessada no produto, mas acha o preço alto.',
     category: 'OBJECAO',
@@ -131,6 +145,7 @@ const CENARIOS: CenarioSeed[] = [
   },
   {
     code: 'CLIENTE_INDECISO',
+    competencias: ['FECHAMENTO'],
     title: 'Cliente indeciso',
     description: 'Cliente gosta de vários produtos e não consegue decidir.',
     category: 'FECHAMENTO',
@@ -148,6 +163,7 @@ const CENARIOS: CenarioSeed[] = [
   },
   {
     code: 'CLIENTE_COMPARANDO_CONCORRENTE',
+    competencias: ['QUEBRA_DE_OBJECOES'],
     title: 'Comparando com a concorrência',
     description: 'Cliente menciona ter visto produto parecido em outra loja ou na internet.',
     category: 'OBJECAO',
@@ -165,6 +181,7 @@ const CENARIOS: CenarioSeed[] = [
   },
   {
     code: 'VENDA_COMPLEMENTAR',
+    competencias: ['VENDA_COMPLEMENTAR'],
     title: 'Oportunidade de venda complementar',
     description: 'Cliente já decidiu o produto principal — momento de oferecer um complementar.',
     category: 'VENDA_COMPLEMENTAR',
@@ -182,6 +199,7 @@ const CENARIOS: CenarioSeed[] = [
   },
   {
     code: 'AUMENTAR_PA',
+    competencias: ['VENDA_COMPLEMENTAR'],
     title: 'Aumentar peças por atendimento',
     description: 'Cliente comprando um item — oportunidade de aumentar o PA do atendimento.',
     category: 'VENDA_COMPLEMENTAR',
@@ -199,6 +217,7 @@ const CENARIOS: CenarioSeed[] = [
   },
   {
     code: 'AUMENTAR_TICKET',
+    competencias: ['ARGUMENTACAO'],
     title: 'Demonstrar valor de um produto premium',
     description: 'Cliente pensando em um produto mais simples — oportunidade de demonstrar valor de um produto de ticket mais alto.',
     category: 'DEMONSTRACAO',
@@ -216,6 +235,7 @@ const CENARIOS: CenarioSeed[] = [
   },
   {
     code: 'FECHAMENTO',
+    competencias: ['FECHAMENTO'],
     title: 'Conduzir o fechamento',
     description: 'Cliente já convencida — momento de conduzir o fechamento com naturalidade.',
     category: 'FECHAMENTO',
@@ -232,6 +252,9 @@ const CENARIOS: CenarioSeed[] = [
     },
   },
   {
+    // SEM `competencias` de propósito (Etapa 2A): recuperar cliente insatisfeita
+    // não tem competência evidente no catálogo (não existe pós-venda), e
+    // encaixar em COMUNICACAO seria arbitrar. Pendente de decisão humana.
     code: 'RECUPERAR_ATENDIMENTO',
     title: 'Recuperar atendimento',
     description: 'Cliente insatisfeita com uma experiência anterior na loja.',
@@ -250,6 +273,7 @@ const CENARIOS: CenarioSeed[] = [
   },
   {
     code: 'CLIENTE_COM_OBJECOES_MULTIPLAS',
+    competencias: ['QUEBRA_DE_OBJECOES'],
     title: 'Múltiplas objeções encadeadas',
     description: 'Cliente que levanta uma objeção atrás da outra ao longo da conversa.',
     category: 'OBJECAO',
@@ -275,6 +299,7 @@ const CENARIOS: CenarioSeed[] = [
 const CENARIOS_GERENCIAIS: CenarioSeed[] = [
   {
     code: 'FEEDBACK_BAIXA_PERFORMANCE',
+    competencias: ['FEEDBACK'],
     title: 'Feedback sobre queda de performance',
     description: 'Um vendedor da equipe está com a meta abaixo do esperado há alguns dias. O desafio é dar um feedback direto e construtivo, sem humilhar.',
     category: 'GESTAO_DE_PESSOAS',
@@ -292,6 +317,7 @@ const CENARIOS_GERENCIAIS: CenarioSeed[] = [
   },
   {
     code: 'CONDUZIR_1A1_DESENVOLVIMENTO',
+    competencias: ['ONE_ON_ONE'],
     title: 'Conduzir um 1:1 de desenvolvimento',
     description: 'É hora do 1:1 mensal com um vendedor que está performando bem, mas quer crescer mais rápido.',
     category: 'GESTAO_DE_PESSOAS',
@@ -312,12 +338,21 @@ const CENARIOS_GERENCIAIS: CenarioSeed[] = [
 const MAX_TURNS_PADRAO = { EASY: 8, MEDIUM: 11, HARD: 15 };
 
 export async function seedCenariosSimulador() {
+  const competenciasPorCode = await carregarCompetenciasPorCode();
+  let cenariosMapeados = 0;
+
   for (const cenario of [...CENARIOS, ...CENARIOS_GERENCIAIS]) {
     const personas = gerarPersonasPorDificuldade(cenario.persona);
+    const competencyIds = resolverCompetencias(cenario.competencias, competenciasPorCode);
+    if (competencyIds.length > 0) cenariosMapeados += 1;
+
     await prisma.simulationScenario.upsert({
       where: { code: cenario.code },
-      update: {},
+      // Mesmo motivo da Academia: `competencyIds` precisa chegar a bancos que
+      // já existem, senão o motor seguiria em falso em toda instalação anterior.
+      update: { competencyIds },
       create: {
+        competencyIds,
         code: cenario.code,
         title: cenario.title,
         description: cenario.description,
@@ -330,5 +365,5 @@ export async function seedCenariosSimulador() {
       },
     });
   }
-  return CENARIOS.length + CENARIOS_GERENCIAIS.length;
+  return { total: CENARIOS.length + CENARIOS_GERENCIAIS.length, mapeados: cenariosMapeados };
 }

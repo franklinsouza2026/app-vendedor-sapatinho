@@ -24,6 +24,19 @@ interface AulaSeed {
   content: string;
   estimatedMinutes: number;
   playbookCategoria?: CategoriaPlaybook;
+  /**
+   * Competências que esta aula desenvolve, por `code` (Etapa 2A).
+   *
+   * É o dado que destrava o motor da Universidade: `evidence.service.ts` só
+   * gera evidência para competências mapeadas no conteúdo, e com esta lista
+   * vazia ele retornava cedo — o motor girava em falso. A associação abaixo
+   * espelha a `playbookCategoria` que a aula já declarava, então é verificável,
+   * não arbitrada.
+   *
+   * Aulas sem competência genuinamente evidente ficam SEM mapeamento, em vez
+   * de receber um palpite (ver POS_VENDA no comentário do seed).
+   */
+  competencias?: string[];
   quiz?: QuizSeed;
 }
 
@@ -42,6 +55,7 @@ const TRILHAS: TrilhaSeed[] = [
     aulas: [
       {
         code: 'FUND_ABERTURA',
+        competencias: ['ABORDAGEM'],
         title: 'Como abrir bem um atendimento',
         description: 'Os primeiros 30 segundos definem o tom de todo o atendimento.',
         estimatedMinutes: 4,
@@ -75,6 +89,7 @@ const TRILHAS: TrilhaSeed[] = [
       },
       {
         code: 'FUND_SONDAGEM',
+        competencias: ['SONDAGEM'],
         title: 'Sondar antes de argumentar',
         description: 'Entender a necessidade real da cliente evita apresentar o produto errado.',
         estimatedMinutes: 5,
@@ -95,6 +110,7 @@ const TRILHAS: TrilhaSeed[] = [
     aulas: [
       {
         code: 'OBJ_PRECO',
+        competencias: ['QUEBRA_DE_OBJECOES'],
         title: 'Por que a cliente diz "está caro"',
         description: 'Preço alto quase sempre é sobre valor percebido, não sobre o número em si.',
         estimatedMinutes: 5,
@@ -135,6 +151,7 @@ const TRILHAS: TrilhaSeed[] = [
     aulas: [
       {
         code: 'VC_AUMENTAR_PA',
+        competencias: ['VENDA_COMPLEMENTAR'],
         title: 'Aumentando o PA com naturalidade',
         description: 'Oferecer um segundo item só funciona quando faz sentido pra necessidade da cliente.',
         estimatedMinutes: 4,
@@ -148,6 +165,7 @@ const TRILHAS: TrilhaSeed[] = [
       },
       {
         code: 'VC_DEMONSTRAR_VALOR',
+        competencias: ['ARGUMENTACAO'],
         title: 'Demonstrando valor antes do preço',
         description: 'Falar de benefício antes de falar de preço muda como a cliente recebe o valor do produto.',
         estimatedMinutes: 5,
@@ -180,6 +198,7 @@ const TRILHAS: TrilhaSeed[] = [
     aulas: [
       {
         code: 'FPV_FECHAMENTO',
+        competencias: ['FECHAMENTO'],
         title: 'Conduzindo o fechamento',
         description: 'Uma cliente convencida nem sempre sabe que já pode fechar — o vendedor precisa conduzir esse momento.',
         estimatedMinutes: 4,
@@ -192,6 +211,9 @@ const TRILHAS: TrilhaSeed[] = [
           'DICA: reconheça os sinais de decisão e avance — não prolongue o atendimento sem necessidade.',
       },
       {
+        // SEM `competencias` de propósito (Etapa 2A): não existe competência
+        // de pós-venda no catálogo, e encaixar em COMUNICACAO seria arbitrar o
+        // que a empresa entende por pós-venda. Pendente de decisão humana.
         code: 'FPV_POS_VENDA',
         title: 'O pós-venda que traz a cliente de volta',
         description: 'A despedida é tão importante quanto a abertura — é o que fica na memória da cliente.',
@@ -220,8 +242,47 @@ const TRILHAS: TrilhaSeed[] = [
   },
 ];
 
+/**
+ * Resolve `code` de competência → id (Etapa 2A). O seed declara competência por
+ * código legível, não por UUID: o UUID só existe depois de `seedCompetenciasV1`
+ * e mudaria a cada instalação.
+ *
+ * Um código que não exista no catálogo é ignorado em silêncio de propósito — o
+ * catálogo é administrável, e um Admin pode ter arquivado uma competência; isso
+ * não deve derrubar o seed.
+ *
+ * O caso que NÃO pode passar em silêncio é o catálogo inteiro vazio — ver
+ * `carregarCompetenciasPorCode`.
+ */
+export function resolverCompetencias(codes: string[] | undefined, porCode: Map<string, string>): string[] {
+  if (!codes || codes.length === 0) return [];
+  return codes.map((code) => porCode.get(code)).filter((id): id is string => Boolean(id));
+}
+
+/**
+ * Carrega o catálogo inteiro numa query só — nunca 1 por aula/cenário.
+ *
+ * Catálogo vazio é um ERRO, não um caso normal: como `competencyIds` também vai
+ * no `update`, seedar com o catálogo vazio gravaria `[]` em TODAS as aulas e
+ * cenários e devolveria o motor de competência ao estado inerte que esta etapa
+ * corrigiu — sem uma linha de aviso. Quem seeda conteúdo precisa ter rodado
+ * `seedCompetenciasV1()` antes.
+ */
+export async function carregarCompetenciasPorCode(): Promise<Map<string, string>> {
+  const competencias = await prisma.competency.findMany({ select: { id: true, code: true } });
+  if (competencias.length === 0) {
+    throw new Error(
+      'catálogo de competências vazio ao seedar conteúdo — rode seedCompetenciasV1() antes, ' +
+        'senão o mapeamento conteúdo→competência seria apagado e o motor de evidência ficaria inerte'
+    );
+  }
+  return new Map(competencias.map((c) => [c.code, c.id]));
+}
+
 export async function seedConteudoAcademia() {
   let totalAulas = 0;
+  let aulasMapeadas = 0;
+  const competenciasPorCode = await carregarCompetenciasPorCode();
   for (const trilha of TRILHAS) {
     const trilhaCriada = await prisma.academyTrack.upsert({
       where: { code: trilha.code },
@@ -230,10 +291,18 @@ export async function seedConteudoAcademia() {
     });
 
     for (const [indice, aula] of trilha.aulas.entries()) {
+      const competencyIds = resolverCompetencias(aula.competencias, competenciasPorCode);
+      if (competencyIds.length > 0) aulasMapeadas += 1;
+
       const aulaCriada = await prisma.academyLesson.upsert({
         where: { code: aula.code },
-        update: {},
+        // `competencyIds` também no update (Etapa 2A): diferente do resto do
+        // conteúdo — que não sobrescreve edição do Admin — este campo precisa
+        // chegar a bancos que já existem, senão o motor de competência seguiria
+        // em falso em toda instalação anterior a esta etapa.
+        update: { competencyIds },
         create: {
+          competencyIds,
           trackId: trilhaCriada.id,
           code: aula.code,
           title: aula.title,
@@ -273,5 +342,5 @@ export async function seedConteudoAcademia() {
     }
   }
 
-  return { trilhas: TRILHAS.length, aulas: totalAulas };
+  return { trilhas: TRILHAS.length, aulas: totalAulas, aulasMapeadas };
 }

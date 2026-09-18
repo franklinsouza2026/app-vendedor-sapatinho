@@ -28,11 +28,12 @@ export interface SimulationContext {
     version: number | null;
     relevantSections: PlaybookSectionContexto[];
   };
-  sellerDevelopment: {
-    strengths: string[];
-    developmentAreas: string[];
-    currentFocus: string | null;
-  };
+  // `sellerDevelopment` REMOVIDO na Etapa 2A. Era montado (pagando uma chamada
+  // a `getMemoria`) e nunca renderizado por `prompts/context-formatter.ts` —
+  // custo sem uso. E wire-lo seria errado nos dois destinos possíveis: a
+  // cliente simulada não deve conhecer as fraquezas de quem a atende (passaria
+  // a mirá-las artificialmente), e o avaliador não deve ser enviesado por elas
+  // (a nota tem que ser comparável entre vendedores, sempre contra a rubrica).
 }
 
 export interface SimulationEvaluationContext {

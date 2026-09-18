@@ -7,6 +7,8 @@ import { seedCenariosSimulador } from '../src/simulador/scenario-seed';
 import { seedConteudoAcademia } from '../src/academia/content-seed';
 import { seedMissoesEDesafios } from '../src/missoes/catalogo-seed';
 import { seedEstruturaMandamentos } from '../src/academia/mandamentos.service';
+import { seedCompetenciasV1 } from '../src/universidade/competency.service';
+import { seedEscolasV1 } from '../src/universidade/schools.service';
 import { env } from '../src/config';
 
 const prisma = new PrismaClient();
@@ -151,7 +153,18 @@ async function main() {
   });
 
   const playbook = await seedPlaybookInicialSeNaoExistir(empresa.id, 'seed');
-  const totalCenarios = await seedCenariosSimulador();
+
+  // Etapa 2A: escolas e competências passam a nascer AQUI. Até então elas só
+  // existiam como efeito colateral de um ADMIN abrir `GET /admin/universidade/
+  // competencias` — numa instalação nova, se ninguém abrisse aquela tela, o
+  // catálogo nunca existia e a matriz de todo mundo ficava vazia.
+  //
+  // Precisa vir ANTES do conteúdo: cenários e aulas resolvem competência por
+  // `code`, e o code só existe depois deste seed.
+  await seedEscolasV1();
+  await seedCompetenciasV1();
+
+  const cenarios = await seedCenariosSimulador();
   const conteudoAcademia = await seedConteudoAcademia();
   const conteudoMissoes = await seedMissoesEDesafios();
   const totalMandamentos = await seedEstruturaMandamentos();
@@ -164,10 +177,11 @@ async function main() {
   console.log('  Gerente:  matriculaErp=GER001   senha=gerente123');
   console.log('  Meta diária de VEND001: R$ 1000');
   console.log(`  Playbook: "${playbook.nome}" v${playbook.versao} (PUBLISHED)`);
-  console.log(`  Simulador: ${totalCenarios} cenários`);
+  console.log(`  Simulador: ${cenarios.total} cenários`);
   console.log(`  Academia: ${conteudoAcademia.trilhas} trilhas, ${conteudoAcademia.aulas} aulas`);
   console.log(`  Missões: ${conteudoMissoes.missoes} definições, Desafios: ${conteudoMissoes.desafios} definições`);
   console.log(`  13 Mandamentos: estrutura garantida (${totalMandamentos} linhas, conteúdo oficial pendente de cadastro pelo Admin)`);
+  console.log(`  Universidade: ${conteudoAcademia.aulasMapeadas} aula(s) e ${cenarios.mapeados} cenário(s) mapeados a competência`);
 }
 
 main()

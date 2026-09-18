@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { Equipe } from './Equipe';
 import * as api from '../api/universidade';
+import { ApiError } from '../api/client';
 import * as competicoesApi from '../api/competicoes';
 import * as managerPanelApi from '../api/managerPanel';
 
@@ -84,7 +85,7 @@ describe('Equipe', () => {
 
   it('pede sugestão de IA pra competência com prioridade HIGH', async () => {
     const user = userEvent.setup();
-    vi.mocked(api.sugerirSequenciaIA).mockResolvedValue({ sugestoes: [{ tipo: 'LESSON', sourceId: 'l1', rationale: 'Reforça fechamento', title: 'Aula de fechamento' }] });
+    vi.mocked(api.sugerirSequenciaIA).mockResolvedValue({ sugestoes: [{ tipo: 'LESSON', sourceId: 'l1', rationale: 'Reforça fechamento', title: 'Aula de fechamento', href: '/academia' }] });
 
     renderTela();
     await user.click(await screen.findByText('Vendedor Um'));
@@ -92,5 +93,59 @@ describe('Equipe', () => {
 
     expect(await screen.findByText('Aula de fechamento')).toBeInTheDocument();
     expect(api.sugerirSequenciaIA).toHaveBeenCalledWith('v1', 'c1');
+  });
+
+  // Etapa 2A — sem este botão, `criarPDIParaVendedor` era uma API órfã: a IA
+  // sugeria a sequência, o gerente lia, e nada virava plano. A aba "Meu Plano"
+  // do vendedor era estruturalmente vazia.
+  it('gerente transforma a sugestão revisada em plano de verdade', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.sugerirSequenciaIA).mockResolvedValue({ sugestoes: [{ tipo: 'LESSON', sourceId: 'l1', rationale: 'Reforça fechamento', title: 'Aula de fechamento', href: '/academia' }] });
+    vi.mocked(api.criarPDIParaVendedor).mockResolvedValue({} as never);
+
+    renderTela();
+    await user.click(await screen.findByText('Vendedor Um'));
+    await user.click(await screen.findByRole('button', { name: 'Sugerir conteúdo com IA' }));
+    await user.click(await screen.findByRole('button', { name: 'Criar plano com estas etapas' }));
+
+    // A meta vem do target que o motor já calcula — nenhum número inventado.
+    await waitFor(() =>
+      expect(api.criarPDIParaVendedor).toHaveBeenCalledWith('v1', {
+        competencyId: 'c1',
+        targetScore: 80,
+        itens: [{ tipo: 'LESSON', sourceId: 'l1', required: true }],
+      })
+    );
+    expect(await screen.findByText(/Plano criado/)).toBeInTheDocument();
+  });
+
+  it('falha ao criar plano aparece JUNTO do botão, não dentro de outro formulário', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.sugerirSequenciaIA).mockResolvedValue({ sugestoes: [{ tipo: 'LESSON', sourceId: 'l1', rationale: 'Reforça fechamento', title: 'Aula de fechamento', href: '/academia' }] });
+    // Caso real mais comum: já existe um PDI ativo pra essa competência.
+    vi.mocked(api.criarPDIParaVendedor).mockRejectedValue(new ApiError(400, 'já existe um plano de desenvolvimento ativo para esta competência'));
+
+    renderTela();
+    await user.click(await screen.findByText('Vendedor Um'));
+    await user.click(await screen.findByRole('button', { name: 'Sugerir conteúdo com IA' }));
+    const botao = await screen.findByRole('button', { name: 'Criar plano com estas etapas' });
+    await user.click(botao);
+
+    const mensagem = await screen.findByText(/já existe um plano de desenvolvimento ativo/);
+    // Mesmo bloco do botão — não perdida no formulário de avaliação lá embaixo.
+    expect(botao.parentElement).toContainElement(mensagem);
+    expect(screen.queryByText(/Plano criado/)).not.toBeInTheDocument();
+  });
+
+  it('não oferece criar plano quando a IA não achou conteúdo nenhum', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.sugerirSequenciaIA).mockResolvedValue({ sugestoes: [] });
+
+    renderTela();
+    await user.click(await screen.findByText('Vendedor Um'));
+    await user.click(await screen.findByRole('button', { name: 'Sugerir conteúdo com IA' }));
+
+    await screen.findByText(/Nenhum conteúdo relevante/);
+    expect(screen.queryByRole('button', { name: 'Criar plano com estas etapas' })).not.toBeInTheDocument();
   });
 });

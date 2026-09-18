@@ -39,6 +39,13 @@ export interface CoachContext {
     currentMission: string | null;
     recentTrainings: string[];
     professionalMemorySummary: string | null;
+    /**
+     * Gaps vindos da Universidade (Etapa 2A) — origem EVIDÊNCIA (aula, quiz,
+     * simulação, avaliação do gerente), nunca KPI. Campo separado de
+     * `currentFocus` (que é KPI) de propósito: as duas origens nunca se
+     * misturam, e o prompt as apresenta rotuladas.
+     */
+    competencyGaps: { nome: string; score: number; target: number; gap: number; prioridade: string }[];
   };
   freshness: {
     lastDataSyncAt: string | null; // ISO — null quando o vendedor nunca teve indicador sincronizado

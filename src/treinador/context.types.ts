@@ -28,10 +28,15 @@ export interface TrainerContext {
     pa: number | null;
   };
   development: {
+    /** Origem KPI (PA/ticket vs. baseline). */
     strengths: string[];
+    /** Origem KPI. */
     developmentAreas: string[];
+    /** Origem KPI. */
     currentFocus: string | null;
     recentTrainings: string[];
+    /** Origem EVIDÊNCIA (Universidade) — nunca KPI. Ver memory.service.ts. */
+    competencyGaps: { nome: string; score: number; target: number; gap: number; prioridade: string }[];
   };
   playbook: {
     version: number | null; // versão publicada usada (null se a empresa ainda não tem playbook)

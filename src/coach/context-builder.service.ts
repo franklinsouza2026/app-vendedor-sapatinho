@@ -77,6 +77,7 @@ export async function buildCoachContext(vendedorId: string, agora: Date = new Da
       currentMission: missaoPrioritaria ? `${missaoPrioritaria.title} (${missaoPrioritaria.progresso}%)` : null,
       recentTrainings: [], // Academia é Fatia 6
       professionalMemorySummary: memoria.summary,
+      competencyGaps: memoria.competencyGaps,
     },
     freshness: {
       lastDataSyncAt: ultimoIndicador ? ultimoIndicador.dataHora.toISOString() : null,

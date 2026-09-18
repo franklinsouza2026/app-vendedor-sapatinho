@@ -7,6 +7,9 @@ import { asyncHandler } from '../middlewares/async-handler';
 import { UniversidadeError } from '../universidade/constantes';
 import { calcularMatrizCompetencias } from '../universidade/score-engine.service';
 import { montarParaVoce } from '../universidade/learning-path.service';
+import { sugerirSequenciaDeAprendizado } from '../universidade/ai-recommendation.service';
+import { AIProviderError } from '../ai-platform/providers';
+import { TrainingIntelligenceError } from '../training-intelligence/types';
 import { listarPDIsDoUsuario, buscarPDI, evolucaoDoPlano } from '../universidade/pdi.service';
 import { listarRevisoesPendentes, responderRevisao } from '../universidade/spaced-repetition.service';
 import { avaliarElegibilidade, emitirCertificacaoSeElegivel, listarCertificacoesDoUsuario, atualizarStatusExpiracao, listarCertificationDefinitions } from '../universidade/certification.service';
@@ -17,6 +20,15 @@ function tratarErro(err: unknown, res: import('express').Response) {
   if (err instanceof UniversidadeError) {
     const status = err.type === 'not_found' ? 404 : err.type === 'requisitos_nao_atendidos' ? 409 : err.type === 'invalid_reference' ? 400 : 400;
     return res.status(status).json({ error: err.message, type: err.type });
+  }
+  // Degradação graciosa da IA (Etapa 2A) — este router ganhou rota de IA, e sem
+  // estes dois casos uma indisponibilidade de provider/budget viraria 500
+  // genérico em vez do 503 que as outras superfícies de IA já devolvem. Mesmo
+  // tratamento de `universidade-manager.ts`.
+  if (err instanceof AIProviderError) return res.status(503).json({ error: 'IA indisponível no momento', type: 'provider_unavailable' });
+  if (err instanceof TrainingIntelligenceError) {
+    const status = err.type === 'budget_exceeded' || err.type === 'rate_limited' || err.type === 'provider_unavailable' ? 503 : 400;
+    return res.status(status).json({ error: 'sugestão de IA indisponível no momento', type: err.type });
   }
   throw err;
 }
@@ -34,6 +46,39 @@ universidadeSellerRouter.get(
   requireAuth(),
   asyncHandler(async (req, res) => {
     res.json({ itens: await montarParaVoce(req.auth!.vendedorId, req.auth!.papel) });
+  })
+);
+
+const sugestaoSchema = z.object({ competencyId: z.string().uuid() });
+
+/**
+ * Recomendação de aprendizado para a PRÓPRIA competência (Etapa 2A).
+ *
+ * O motor (`sugerirSequenciaDeAprendizado`) já existia, testado e com todo id
+ * revalidado contra o banco — mas só estava exposto em rota de GERENTE/ADMIN.
+ * Na prática, o vendedor via o gap ("faltam 25 pontos") e não tinha nenhum
+ * caminho para saber o que estudar: era o elo `gap → recomendação` aberto.
+ *
+ * `vendedorId` e `papel` vêm SEMPRE do JWT — o vendedor só pede recomendação
+ * para si mesmo, nunca para outro. Nenhum motor novo, nenhum prompt novo.
+ */
+universidadeSellerRouter.post(
+  '/universidade/minha-matriz/:competencyId/sugestao',
+  requireAuth(),
+  asyncHandler(async (req, res) => {
+    const parsed = sugestaoSchema.safeParse({ competencyId: req.params.competencyId });
+    if (!parsed.success) return res.status(400).json({ error: 'competência inválida' });
+    try {
+      const sugestoes = await sugerirSequenciaDeAprendizado({
+        empresaId: req.auth!.empresaId,
+        vendedorId: req.auth!.vendedorId,
+        papel: req.auth!.papel,
+        competencyId: parsed.data.competencyId,
+      });
+      res.json({ sugestoes });
+    } catch (err) {
+      tratarErro(err, res);
+    }
   })
 );
 

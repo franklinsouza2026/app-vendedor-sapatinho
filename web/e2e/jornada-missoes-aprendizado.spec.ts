@@ -39,6 +39,40 @@ test.describe('Jornada de Missões — aprendizagem (Academia)', () => {
     // 05-Decisoes-e-Tradeoffs.md).
     await expect(page.getByText('Missões de hoje')).toBeVisible();
 
+    // O motor atribui só `MISSOES_MAX_ATIVAS_POR_DIA` (3) missões por dia, em
+    // ordem de prioridade — e PASS_QUIZ é a 6ª. Enquanto o banco de dev era
+    // novo, DAILY_GOAL/PA/TICKET ficavam inelegíveis por falta de baseline e
+    // sobrava espaço pras missões de aprendizagem; conforme o histórico do
+    // vendedor cresceu, TICKET_IMPROVEMENT e STREAK_3 passaram a ser elegíveis
+    // e empurraram PASS_QUIZ pra fora — o teste passou a falhar por dado
+    // ambiente, não por regressão.
+    //
+    // O que este teste prova é o que acontece QUANDO as duas missões estão
+    // ativas (uma ação, duas missões, uma recompensa cada). Então a
+    // precondição é montada explicitamente, em vez de torcer pra que o motor
+    // escolha essas duas hoje.
+    const vendedor = await prisma.vendedor.findFirstOrThrow({ where: { matriculaErp: 'VEND002' } });
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const fimDoDia = new Date(hoje);
+    fimDoDia.setHours(23, 59, 59, 999);
+    for (const criterio of ['COMPLETE_LESSON', 'PASS_QUIZ'] as const) {
+      const definicao = await prisma.missionDefinition.findFirstOrThrow({ where: { criterionType: criterio, active: true } });
+      await prisma.missionAssignment.upsert({
+        where: { vendedorId_missionDefinitionId_startsAt: { vendedorId: vendedor.id, missionDefinitionId: definicao.id, startsAt: hoje } },
+        update: {},
+        create: {
+          missionDefinitionId: definicao.id,
+          empresaId: vendedor.empresaId,
+          lojaId: vendedor.lojaId,
+          vendedorId: vendedor.id,
+          startsAt: hoje,
+          expiresAt: fimDoDia,
+          progressoAlvo: 0,
+        },
+      });
+    }
+
     // 1. Ir pra Academia (via Evoluir) e responder um quiz de verdade
     await page.getByRole('link', { name: 'Evoluir', exact: true }).click();
     await page.getByText('Academia', { exact: true }).click();

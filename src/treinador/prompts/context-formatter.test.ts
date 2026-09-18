@@ -7,7 +7,7 @@ const BASE: TrainerContext = {
   store: { name: 'Loja Piloto' },
   performance: { ticket: 100, pa: 2, goalPercent: 70 },
   baseline: { ticket: 90, pa: 1.8 },
-  development: { strengths: [], developmentAreas: [], currentFocus: null, recentTrainings: [] },
+  development: { strengths: [], developmentAreas: [], currentFocus: null, recentTrainings: [], competencyGaps: [] },
   playbook: { version: 1, relevantSections: [{ category: 'ABORDAGEM', title: 'Recepção', content: 'Receba com sorriso.', origin: 'OFICIAL' }] },
   request: { mode: 'GERAL', objection: null, situation: null },
   freshness: { lastDataSyncAt: null },

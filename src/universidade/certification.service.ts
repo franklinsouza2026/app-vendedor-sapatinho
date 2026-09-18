@@ -95,6 +95,39 @@ export interface ResultadoElegibilidade {
   evidenceSnapshot: Record<string, unknown>;
 }
 
+/**
+ * Resolve refId → título legível para as pendências de certificação (Etapa 2A).
+ *
+ * Em lote: 1 query por TIPO de requisito, nunca uma por requisito. Um refId que
+ * não resolva (conteúdo arquivado, por exemplo) simplesmente cai no texto de
+ * fallback do chamador — nunca volta a expor o UUID.
+ */
+async function carregarTitulosDosRequisitos(
+  requisitos: { tipo: string; refId: string | null }[]
+): Promise<Map<string, string>> {
+  const idsPorTipo = (tipos: string[]) =>
+    requisitos.filter((r) => tipos.includes(r.tipo) && r.refId).map((r) => r.refId!) as string[];
+
+  const trackIds = idsPorTipo(['TRACK']);
+  const lessonIds = idsPorTipo(['LESSON', 'QUIZ_MIN_SCORE']);
+  const scenarioIds = idsPorTipo(['SIMULATION']);
+  const competencyIds = idsPorTipo(['COMPETENCY_TARGET']);
+
+  const [tracks, lessons, scenarios, competencies] = await Promise.all([
+    trackIds.length ? prisma.academyTrack.findMany({ where: { id: { in: trackIds } }, select: { id: true, title: true } }) : [],
+    lessonIds.length ? prisma.academyLesson.findMany({ where: { id: { in: lessonIds } }, select: { id: true, title: true } }) : [],
+    scenarioIds.length ? prisma.simulationScenario.findMany({ where: { id: { in: scenarioIds } }, select: { id: true, title: true } }) : [],
+    competencyIds.length ? prisma.competency.findMany({ where: { id: { in: competencyIds } }, select: { id: true, name: true } }) : [],
+  ]);
+
+  const titulos = new Map<string, string>();
+  for (const t of tracks) titulos.set(t.id, t.title);
+  for (const l of lessons) titulos.set(l.id, l.title);
+  for (const c of scenarios) titulos.set(c.id, c.title);
+  for (const c of competencies) titulos.set(c.id, c.name);
+  return titulos;
+}
+
 /** Avalia CADA requisito contra evidência real — nunca aceita `eligible:
  * true` vindo do cliente (seção 77). 13 Mandamentos (seção 50/54): se a
  * estrutura oficial não estiver completa, o requisito nunca passa,
@@ -106,40 +139,59 @@ export async function avaliarElegibilidade(userId: string, definitionId: string)
   const pendencias: string[] = [];
   const snapshot: Record<string, unknown> = {};
 
+  // Títulos legíveis dos requisitos (Etapa 2A). As pendências iam pra tela do
+  // vendedor com o UUID cru ("trilha 9f3a-… não concluída") — informação
+  // inútil pra quem precisa agir.
+  //
+  // Carregado SOB DEMANDA e uma única vez: título só aparece em mensagem de
+  // pendência, e `avaliarElegibilidade` roda uma vez por certificação publicada
+  // na listagem de disponíveis. Resolver sempre custaria 4 queries por
+  // certificação para produzir strings que ninguém veria quando o vendedor já
+  // está elegível em todas.
+  let titulosPromise: Promise<Map<string, string>> | null = null;
+  const nomeDe = async (refId: string | null | undefined, fallback: string) => {
+    if (!refId) return fallback;
+    titulosPromise ??= carregarTitulosDosRequisitos(def.requisitos);
+    const titulo = (await titulosPromise).get(refId);
+    // Aspas só no título de verdade: `trilha "Fundamentos" não concluída` vs.
+    // `trilha de treinamento não concluída` quando o conteúdo não resolve.
+    return titulo ? `"${titulo}"` : fallback;
+  };
+
   for (const req of def.requisitos) {
     switch (req.tipo) {
       case 'TRACK': {
         const progresso = await prisma.academyLesson.findMany({ where: { trackId: req.refId!, status: 'PUBLISHED', active: true }, include: { progresso: { where: { vendedorId: userId } } } });
         const completo = progresso.length > 0 && progresso.every((a) => a.progresso[0]?.status === 'COMPLETED');
-        if (!completo) pendencias.push(`trilha ${req.refId} não concluída`);
+        if (!completo) pendencias.push(`trilha ${await nomeDe(req.refId, 'de treinamento')} não concluída`);
         snapshot[`track_${req.refId}`] = completo;
         break;
       }
       case 'LESSON': {
         const progresso = await prisma.academyProgress.findUnique({ where: { vendedorId_lessonId: { vendedorId: userId, lessonId: req.refId! } } });
         const completo = progresso?.status === 'COMPLETED';
-        if (!completo) pendencias.push(`aula ${req.refId} não concluída`);
+        if (!completo) pendencias.push(`aula ${await nomeDe(req.refId, 'obrigatória')} não concluída`);
         snapshot[`lesson_${req.refId}`] = completo;
         break;
       }
       case 'QUIZ_MIN_SCORE': {
         const progresso = await prisma.academyProgress.findUnique({ where: { vendedorId_lessonId: { vendedorId: userId, lessonId: req.refId! } } });
         const passou = progresso?.quizScore !== null && progresso?.quizScore !== undefined && progresso.quizScore >= (req.minScore ?? 0);
-        if (!passou) pendencias.push(`quiz da aula ${req.refId} não atingiu ${req.minScore ?? 0}`);
+        if (!passou) pendencias.push(`quiz da aula ${await nomeDe(req.refId, 'obrigatória')} ainda não atingiu ${req.minScore ?? 0} pontos`);
         snapshot[`quiz_${req.refId}`] = progresso?.quizScore ?? null;
         break;
       }
       case 'SIMULATION': {
         const sessao = await prisma.simulationSession.findFirst({ where: { vendedorId: userId, scenarioId: req.refId!, status: 'EVALUATED' }, include: { avaliacoes: true } });
         const passou = !!sessao && (sessao.avaliacoes[0]?.scoreFinal ?? 0) >= (req.minScore ?? 0);
-        if (!passou) pendencias.push(`simulação ${req.refId} não concluída com score suficiente`);
+        if (!passou) pendencias.push(`simulação ${await nomeDe(req.refId, 'obrigatória')} ainda não foi concluída com a nota mínima de ${req.minScore ?? 0}`);
         snapshot[`simulation_${req.refId}`] = sessao?.avaliacoes[0]?.scoreFinal ?? null;
         break;
       }
       case 'COMPETENCY_TARGET': {
         const scoreInfo = await calcularScoreCompetencia(userId, req.refId!);
         const passou = scoreInfo.status === 'OK' && scoreInfo.score !== null && scoreInfo.score >= (req.minScore ?? 0);
-        if (!passou) pendencias.push(`competência ${req.refId} abaixo de ${req.minScore ?? 0}`);
+        if (!passou) pendencias.push(`competência ${await nomeDe(req.refId, 'obrigatória')} ainda está abaixo de ${req.minScore ?? 0} pontos`);
         snapshot[`competency_${req.refId}`] = scoreInfo.score;
         break;
       }

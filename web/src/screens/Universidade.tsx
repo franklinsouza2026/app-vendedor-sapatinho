@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { useApi } from '../utils/useApi';
 import { Card } from '../components/Card';
@@ -9,16 +9,32 @@ import {
   buscarPDI,
   Certificacao,
   CompetenciaMatriz,
+  DevelopmentPlanItem,
   emitirCertificacao,
   listarCertificacoesDisponiveis,
   listarMeusPDIs,
   listarMinhasCertificacoes,
+  SugestaoIA,
+  sugerirParaMim,
 } from '../api/universidade';
 import { ApiError } from '../api/client';
 import { labelConfianca, labelNivelCompetencia, labelStatusPDI, labelTipoItemPDI } from '../utils/labels';
 
+type Aba = 'evolucao' | 'plano' | 'certificacoes';
+
 export function Universidade() {
-  const [aba, setAba] = useState<'evolucao' | 'plano' | 'certificacoes'>('evolucao');
+  // A URL é a ÚNICA fonte da aba (Etapa 2A): o "Para Você" aponta pra
+  // /universidade?aba=plano etc., então o clique precisa aterrissar na aba
+  // certa — não adianta o link deixar de dar 404 e cair sempre em "evolução".
+  //
+  // Derivada, nunca copiada pra `useState`: o componente não remonta quando só
+  // a query string muda, então um estado próprio ignoraria tanto um segundo
+  // link interno quanto o voltar/avançar do navegador. Em troca, trocar de aba
+  // pelo botão passa a deixar a URL compartilhável.
+  const [params, setParams] = useSearchParams();
+  const abaDaUrl = params.get('aba');
+  const aba: Aba = abaDaUrl === 'plano' || abaDaUrl === 'certificacoes' ? abaDaUrl : 'evolucao';
+  const setAba = (t: Aba) => setParams(t === 'evolucao' ? {} : { aba: t }, { replace: true });
 
   return (
     <div className="flex flex-col gap-4 p-4 pb-24">
@@ -71,12 +87,81 @@ function MinhaEvolucao() {
               <p className="text-xs text-slate-400">
                 {labelNivelCompetencia(c.nivel)} · meta {c.target} · confiança {labelConfianca(c.confidence)}
               </p>
-              {c.gap !== null && c.gap > 0 && <p className="mt-1 text-xs text-amber-400">Faltam {c.gap} pontos pra bater a meta.</p>}
+              {c.gap !== null && c.gap > 0 && (
+                <>
+                  <p className="mt-1 text-xs text-amber-400">Faltam {c.gap} pontos pra bater a meta.</p>
+                  {/* Elo gap → recomendação → próxima ação (Etapa 2A): antes o
+                      card dizia "faltam 25 pontos" e não oferecia caminho
+                      nenhum — o vendedor via o diagnóstico e não o remédio. */}
+                  <OQueEstudar competencyId={c.competencyId} />
+                </>
+              )}
             </>
           )}
         </Card>
       ))}
       {dados?.competencias.length === 0 && <p className="text-sm text-slate-400">Nenhuma competência configurada ainda.</p>}
+    </div>
+  );
+}
+
+/**
+ * "O que estudar pra isso?" — dispara a recomendação de IA para a competência.
+ *
+ * Fica fechado por padrão e só chama a IA quando o vendedor pede: a chamada
+ * custa dinheiro e a maioria das visitas à tela é só pra conferir o número.
+ */
+function OQueEstudar({ competencyId }: { competencyId: string }) {
+  const [sugestoes, setSugestoes] = useState<SugestaoIA[] | null>(null);
+  const [carregando, setCarregando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  async function pedir() {
+    setCarregando(true);
+    setErro(null);
+    try {
+      const res = await sugerirParaMim(competencyId);
+      setSugestoes(res.sugestoes);
+    } catch (err) {
+      // IA desligada/sem orçamento devolve 503 — a tela diz isso sem quebrar,
+      // e o resto da Universidade continua funcionando normalmente.
+      setErro(err instanceof ApiError ? err.message : 'Não foi possível buscar sugestões agora.');
+    } finally {
+      setCarregando(false);
+    }
+  }
+
+  if (sugestoes) {
+    return sugestoes.length === 0 ? (
+      <p className="mt-2 text-xs text-slate-400">Ainda não há conteúdo publicado ligado a esta competência.</p>
+    ) : (
+      <div className="mt-2 flex flex-col gap-1">
+        <p className="text-xs uppercase tracking-wide text-slate-500">Por onde começar</p>
+        {sugestoes.map((sug) =>
+          // O destino vem do backend: uma sugestão de simulação leva ao
+          // Simulador, não à Academia.
+          sug.href ? (
+            <Link key={sug.sourceId} to={sug.href} className="text-sm text-accentSoft hover:underline">
+              {sug.title}
+              <span className="block text-xs font-normal text-slate-400">{sug.rationale}</span>
+            </Link>
+          ) : (
+            <p key={sug.sourceId} className="text-sm text-slate-200">
+              {sug.title}
+              <span className="block text-xs text-slate-400">{sug.rationale}</span>
+            </p>
+          )
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2">
+      <button onClick={pedir} disabled={carregando} className="text-xs text-accentSoft underline disabled:opacity-50">
+        {carregando ? 'Buscando...' : 'O que estudar pra isso?'}
+      </button>
+      {erro && <p className="mt-1 text-xs text-slate-400">{erro}</p>}
     </div>
   );
 }
@@ -105,6 +190,35 @@ function MeuPlano() {
   );
 }
 
+/**
+ * Uma etapa do PDI.
+ *
+ * Antes desta etapa a linha mostrava só o tipo ("Aula") — o vendedor não sabia
+ * QUAL aula nem como chegar nela. O backend agora resolve título e destino;
+ * quando a etapa acontece fora do app (prática em loja, ação do gerente) não há
+ * destino, e aí a linha é texto mesmo.
+ */
+function ItemDoPlano({ item }: { item: DevelopmentPlanItem }) {
+  const conteudo = (
+    <>
+      <div>
+        <p className="text-sm text-white">{item.titulo ?? labelTipoItemPDI(item.tipo)}</p>
+        {item.titulo && <p className="text-xs text-slate-500">{labelTipoItemPDI(item.tipo)}</p>}
+      </div>
+      <span className="text-xs text-slate-500">{labelStatusPDI(item.status)}</span>
+    </>
+  );
+  const classe = 'flex items-center justify-between rounded-lg border border-slate-800 p-3';
+
+  return item.href ? (
+    <Link to={item.href} className={`${classe} hover:border-slate-600`}>
+      {conteudo}
+    </Link>
+  ) : (
+    <div className={classe}>{conteudo}</div>
+  );
+}
+
 function DetalhePlano({ id, onVoltar }: { id: string; onVoltar: () => void }) {
   const { dados } = useApi(() => buscarPDI(id), [id]);
   if (!dados) return <LoadingState texto="Carregando plano..." />;
@@ -117,7 +231,7 @@ function DetalhePlano({ id, onVoltar }: { id: string; onVoltar: () => void }) {
       <Card>
         <p className="font-medium text-white">{dados.plano.competencia?.name}</p>
         <p className="text-xs text-slate-400">
-          Baseline: {dados.plano.baselineScore ?? '—'} · Meta: {dados.plano.targetScore} · Status: {dados.plano.status}
+          Baseline: {dados.plano.baselineScore ?? '—'} · Meta: {dados.plano.targetScore} · Status: {labelStatusPDI(dados.plano.status)}
         </p>
         {dados.evolucao && (
           <p className="mt-2 text-sm text-emerald-400">
@@ -129,10 +243,7 @@ function DetalhePlano({ id, onVoltar }: { id: string; onVoltar: () => void }) {
       <div className="flex flex-col gap-2">
         <p className="text-xs uppercase tracking-wide text-slate-500">Etapas</p>
         {dados.plano.itens.map((item) => (
-          <div key={item.id} className="flex items-center justify-between rounded-lg border border-slate-800 p-3">
-            <p className="text-sm text-white">{labelTipoItemPDI(item.tipo)}</p>
-            <span className="text-xs text-slate-500">{labelStatusPDI(item.status)}</span>
-          </div>
+          <ItemDoPlano key={item.id} item={item} />
         ))}
       </div>
     </div>

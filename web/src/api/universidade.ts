@@ -40,6 +40,10 @@ export interface DevelopmentPlanItem {
   sourceId: string | null;
   status: StatusItemPDI;
   required: boolean;
+  /** Título do conteúdo referenciado, resolvido pelo backend (Etapa 2A). */
+  titulo: string | null;
+  /** Para onde o item leva — null quando a ação acontece fora do app. */
+  href: string | null;
 }
 
 export interface DevelopmentPlan {
@@ -156,10 +160,22 @@ export function criarPDIParaVendedor(vendedorId: string, dados: { competencyId: 
 }
 
 export interface SugestaoIA {
-  tipo: string;
+  /** Subconjunto de `TipoItemPDI` que a IA pode recomendar (ver ai-recommendation.service.ts). */
+  tipo: Extract<TipoItemPDI, 'LESSON' | 'TRACK' | 'QUIZ' | 'SIMULATION' | 'MISSION'>;
   sourceId: string;
   rationale: string;
   title: string;
+  /** Tela onde a pessoa faz isso — null quando não há destino no app. */
+  href: string | null;
+}
+
+/**
+ * Recomendação de aprendizado para a PRÓPRIA competência (Etapa 2A).
+ * Mesma função de IA já usada pelo gerente — aqui o backend resolve o vendedor
+ * pelo JWT, então ninguém pede recomendação em nome de outra pessoa.
+ */
+export function sugerirParaMim(competencyId: string) {
+  return apiFetch<{ sugestoes: SugestaoIA[] }>(`/universidade/minha-matriz/${competencyId}/sugestao`, { method: 'POST' });
 }
 
 export function sugerirSequenciaIA(vendedorId: string, competencyId: string) {

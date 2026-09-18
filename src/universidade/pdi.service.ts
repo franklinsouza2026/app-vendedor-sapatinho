@@ -99,18 +99,84 @@ export async function criarPDI(params: {
   return plano;
 }
 
+/**
+ * Para onde cada tipo de conteúdo leva no app — as mesmas rotas reais do
+ * "Para Você". Única fonte: a recomendação de IA também usa isto, senão um
+ * cenário de simulação sugerido levaria o vendedor pra Academia.
+ *
+ * Prática livre e ação do gerente acontecem fora do app — sem destino.
+ */
+export const DESTINO_POR_TIPO: Record<TipoItemPDI, string | null> = {
+  LESSON: '/academia',
+  QUIZ: '/academia',
+  TRACK: '/academia',
+  SIMULATION: '/simulador',
+  MISSION: '/missoes',
+  REVIEW: '/universidade/revisao',
+  PRACTICE: null,
+  MANAGER_ACTION: null,
+};
+
+/**
+ * Enriquece itens de PDI com TÍTULO e DESTINO (Etapa 2A).
+ *
+ * `DevelopmentPlanItem` guarda só `tipo` + `sourceId`, então a tela do vendedor
+ * mostrava literalmente "LESSON / PENDING" — sem dizer QUAL aula nem como
+ * chegar nela. Um plano que não diz o que fazer não é um plano.
+ *
+ * Resolvido na leitura, em LOTE (1 query por tipo), sem migration: o título
+ * pertence ao conteúdo e mudaria se o Admin o renomeasse — copiá-lo para o item
+ * criaria uma segunda fonte de verdade fadada a divergir.
+ */
+async function enriquecerItens<T extends { tipo: TipoItemPDI; sourceId: string | null }>(itens: T[]) {
+  const idsDe = (tipos: TipoItemPDI[]) => itens.filter((i) => tipos.includes(i.tipo) && i.sourceId).map((i) => i.sourceId!);
+
+  const lessonIds = idsDe(['LESSON']);
+  const trackIds = idsDe(['TRACK']);
+  // `sourceId` de um item QUIZ é o id do QUIZ, não o da aula (ver validarItem) —
+  // procurar em AcademyLesson devolveria sempre null e a etapa voltaria a
+  // aparecer como "Quiz" sem título, que é justamente o que isto corrige.
+  const quizIds = idsDe(['QUIZ']);
+  const scenarioIds = idsDe(['SIMULATION']);
+  const missionIds = idsDe(['MISSION']);
+
+  const [lessons, tracks, quizzes, scenarios, missions] = await Promise.all([
+    lessonIds.length ? prisma.academyLesson.findMany({ where: { id: { in: lessonIds } }, select: { id: true, title: true } }) : [],
+    trackIds.length ? prisma.academyTrack.findMany({ where: { id: { in: trackIds } }, select: { id: true, title: true } }) : [],
+    quizIds.length ? prisma.academyQuiz.findMany({ where: { id: { in: quizIds } }, select: { id: true, aula: { select: { title: true } } } }) : [],
+    scenarioIds.length ? prisma.simulationScenario.findMany({ where: { id: { in: scenarioIds } }, select: { id: true, title: true } }) : [],
+    missionIds.length ? prisma.missionDefinition.findMany({ where: { id: { in: missionIds } }, select: { id: true, title: true } }) : [],
+  ]);
+
+  const titulos = new Map<string, string>();
+  for (const x of [...lessons, ...tracks, ...scenarios, ...missions]) titulos.set(x.id, x.title);
+  // Mesma convenção já usada pela recomendação de IA, pra o vendedor ver o
+  // mesmo rótulo nos dois lugares.
+  for (const q of quizzes) titulos.set(q.id, `Quiz — ${q.aula.title}`);
+
+  return itens.map((item) => ({
+    ...item,
+    titulo: (item.sourceId && titulos.get(item.sourceId)) || null,
+    href: DESTINO_POR_TIPO[item.tipo],
+  }));
+}
+
 export async function buscarPDI(id: string) {
   const plano = await prisma.developmentPlan.findUnique({ where: { id }, include: { itens: { orderBy: { sortOrder: 'asc' } }, competencia: true } });
   if (!plano) throw new UniversidadeError('not_found', 'plano de desenvolvimento não encontrado');
-  return plano;
+  return { ...plano, itens: await enriquecerItens(plano.itens) };
 }
 
 export async function listarPDIsDoUsuario(subjectUserId: string, status?: StatusPDI) {
-  return prisma.developmentPlan.findMany({
+  const planos = await prisma.developmentPlan.findMany({
     where: { subjectUserId, ...(status ? { status } : {}) },
     include: { itens: { orderBy: { sortOrder: 'asc' } }, competencia: true },
     orderBy: { startedAt: 'desc' },
   });
+  // Um único lote pra TODOS os itens de TODOS os planos — nunca 1 por plano.
+  const todosItens = await enriquecerItens(planos.flatMap((p) => p.itens));
+  const porId = new Map(todosItens.map((i) => [i.id, i]));
+  return planos.map((p) => ({ ...p, itens: p.itens.map((i) => porId.get(i.id)!) }));
 }
 
 async function transicionarPDI(id: string, de: StatusPDI[], para: StatusPDI, actorId: string, acao: 'DEVELOPMENT_PLAN_UPDATED' | 'DEVELOPMENT_PLAN_COMPLETED') {

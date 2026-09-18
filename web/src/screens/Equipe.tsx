@@ -2,7 +2,7 @@ import { FormEvent, useState } from 'react';
 import { useApi } from '../utils/useApi';
 import { Card } from '../components/Card';
 import { LoadingState } from '../components/LoadingState';
-import { buscarDesenvolvimentoVendedor, registrarAvaliacao, sugerirSequenciaIA } from '../api/universidade';
+import { buscarDesenvolvimentoVendedor, criarPDIParaVendedor, registrarAvaliacao, SugestaoIA, sugerirSequenciaIA } from '../api/universidade';
 import { reconhecerVendedor, TipoReconhecimento } from '../api/competicoes';
 import { ApiError } from '../api/client';
 import { labelAlerta } from '../utils/alertLabels';
@@ -71,7 +71,14 @@ function Desenvolvimento({ vendedorId, onVoltar }: { vendedorId: string; onVolta
   const [rating, setRating] = useState(3);
   const [nota, setNota] = useState('');
   const [erro, setErro] = useState<string | null>(null);
-  const [sugestoes, setSugestoes] = useState<{ title: string; rationale: string }[] | null>(null);
+  // Guarda a competência junto: a sugestão só vira plano se soubermos pra QUAL
+  // competência ela foi pedida.
+  const [sugestoes, setSugestoes] = useState<{ competencyId: string; lista: SugestaoIA[] } | null>(null);
+  const [planoCriado, setPlanoCriado] = useState(false);
+  // Erro próprio: o `erro` compartilhado é renderizado lá embaixo, dentro do
+  // formulário de avaliação — uma falha aqui apareceria longe do botão que a
+  // causou, e o gerente reclicaria achando que nada aconteceu.
+  const [erroPlano, setErroPlano] = useState<string | null>(null);
   const [tipoReconhecimento, setTipoReconhecimento] = useState<TipoReconhecimento>('PERFORMANCE');
   const [mensagemReconhecimento, setMensagemReconhecimento] = useState('');
   const [reconhecimentoEnviado, setReconhecimentoEnviado] = useState(false);
@@ -104,11 +111,46 @@ function Desenvolvimento({ vendedorId, onVoltar }: { vendedorId: string; onVolta
 
   async function handleSugestaoIA(competencyId: string) {
     setErro(null);
+    setErroPlano(null);
+    setPlanoCriado(false);
     try {
       const { sugestoes: lista } = await sugerirSequenciaIA(vendedorId, competencyId);
-      setSugestoes(lista);
+      setSugestoes({ competencyId, lista });
     } catch (err) {
       setErro(err instanceof ApiError ? err.message : 'IA indisponível no momento');
+    }
+  }
+
+  /**
+   * Transforma a sugestão da IA num PDI de verdade.
+   *
+   * A autoria continua do GERENTE: a IA propõe, ele revisa e decide atribuir —
+   * é a mesma rota de sempre, exigindo papel de gerente. Sem este botão a
+   * sugestão morria na tela e a aba "Meu Plano" do vendedor nunca enchia.
+   *
+   * A meta vem do `target` que o próprio motor já calcula pra competência —
+   * nenhum número é inventado aqui.
+   */
+  async function handleCriarPDI() {
+    if (!sugestoes || !dados) return;
+    setErroPlano(null);
+    const competencia = dados.matriz.find((c) => c.competencyId === sugestoes.competencyId);
+    if (!competencia) {
+      setErroPlano('a competência saiu da matriz — peça a sugestão de novo');
+      return;
+    }
+    try {
+      await criarPDIParaVendedor(vendedorId, {
+        competencyId: sugestoes.competencyId,
+        targetScore: competencia.target,
+        itens: sugestoes.lista.map((s) => ({ tipo: s.tipo, sourceId: s.sourceId, required: true })),
+      });
+      setPlanoCriado(true);
+      setSugestoes(null);
+      recarregar();
+    } catch (err) {
+      // Caso mais comum: já existe um PDI ativo pra essa competência (400).
+      setErroPlano(err instanceof ApiError ? err.message : 'não foi possível criar o plano');
     }
   }
 
@@ -147,15 +189,22 @@ function Desenvolvimento({ vendedorId, onVoltar }: { vendedorId: string; onVolta
       {sugestoes && (
         <div className="flex flex-col gap-2 rounded-lg bg-base p-3">
           <p className="text-xs uppercase tracking-wide text-slate-500">Sugestões de IA (revise antes de atribuir)</p>
-          {sugestoes.length === 0 && <p className="text-xs text-slate-400">Nenhum conteúdo relevante encontrado ainda.</p>}
-          {sugestoes.map((s, i) => (
+          {sugestoes.lista.length === 0 && <p className="text-xs text-slate-400">Nenhum conteúdo relevante encontrado ainda.</p>}
+          {sugestoes.lista.map((s, i) => (
             <div key={i} className="text-sm text-slate-200">
               <p className="font-medium text-white">{s.title}</p>
               <p className="text-xs text-slate-400">{s.rationale}</p>
             </div>
           ))}
+          {sugestoes.lista.length > 0 && (
+            <button onClick={handleCriarPDI} className="self-start rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white">
+              Criar plano com estas etapas
+            </button>
+          )}
+          {erroPlano && <p className="text-xs text-red-400">{erroPlano}</p>}
         </div>
       )}
+      {planoCriado && <p className="text-sm text-emerald-400">Plano criado. Ele já aparece em "Meu Plano" pro vendedor.</p>}
 
       <form onSubmit={handleAvaliar} className="flex flex-col gap-2 rounded-lg border border-slate-800 p-4">
         <p className="text-xs uppercase tracking-wide text-slate-500">Registrar avaliação</p>
