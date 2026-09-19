@@ -1890,6 +1890,51 @@ Menores corrigidos: pendência sem expiração (mantinha o assunto no prompt e g
 
 **Retention: decisão futura, registrada.** O projeto não tem nenhuma política de expiração de dado de aplicação (os 4 jobs agendados são sync, fechamento, temporadas e training; nenhum apaga domínio). Introduzir uma regra transversal só para o Conselheiro, sem metodologia global, seria precedente ruim. A tabela é compacta e a leitura é bounded — mas **isso não autoriza carregar tudo no prompt**, e o teto de 3 tem teste.
 
+### Etapa 2B.3 — Turno, Intervenção e Continuidade Exata — CONCLUÍDA (2026-09-19) — ZERO MIGRATION
+
+Terceira etapa da Constituição. **Nenhuma migration** — a arquitetura aprovada na 2B.2 bastou.
+
+**O bug, medido contra o servidor real antes de qualquer código.** Com uma certificação e um PDI concluído disponíveis, três conversas produziram:
+```
+conversa 1 → celebrou o PDI      (e a certificação também foi REGISTRADA)
+conversa 2 → sugeriu objeções
+conversa 3 → sugeriu objeções    (a MESMA)
+```
+São **dois** bugs, não um: (a) todos os candidatos do contexto eram registrados como se tivessem sido apresentados — a certificação **nunca foi dita e queimou** por 7 dias, em silêncio; (b) uma sugestão já ativa voltava indefinidamente, porque o registro existia mas nada consultava o estado dele na hora de escolher o que dizer.
+
+**A correção é arquitetural: NO MÁXIMO UMA INTERVENÇÃO ESTRUTURADA POR TURNO, SELECIONADA ANTES DE GERAR.** Só a escolhida entra no contexto; só ela é registrada, depois de a resposta existir. Assim **candidato, selecionado e apresentado deixam de divergir** — o que não foi escolhido nunca entrou no prompt e continua elegível amanhã. Isso limita apenas a intervenção **rastreável**: a conversa segue livre para tocar em quantos assuntos fizerem sentido.
+
+Preferimos **selecionar antes de gerar** a **gerar e tentar descobrir depois o que o LLM disse** (o comando autorizava as duas). O modelo não é fonte de verdade sobre o que o sistema decidiu apresentar quando isso pode ser decidido antes — e a alternativa exigiria saída estruturada do provider, acoplando a arquitetura a um recurso que nem todos oferecem igual.
+
+**Alvo exato — a limitação que a 2B.2 deixou aberta.** Antes, com duas pendências, nada era alterado por segurança. Agora a resposta é associada à **última intervenção apresentada naquela conversa** (`ultimaIntervencaoApresentada`), o que é determinístico precisamente porque cada turno registra no máximo uma, e só depois de a resposta existir. Recusar move **só** aquela; as outras pendências ficam intactas. E há duas guardas: se a última coisa apresentada foi uma **celebração**, não há associação segura (ninguém "recusa" um elogio) — nada muda; se nada foi apresentado naquela conversa, idem.
+
+**Zero migration.** `CoachIntervention.conversationId` + `ocorridoEm` já bastavam. A chave foi perceber que a seleção pula o que já está ativo, então **todo registro é uma apresentação nova** — e "a mais recente desta conversa" vira uma resposta exata, sem coluna adicional.
+
+**A intenção explícita vence a ordem padrão.** A Constituição §10 manda reconhecer antes de pedir, e é o que acontece por padrão. Mas quem pergunta *"o que preciso melhorar?"* quer um caminho, não um elogio — nos estados `DESENVOLVER` e `TREINAR` a sugestão tem precedência. Critério de seleção usa só o que já é factual e aprovado: novidade (cooldown), status (não repetir o que está pendente), prioridade do gap (que o motor já calcula) e o modo comportamental. **Nenhum score psicológico, nenhum limiar comercial novo.**
+
+**Falha de provider não consome intervenção.** Selecionada e não apresentada continua elegível — testado forçando erro no meio do turno e confirmando que a conquista reaparece no turno seguinte.
+
+**`MENCIONOU`: declarado e não produzido.** Auditei a semântica e **não encontrei uso legítimo** que `CELEBROU`/`SUGERIU` não cubram — o caso que parecia candidato ("você comentou que queria melhorar abordagem") é **follow-up**, que já é comportamento derivado da continuidade, não um tipo novo. **Não inventei uso para justificar o enum.** Removê-lo exigiria migration, que é gate; fica registrado como **recomendação para a 2B.4**.
+
+**REGRA PERMANENTE registrada:** *comportamento crítico do Conselheiro precisa ser provado no fluxo final efetivamente apresentado ao vendedor. Testar apenas classificador, service, formatter ou prompt isoladamente não é suficiente.* A 2B.1 encontrou um prompt corrompido que a suíte não via; a 2B.2 encontrou as duas funções do fluxo real sem cobertura. Os 25 testes novos passam quase todos por `enviarMensagem` — a mesma porta da rota HTTP.
+
+#### Achados do code review desta etapa — e o que eles ensinaram
+
+O review pegou quatro problemas ALTOS **na própria fatia que existia para fechá-los**. Vale registrar porque o padrão se repete:
+
+1. **A seleção fechou o canal rastreado e deixou o não-rastreado aberto.** Só a intervenção escolhida ia ao prompt — mas a lista inteira de `competencyGaps` continuava indo junto. Com uma sugestão de Objeções pendente, o seletor corretamente a pulava e o prompt dizia, logo abaixo, *"Competências abaixo da meta: Objeções"* + *"traga um caminho concreto"*. O modelo re-sugeria Objeções, agora **sem registro nenhum** — o bug original vestido de outra roupa. Corrigido: gap com intervenção viva ou em silêncio **não chega ao prompt**; ele aparece só na linha de continuidade, que é rastreada e explicitamente enquadrada como *"não abra cobrando isso"*.
+2. **`intervencaoAtivaPara` não tinha limite de tempo.** Uma sugestão simplesmente ignorada bloquearia aquela competência **para sempre** — e com o teto de 3 gaps no contexto, três silêncios desses e o Conselheiro nunca mais sugeriria nada. A função virou consulta única batelada com a janela de pendência viva (30 dias) dentro da pergunta.
+3. **O mock ainda fabricava sugestão por fora da seleção.** O ramo `foco`/`organizar` montava um caminho a partir de `competencyGaps[0]`, alcançável de verdade (*"organizar meu foco"* cai em `DESENVOLVER`). O mock é o **segundo motor de comportamento** do projeto: enquanto ele enxergar candidato, a suíte fica verde sobre o bug.
+4. **Metade da fatia não era exercida por teste nenhum.** Nenhuma fixture criava `CompetencyEvidence`, então `competencyGaps` era `[]` em todos os testes — o ramo SUGERIU da seleção, o filtro de gap pendente e o ramo SUGERIU do mock **nunca executavam**. Um gap de verdade precisa de 5 evidências (o motor ignora competência sem amostra). Corrigido com 8 testes novos que criam competência e evidência reais.
+
+**E o teste novo encontrou um bug de produto que ninguém tinha visto:** o turno em que o vendedor diz *"não quero fazer isso"* registrava a recusa e, **na mesma resposta**, abria a competência seguinte — *"não quero" respondido com "então faz este outro"*. Cobrança em cima de recusa, que é exatamente o que a Constituição proíbe. Agora `processarRespostaASugestao` devolve se o turno foi uma resposta, e um turno de resposta **não abre sugestão nova**. Celebrar continua permitido: reconhecer não é cobrar.
+
+**Um assunto por vez.** Havendo qualquer sugestão aguardando resposta, nenhuma outra abre. Sem isso cada turno levantava uma competência diferente — o checklist que esta arquitetura existe pra evitar — e o *"já fiz"* do vendedor colaria na sugestão errada.
+
+**Também corrigidos:** a janela de novidade da celebração passou a ser **derivada** do cooldown em vez de escolhida em paralelo (a constante estava replicada em três arquivos com o mesmo `7`; enquanto forem números independentes, mexer num deles produz um sistema que celebra de novo antes de poder sugerir de novo, sem nenhum teste perceber); empate de `ocorridoEm` passou a desempatar por `id` (duas intervenções do mesmo instante deixavam a escolha do alvo à ordem do banco — teste que passa por sorte, produção que erra de vez em quando); e o caminho quente caiu de até 7 idas sequenciais ao banco por mensagem para 2 consultas bateladas.
+
+**Bug de relógio corrigido de passagem:** um teste da 2B.1 criava o indicador às "10:00 de hoje" e falhava quando a suíte rodava de madrugada (o snapshot ficava no futuro e o realizado vinha zero). Ancorado ao início do dia e limitado ao agora.
+
 ### Fatia 10 — Linx real
 Executar assim que contrato/credenciais reais estiverem disponíveis, sem bloquear fatias independentes.
 
