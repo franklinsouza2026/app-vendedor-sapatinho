@@ -1854,6 +1854,42 @@ Agora o fluxo é `PESSOA → MOMENTO → INTENÇÃO → PERTINÊNCIA → CONTEXT
 - **`feed_event` não tem índice por `subjectId`**, e a busca de conquistas roda em toda conversa com desenvolvimento autorizado. Hoje a tabela é pequena; conforme o feed crescer, isso pesa. **Não criado nesta fatia de propósito** — migration é gate de parada declarado no comando, e o problema é de performance, não de correção. Recomendado para a 2B.2.
 - **O Treinador continua injetando KPI incondicionalmente.** O gate é só do Conselheiro; estender para os outros especialistas é trabalho próprio.
 
+### Etapa 2B.2 — Continuidade Relacional (memória de intervenções) — CONCLUÍDA (2026-09-18)
+
+Segunda etapa de implementação da Constituição. **Uma migration aprovada por gate humano** (`CoachIntervention`); zero dependência nova.
+
+**O problema, medido antes de qualquer código.** Plantei uma conquista real e abri três conversas seguidas contra o servidor: a mesma certificação foi celebrada com **texto idêntico nas três**. O Conselheiro agia como se nunca tivesse conversado com aquela pessoa.
+
+**Por que exigiu migration (parada no gate, aprovada).** `CoachMessage` tem `role`, `content` e telemetria — **zero campo estruturado, zero JSON, zero status**, e nem `vendedorId` (só `conversationId`). Responder *"já mencionei a certificação X?"* exigiria parsear texto gerado por LLM: não é determinístico, não é indexável, não permite chave de domínio. `FeedEvent` não tem `status` e sua tripla única colidiria entre vendedores em fonte de catálogo global. `ManagerFollowUp` é o molde certo de forma, mas é **listado no inbox do gerente** — gravar ali exporia a conversa privada. `ProfessionalMemory` é sobrescrita a cada mensagem.
+
+**Três camadas, deliberadamente separadas:** `CoachMessage` = transcrição · `ProfessionalMemory` = memória profissional derivada de KPI · `CoachIntervention` = **continuidade relacional estruturada**.
+
+**Tipos (3) e estados (5).** `MENCIONOU`/`CELEBROU`/`SUGERIU`; `REGISTRADA`/`ACEITA`/`RECUSADA`/`ADIADA`/`CONCLUIDA`. **`RESOLVIDA` foi deliberadamente NÃO criada** — nenhum caso sobrou que ela cobrisse e que `CONCLUIDA`/`RECUSADA` já não cubram: uma sugestão que deixou de fazer sentido simplesmente não é mais selecionada, sem precisar de estado próprio. As transições vivem num `Record` exaustivo, e **nenhum estado terminal revive**.
+
+**Dedupe e concorrência.** `dedupeKey = ${vendedorId}:${tipo}:${sourceType}:${sourceId}` — o sujeito entra na chave porque a fonte costuma ser catálogo **global** (competência, aula, cenário), e sem ele duas pessoas colidiriam. Um **índice único PARCIAL** sobre os estados ativos garante no banco que duas requisições concorrentes não criam a mesma sugestão pendente — provado com 5 chamadas simultâneas. Estados terminais ficam **fora** do índice de propósito: recusa é contextual, então o mesmo assunto pode voltar mais tarde como intervenção nova; quem impede a repetição imediata é o cooldown na **leitura**.
+
+**`sourceId` é exigido pelo service**, embora nullable no banco: sem identidade de domínio não há dedupe determinístico, e a alternativa seria chavear por texto de LLM.
+
+**Recusa e adiamento por classificador, não por botão.** Decisão de produto: a conversa continua parecendo conversa. Enum fechado validado por Zod, curto-circuito determinístico primeiro. **AMBIGUIDADE NÃO ALTERA ESTADO** — "talvez", "vamos ver", "quem sabe" ficam em `INDETERMINADO`, e a ambiguidade tem **precedência sobre tudo** (sem isso, "talvez eu faça" casaria com o padrão de aceite e gravaria um compromisso que ninguém assumiu). Ausência de resposta não é recusa; mudar de assunto não é recusa. Falha de provider também vira `INDETERMINADO`: o pior caso é a sugestão continuar aberta, nunca um estado errado gravado.
+
+**Conclusão vem de FATO, nunca de declaração.** `reconciliarConclusoes` consulta a fonte authoritative (`AcademyProgress`, `SimulationSession`, `CompetencyEvidence`) e fecha a sugestão deterministicamente — então o Conselheiro **não pergunta "você fez?" sobre o que o banco já sabe**. Se o vendedor diz "já fiz" e não há fato, **nada é fabricado**: a fala orienta a conversa, mas não cria conclusão, competência, score nem XP. E atividade concluída **antes** da sugestão não a fecha — não se credita à conversa o que já estava feito.
+
+**`SUGERIU` só com alvo concreto e identificável.** Uma frase solta ("talvez seja bom descansar") nunca vira compromisso estruturado. O registro é da decisão do **backend** (o que foi disponibilizado ao Conselheiro), não de uma leitura do texto que o LLM produziu — parsear a saída do modelo é justamente o que esta camada existe pra evitar.
+
+**Continuidade mora no bloco HUMANO**, com teto de **3** (mesmo padrão de `MAX_GAPS_NO_CONTEXTO`). Fica em HUMANO porque continuidade importa em **toda** conversa, inclusive de acolhimento — em `desenvolvimento` ela sumiria justamente onde mais faz falta. **Estar no contexto não obriga a retomar:** o prompt instrui explicitamente a nunca abrir a conversa cobrando, e o momento atual continua soberano (a 2B.1 segue intacta, com regressão provada).
+
+**O que esta memória NÃO é.** Não existe rota de gerente ou admin que a leia (provado por teste que varre `src/manager/` e as rotas administrativas). O `metadata` não guarda conversa, humor, desabafo nem KPI. **Nenhum agregado de aceitação/recusa existe** — não há "índice de obediência", não há perfil de colaboração, e aceitar conselho **não dá XP nem moeda**. É memória de continuidade, não de vigilância.
+
+**Revisão de código dedicada: 2 CRÍTICOS, 2 ALTAS e 8 achados menores — todos corrigidos.** Os dois críticos invalidavam o objetivo da fatia:
+1. **A anti-repetição não fechava o loop no caminho mais comum.** Eu amarrei o registro de `CELEBROU` ao estado `CELEBRAR` — mas os sinais positivos são renderizados sempre que o domínio DESENVOLVIMENTO está autorizado (`REFLETIR`, `DESENVOLVER`, `TREINAR`). Um "oi, tudo bem?" cai em `REFLETIR`, o Conselheiro celebra, e **nada era registrado** — o bug medido sobrevivia intacto. A condição correta é "o backend colocou o fato no contexto", não o estado.
+2. **Qualquer mensagem era tratada como resposta a uma sugestão pendente**, e as regex eram largas demais. Medido executando o classificador: *"hoje não vendi nada"*, *"me explica o passo a passo"* e *"não gosto quando o cliente some"* viravam `RECUSADA` — **estado terminal** — em cima de quem estava só conversando. `passo\b` capturava "passo a passo", a expressão mais previsível num app de treinamento. Corrigido em duas frentes: só classifica resposta na **mesma conversa** em que a sugestão foi feita e **quando há exatamente uma** pendência; e as regex passaram a exigir objeto explícito.
+
+As duas ALTAS: **adiamento era lido como recusa** (*"não vou conseguir hoje"* → terminal, quando é reversível) — `ADIAMENTO` passou a ser avaliado **antes** de `RECUSA`, porque na dúvida entre as duas fica a reversível; e a **celebração se perdia para sempre quando o provider falhava** — o registro acontecia antes da geração, então uma falha marcava como "já celebrada" algo que ninguém viu, e o cooldown a enterrava. Registro movido para depois da geração bem-sucedida.
+
+Menores corrigidos: pendência sem expiração (mantinha o assunto no prompt e gastava IA para sempre — agora 30 dias); `Competency.name` não é único e a busca por nome podia devolver competência inativa (passou a usar o id, que já estava na matriz); enum cru podendo vazar ao prompt (tipado pelo enum do Prisma, `Record` exaustivo); `reconciliarConclusoes` serializado no caminho quente (paralelizado, teto alinhado com o do contexto); acoplamento silencioso entre a janela de eventos e o cooldown (documentado); código morto removido. **E a cobertura que faltava:** `registrarIntervencoesDoTurno` e `processarRespostaASugestao` — as duas funções efetivamente ligadas ao fluxo real — **tinham cobertura zero**; agora têm 12 testes, incluindo a regressão crítica.
+
+**Retention: decisão futura, registrada.** O projeto não tem nenhuma política de expiração de dado de aplicação (os 4 jobs agendados são sync, fechamento, temporadas e training; nenhum apaga domínio). Introduzir uma regra transversal só para o Conselheiro, sem metodologia global, seria precedente ruim. A tabela é compacta e a leitura é bounded — mas **isso não autoriza carregar tudo no prompt**, e o teto de 3 tem teste.
+
 ### Fatia 10 — Linx real
 Executar assim que contrato/credenciais reais estiverem disponíveis, sem bloquear fatias independentes.
 
