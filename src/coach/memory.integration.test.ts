@@ -72,7 +72,13 @@ describe('getMemoria', () => {
     expect(memoria.competencyGaps.length).toBeGreaterThan(0);
 
     for (const gap of memoria.competencyGaps) {
-      expect(Object.keys(gap).sort()).toEqual(['gap', 'nome', 'prioridade', 'score', 'target']);
+      // Allowlist rígida: o valor deste teste é falhar quando alguém acrescenta
+      // um campo. `competencyId` entrou na Etapa 2B.2 — é id de catálogo
+      // GLOBAL (não dado pessoal), usado pela memória de intervenções pra
+      // referenciar a competência sem procurá-la por nome (`Competency.name`
+      // não é único). Não vai ao prompt: o formatter renderiza só nome e
+      // números.
+      expect(Object.keys(gap).sort()).toEqual(['competencyId', 'gap', 'nome', 'prioridade', 'score', 'target']);
       expect(typeof gap.nome).toBe('string');
       expect(typeof gap.score).toBe('number');
     }

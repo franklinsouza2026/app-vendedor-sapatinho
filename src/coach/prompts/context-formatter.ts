@@ -6,7 +6,7 @@
 // Um bloco ausente aqui não foi filtrado na renderização — ele **nunca foi
 // carregado do banco** (ver `context-builder.service.ts`). Este arquivo é a
 // última camada, não a única.
-import { MoodCheckIn } from '@prisma/client';
+import { MoodCheckIn, StatusIntervencaoCoach } from '@prisma/client';
 import { CoachContext } from '../context.types';
 import { EstadoComportamental } from '../../pertinencia/tipos';
 
@@ -32,6 +32,21 @@ const ROTULO_ATIVIDADE: Record<'AULA' | 'QUIZ' | 'SIMULACAO', string> = {
 
 const ROTULO_PRIORIDADE: Record<string, string> = { HIGH: 'alta', MEDIUM: 'média', LOW: 'baixa' };
 
+/**
+ * Estado de continuidade em linguagem de conversa, nunca enum cru.
+ *
+ * `Record` sobre o enum inteiro: um estado novo não compila até alguém
+ * traduzi-lo. Os terminais não chegam aqui hoje (a query só traz ativos), mas
+ * ter a tradução impede que incluí-los amanhã vaze "CONCLUIDA" pro prompt.
+ */
+const ESTADO_CONTINUIDADE: Record<StatusIntervencaoCoach, string> = {
+  REGISTRADA: 'você sugeriu, ela ainda não respondeu',
+  ACEITA: 'ela disse que ia fazer',
+  ADIADA: 'ela disse que faria depois — sem prazo combinado',
+  RECUSADA: 'ela disse que não queria',
+  CONCLUIDA: 'ela concluiu',
+};
+
 /** Orientação de condução por estado — tom, nunca script. */
 const ORIENTACAO_POR_ESTADO: Record<EstadoComportamental, string> = {
   ACOLHER:
@@ -53,6 +68,17 @@ export function formatarContextoParaPrompt(ctx: CoachContext): string {
   // --- HUMANO: sempre presente. A pessoa vem antes dos números. ---
   if (ctx.humano.checkinHoje) {
     linhas.push(`Hoje, ao abrir o app, o vendedor relatou estar ${RELATO_DE_CHECKIN[ctx.humano.checkinHoje]}. É um relato dele, não um diagnóstico — nunca trate como condição ou traço.`);
+  }
+
+  // Continuidade relacional (Etapa 2B.2): o Conselheiro deixa de agir como se
+  // nunca tivesse conversado com esta pessoa. Estar aqui não obriga a retomar —
+  // o momento atual continua soberano.
+  if (ctx.humano.continuidade.length > 0) {
+    const itens = ctx.humano.continuidade.map((c) => `${c.assunto} (${ESTADO_CONTINUIDADE[c.estado]})`).join('; ');
+    linhas.push(
+      `Assuntos que vocês já conversaram e seguem em aberto: ${itens}. ` +
+        'Retome só se fizer sentido AGORA — nunca abra a conversa cobrando isso, e nunca repita o que já foi recusado.'
+    );
   }
 
   // --- DESENVOLVIMENTO: evolução por evidência. ---

@@ -14,6 +14,13 @@ const LIMIAR_PCT = 5;
 
 /** Gap de competência já calculado pela Universidade (Etapa 2A). */
 export interface GapDeCompetencia {
+  /**
+   * Identidade do catálogo. NÃO vai para o prompt (o formatter renderiza só
+   * nome e números) — existe pra a memória de intervenções referenciar a
+   * competência por id, em vez de procurá-la por nome. `Competency.name` não é
+   * único: só `code` é.
+   */
+  competencyId: string;
   nome: string;
   score: number;
   target: number;
@@ -62,7 +69,7 @@ function selecionarGaps(matriz: Awaited<ReturnType<typeof calcularMatrizCompeten
     .filter((c): c is typeof c & { score: number; gap: number } => c.score !== null && c.gap !== null && c.gap > 0)
     .sort((a, b) => ordemPrioridade[a.priority] - ordemPrioridade[b.priority] || b.gap - a.gap)
     .slice(0, MAX_GAPS_NO_CONTEXTO)
-    .map((c) => ({ nome: c.name, score: c.score, target: c.target, gap: c.gap, prioridade: c.priority }));
+    .map((c) => ({ competencyId: c.competencyId, nome: c.name, score: c.score, target: c.target, gap: c.gap, prioridade: c.priority }));
 }
 
 /**

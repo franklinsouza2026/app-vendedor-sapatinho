@@ -10,6 +10,7 @@ import { verificarBudgetMensal } from '../ai-platform/budget.service';
 import { buildCoachContext } from './context-builder.service';
 import { getCheckinHoje } from './checkin.service';
 import { classificarIntencao } from '../pertinencia/classificador.service';
+import { processarRespostaASugestao, registrarIntervencoesDoTurno } from './continuidade.service';
 import { getSystemPrompt } from './prompts/system-prompt';
 import { formatarContextoParaPrompt } from './prompts/context-formatter';
 import { verificarRateLimitDiario } from './limites.service';
@@ -184,6 +185,12 @@ export async function enviarMensagem(conversationId: string, vendedorId: string,
     // garantia de arquitetura: numa conversa de acolhimento, os números não
     // são filtrados na renderização — eles nunca saem do banco.
     const checkin = await getCheckinHoje(vendedorId);
+
+    // CONTINUIDADE (Etapa 2B.2), antes de tudo: se há sugestão pendente, esta
+    // mensagem pode ser a resposta dela ("vou fazer", "agora não", "já fiz").
+    // Roda primeiro pra que o contexto montado abaixo já reflita o novo estado.
+    await processarRespostaASugestao({ empresaId: vendedor.empresaId, vendedorId, conversationId, mensagem: content });
+
     const pertinencia = await classificarIntencao({
       empresaId: vendedor.empresaId,
       vendedorId,
@@ -245,6 +252,14 @@ export async function enviarMensagem(conversationId: string, vendedorId: string,
         status: 'SUCESSO',
       },
     });
+
+    // Registra a continuidade DEPOIS da geração bem-sucedida (Etapa 2B.2).
+    //
+    // Se o provider falhar, a mensagem nunca chega ao vendedor — e registrar
+    // antes faria a conquista contar como "já celebrada" sem ninguém ter visto
+    // nada. Pela janela de cooldown, ela nunca mais voltaria. Registrar tarde
+    // não custa nada; registrar cedo perde o fato.
+    await registrarIntervencoesDoTurno(contexto, vendedor.empresaId, vendedorId, conversationId);
 
     void mensagemUsuario; // já persistida acima; mantido só pra clareza do fluxo
     return mensagemAssistente;

@@ -19,6 +19,8 @@ import { getMissaoPrioritariaParaCoach } from '../missoes/service';
 import { getCheckinHoje } from './checkin.service';
 import { listarAtividadesRecentes } from './atividades.service';
 import { listarSinaisPositivosDoVendedor } from './celebracao.service';
+import { listarContinuidadeRelevante } from './intervencao.service';
+import { reconciliarConclusoes } from './conclusao.service';
 
 /** Vendas necessárias pra bater a meta, dado o ticket médio atual — cálculo determinístico, nunca do LLM. */
 function estimarVendasRestantes(amountRemaining: number | null, ticket: number): number | null {
@@ -80,8 +82,14 @@ export async function buildCoachContext(
   // dois blocos são autorizados, buscá-la de novo em `getGapsDeCompetencia`
   // seria calcular a mesma coisa duas vezes no caminho quente — então a
   // memória é resolvida UMA vez e os gaps saem dela.
-  const [checkin, missaoPrioritaria, ultimoIndicador, memoria] = await Promise.all([
+  // Fecha, por FATO DE SISTEMA, as sugestões cuja atividade já foi feita —
+  // antes de montar a continuidade. Sem isto o Conselheiro perguntaria "você
+  // fez?" sobre algo que o próprio banco sabe que foi feito.
+  await reconciliarConclusoes(vendedorId);
+
+  const [checkin, continuidade, missaoPrioritaria, ultimoIndicador, memoria] = await Promise.all([
     checkinJaLido !== undefined ? Promise.resolve(checkinJaLido) : getCheckinHoje(vendedorId, agora).then((c) => c?.mood ?? null),
+    listarContinuidadeRelevante(vendedorId, agora),
     precisaMissao ? getMissaoPrioritariaParaCoach(vendedorId, agora) : Promise.resolve(null),
     // Frescor acompanha qualquer dado do ERP — só faz sentido quando há bloco
     // comercial pra datar.
@@ -158,7 +166,14 @@ export async function buildCoachContext(
     seller: { displayName: vendedor.nome },
     store: { name: vendedor.loja.nome },
     pertinencia,
-    humano: { checkinHoje: checkin },
+    humano: {
+      checkinHoje: checkin,
+      continuidade: continuidade.map((i) => ({
+        assunto: (i.metadata as { titulo?: string } | null)?.titulo ?? 'um assunto que conversamos',
+        estado: i.status,
+        quando: i.ocorridoEm.toISOString(),
+      })),
+    },
     desenvolvimento,
     comercial,
     freshness: { lastDataSyncAt: ultimoIndicador ? ultimoIndicador.dataHora.toISOString() : null },

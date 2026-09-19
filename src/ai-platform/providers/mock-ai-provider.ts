@@ -35,6 +35,9 @@ export const MARCADOR_ID_INVENTADO = '__FORCE_INVENTED_ID__';
 // não que "quase todo valor inválido" cai.
 export const MARCADOR_INTENCAO_INVALIDA = '__FORCE_INTENCAO_INVALIDA__';
 
+/** Força o classificador de resposta (Etapa 2B.2) a devolver valor fora do enum. */
+export const MARCADOR_RESPOSTA_INVALIDA = '__FORCE_RESPOSTA_INVALIDA__';
+
 // Espelha a estrutura em blocos do CoachContext (Etapa 2B.1). `comercial` é
 // NULO quando o gate de pertinência não autorizou performance — e o mock
 // precisa respeitar isso, senão ele continua sendo um segundo motor comercial
@@ -333,6 +336,7 @@ export class MockAIProvider implements AIProvider {
       | 'manager_training_agent'
       | 'manager_advisor'
       | 'intent_classifier'
+      | 'response_classifier'
       | undefined;
     const modo = input.metadata?.mode as 'client' | 'evaluator' | undefined;
     let content: string;
@@ -364,6 +368,8 @@ export class MockAIProvider implements AIProvider {
       content = gerarConselhoGerencial(input.metadata?.context as ContextoManagerAdvisorMinimo | undefined);
     } else if (especialista === 'intent_classifier') {
       content = gerarClassificacaoDeIntencao(ultimaMensagem);
+    } else if (especialista === 'response_classifier') {
+      content = gerarClassificacaoDeResposta(ultimaMensagem);
     } else {
       content = gerarRespostaCoach(ultimaMensagem, input.metadata?.context as ContextoCoachMinimo | undefined);
     }
@@ -403,6 +409,19 @@ function gerarClassificacaoDeIntencao(mensagemUsuario: string): string {
   if (/melhorar|evoluir|estudar|treinar|aprender/.test(texto)) return JSON.stringify({ intencao: 'DESENVOLVIMENTO' });
   if (/cansad|desanimad|triste|mal|dif[íi]cil/.test(texto)) return JSON.stringify({ intencao: 'DESABAFO' });
   return JSON.stringify({ intencao: 'CONVERSA' });
+}
+
+/**
+ * Classificador de resposta a sugestão (Etapa 2B.2).
+ *
+ * Só é chamado quando o curto-circuito determinístico não resolveu. O default é
+ * `INDETERMINADO`, que por definição não altera estado nenhum — o lado seguro.
+ */
+function gerarClassificacaoDeResposta(mensagemUsuario: string): string {
+  const texto = mensagemUsuario.toLowerCase();
+  if (texto.includes(MARCADOR_SAIDA_INVALIDA.toLowerCase())) return '{ isto não é JSON válido de propósito';
+  if (texto.includes(MARCADOR_RESPOSTA_INVALIDA.toLowerCase())) return JSON.stringify({ resposta: 'RESPOSTA_QUE_NAO_EXISTE' });
+  return JSON.stringify({ resposta: 'INDETERMINADO' });
 }
 
 function gerarRespostaCoach(mensagemUsuario: string, contexto?: ContextoCoachMinimo): string {

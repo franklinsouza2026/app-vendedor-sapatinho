@@ -13,10 +13,31 @@
 //
 // Nomes de campo em inglês conforme a fonte de verdade; nunca inclui objeto ORM
 // inteiro, hash, token, ID desnecessário ou dado de outro vendedor/tenant.
-import { MoodCheckIn } from '@prisma/client';
+import { MoodCheckIn, StatusIntervencaoCoach } from '@prisma/client';
 import { DecisaoPertinencia } from '../pertinencia/tipos';
 
 export type BaselineStatus = 'disponivel' | 'em_formacao';
+
+/**
+ * Continuidade relacional (Etapa 2B.2) — o que já foi conversado e ficou em
+ * aberto. Vive no bloco HUMANO porque continuidade importa em TODA conversa,
+ * inclusive numa de acolhimento; em `desenvolvimento` ela sumiria justamente
+ * onde mais faz falta.
+ *
+ * Estar aqui NÃO obriga o Conselheiro a retomar o assunto — SABER ≠ FALAR, e
+ * o momento atual continua soberano sobre a memória (Etapa 2B.1).
+ */
+export interface ItemContinuidade {
+  /** O que foi sugerido, já resolvido em texto legível. */
+  assunto: string;
+  /**
+   * Tipado pelo enum do Prisma, não `string`: assim o `Record` de tradução no
+   * formatter é exaustivo por construção, e um estado novo que ninguém
+   * traduziu não compila — em vez de vazar o enum cru pro prompt.
+   */
+  estado: StatusIntervencaoCoach;
+  quando: string; // ISO
+}
 
 /** Bloco HUMANO — quem é a pessoa e como ela está. Sempre presente. */
 export interface ContextoHumano {
@@ -28,6 +49,8 @@ export interface ContextoHumano {
    * `null` quando não houve check-in hoje — e isso não é inferência nenhuma.
    */
   checkinHoje: MoodCheckIn | null;
+  /** Assuntos vivos da relação — bounded, ver MAX_INTERVENCOES_NO_CONTEXTO. */
+  continuidade: ItemContinuidade[];
 }
 
 /** Bloco DESENVOLVIMENTO — evolução por evidência, nunca por KPI. */
@@ -36,7 +59,7 @@ export interface ContextoDesenvolvimento {
    * Gaps vindos da Universidade (Etapa 2A) — origem EVIDÊNCIA (aula, quiz,
    * simulação, avaliação do gerente), nunca KPI.
    */
-  competencyGaps: { nome: string; score: number; target: number; gap: number; prioridade: string }[];
+  competencyGaps: { competencyId: string; nome: string; score: number; target: number; gap: number; prioridade: string }[];
   /** Atividades de aprendizagem concluídas recentemente — fato, não catálogo. */
   recentTrainings: AtividadeRecente[];
   /** Conquistas reais e verificáveis do PRÓPRIO vendedor (Constituição §10). */
@@ -56,6 +79,8 @@ export interface AtividadeRecente {
 export interface SinalPositivoDoVendedor {
   tipo: string;
   descricao: string;
+  /** Identidade do fato — usada pra registrar que ele já foi celebrado. */
+  sourceId: string;
 }
 
 /**

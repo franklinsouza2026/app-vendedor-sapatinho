@@ -10,7 +10,7 @@ const CONTEXTO_COACH: CoachContext = {
   seller: { displayName: 'Ana Vendedora' },
   store: { name: 'Loja Piloto' },
   pertinencia: { intencao: 'DUVIDA_COMERCIAL', estado: 'REFLETIR', dominios: ['HUMANO', 'DESENVOLVIMENTO', 'COMERCIAL'], origem: 'DETERMINISTICO' },
-  humano: { checkinHoje: null },
+  humano: { checkinHoje: null, continuidade: [] },
   desenvolvimento: { competencyGaps: [], recentTrainings: [], positiveSignals: [], currentMission: null },
   comercial: {
     goal: { todayGoal: 1000, realized: 700, goalPercent: 70, amountRemaining: 300, estimatedSalesRemaining: 3 },
@@ -28,7 +28,7 @@ const CONTEXTO_COACH: CoachContext = {
 const CONTEXTO_COACH_SEM_COMERCIAL: CoachContext = {
   ...CONTEXTO_COACH,
   pertinencia: { intencao: 'CONVERSA', estado: 'REFLETIR', dominios: ['HUMANO', 'DESENVOLVIMENTO'], origem: 'LLM' },
-  humano: { checkinHoje: 'NEUTRAL' },
+  humano: { checkinHoje: 'NEUTRAL', continuidade: [] },
   comercial: null,
 };
 
@@ -36,7 +36,7 @@ const CONTEXTO_COACH_SEM_COMERCIAL: CoachContext = {
 const CONTEXTO_COACH_ACOLHER: CoachContext = {
   ...CONTEXTO_COACH,
   pertinencia: { intencao: 'DESABAFO', estado: 'ACOLHER', dominios: ['HUMANO'], origem: 'DETERMINISTICO' },
-  humano: { checkinHoje: 'NOT_GOOD' },
+  humano: { checkinHoje: 'NOT_GOOD', continuidade: [] },
   desenvolvimento: null,
   comercial: null,
 };

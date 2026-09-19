@@ -1935,10 +1935,10 @@ model CertificationDefinition {
   // upload de logo/imagem (nenhum pipeline de upload existe no projeto
   // ainda, seção 47: "sem SVG inseguro se pipeline não estiver preparado").
   // O render fica inteiramente no frontend a partir destes campos.
-  templateTitle    String?
-  templateBody     String?        @db.Text
-  signatureName    String?
-  signatureRole    String?
+  templateTitle  String?
+  templateBody   String?         @db.Text
+  signatureName  String?
+  signatureRole  String?
 
   requisitos CertificationRequirement[]
   emissoes   UserCertification[]
@@ -2117,7 +2117,7 @@ model Competition {
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt
 
-  season       Season?                  @relation(fields: [seasonId], references: [id])
+  season        Season?                  @relation(fields: [seasonId], references: [id])
   participantes CompetitionParticipant[]
   resultados    CompetitionResult[]
 
@@ -2446,18 +2446,18 @@ enum StatusFollowUp {
 }
 
 model ManagerFollowUp {
-  id          String         @id @default(uuid())
-  empresaId   String
-  lojaId      String
-  managerId   String
-  sellerId    String?
-  sourceType  String?
-  sourceId    String?
-  descricao   String
-  dueAt       DateTime
-  status      StatusFollowUp @default(PENDING)
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  id         String         @id @default(uuid())
+  empresaId  String
+  lojaId     String
+  managerId  String
+  sellerId   String?
+  sourceType String?
+  sourceId   String?
+  descricao  String
+  dueAt      DateTime
+  status     StatusFollowUp @default(PENDING)
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
 
   @@index([empresaId, lojaId, managerId, status])
   @@map("manager_followup")
@@ -2479,4 +2479,81 @@ model ManagerAlertConfig {
 
   @@unique([empresaId, tipo])
   @@map("manager_alert_config")
+}
+
+// =====================================================================
+// Etapa 2B.2 — Memória de Intervenções do Conselheiro.
+//
+// TERCEIRA camada, deliberadamente separada das outras duas:
+//   CoachMessage       = transcrição (o que foi dito, texto livre)
+//   ProfessionalMemory = memória profissional (derivada de KPI, sobrescrita)
+//   CoachIntervention  = continuidade relacional estruturada (esta)
+//
+// Existe pra o Conselheiro conseguir pensar "já conversei com essa pessoa
+// sobre isso", "ela não quis naquele momento", "ela concluiu aquilo" — e
+// NUNCA pra o sistema pensar "este funcionário obedece minhas recomendações".
+// É memória de continuidade, não de vigilância: não existe rota de gerente ou
+// admin que a leia, e nenhum agregado dela alimenta avaliação de ninguém.
+//
+// `vendedorId` é scalar solto, sem `@relation` formal — mesma convenção
+// declarada acima para tabelas de alto volume ligadas a Vendedor; a integridade
+// é garantida pelo service, que resolve o sujeito sempre pelo JWT.
+// =====================================================================
+
+enum TipoIntervencaoCoach {
+  // O Conselheiro trouxe um assunto (ex.: uma competência a desenvolver).
+  MENCIONOU
+  // Um fato positivo real foi levado à conversa pra ser reconhecido.
+  CELEBROU
+  // Houve sugestão concreta e identificável de uma ação sobre um recurso real.
+  SUGERIU
+}
+
+// Ciclo de vida. `RESOLVIDA` foi deliberadamente NÃO criada: nenhum caso
+// sobrou que ela cobrisse e que CONCLUIDA/RECUSADA já não cubram — uma
+// sugestão que deixou de fazer sentido simplesmente não é mais selecionada
+// pelo motor de pertinência, sem precisar de estado próprio.
+enum StatusIntervencaoCoach {
+  // Registrada. Para MENCIONOU/CELEBROU é terminal (elas não têm resposta a
+  // aguardar); para SUGERIU significa "aguardando o que a pessoa disser".
+  REGISTRADA
+  // "Vou fazer." — NÃO é conclusão.
+  ACEITA
+  // "Não quero." Contextual a ESTA sugestão, nunca preferência permanente.
+  RECUSADA
+  // "Depois eu faço." Sem data: nenhum prazo é inventado.
+  ADIADA
+  // Comprovada por FATO DE SISTEMA (nunca por declaração do vendedor).
+  CONCLUIDA
+}
+
+model CoachIntervention {
+  id             String                 @id @default(uuid())
+  empresaId      String
+  vendedorId     String
+  // Onde aconteceu. Opcional: a intervenção sobrevive ao encerramento da
+  // conversa — é justamente isso que dá continuidade entre conversas.
+  conversationId String?
+  tipo           TipoIntervencaoCoach
+  // Identidade de domínio do assunto. `sourceId` é nullable no banco para não
+  // travar usos futuros, mas o service EXIGE os dois: sem identidade de
+  // domínio não há dedupe determinístico, e a alternativa seria chavear por
+  // texto gerado por LLM — instável por natureza.
+  sourceType     String
+  sourceId       String?
+  // `${vendedorId}:${tipo}:${sourceType}:${sourceId}` — mesma forma do
+  // `ManagerAlert.dedupeKey`, incluindo o sujeito pra nunca colidir entre
+  // vendedores quando a fonte é catálogo global (competência, aula, cenário).
+  dedupeKey      String
+  status         StatusIntervencaoCoach @default(REGISTRADA)
+  ocorridoEm     DateTime               @default(now())
+  atualizadoEm   DateTime               @updatedAt
+  // Contexto estruturado mínimo (ex.: o título já resolvido, pra não reler o
+  // catálogo). NUNCA conversa, desabafo, humor bruto, diagnóstico, KPI ou
+  // resposta integral do vendedor.
+  metadata       Json?
+
+  @@index([vendedorId, status, ocorridoEm])
+  @@index([dedupeKey])
+  @@map("coach_intervention")
 }
