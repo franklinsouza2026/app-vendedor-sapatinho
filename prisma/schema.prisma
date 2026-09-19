@@ -2260,6 +2260,14 @@ model FeedEvent {
 
   @@unique([eventType, sourceType, sourceId])
   @@index([visibility, lojaId, createdAt])
+  // Etapa 2B.2: as duas consultas que filtram por sujeito
+  // (`coach/celebracao.service.ts` e `manager/positive-signals.service.ts`)
+  // não conseguiam usar o índice acima — `visibility` é a coluna líder e não
+  // aparece no predicado delas. Escolhido a partir das queries REAIS:
+  // igualdade em `subjectId` + faixa/ordenação em `createdAt`. `eventType`
+  // ficou de fora de propósito: não ajudaria a ordenação e só incharia o
+  // índice de uma tabela que só cresce.
+  @@index([subjectId, createdAt])
   @@map("feed_event")
 }
 

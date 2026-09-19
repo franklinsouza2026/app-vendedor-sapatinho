@@ -1,0 +1,13 @@
+-- Índice por sujeito no feed (Etapa 2B.2 — mudança SEPARADA, de propósito).
+--
+-- `feed_event` só tinha índice por (visibility, lojaId, createdAt). As duas
+-- consultas que filtram por `subjectId` não conseguem usá-lo, porque
+-- `visibility` é a coluna líder e não aparece no predicado delas:
+--   - src/coach/celebracao.service.ts  — roda no caminho quente de toda
+--     conversa com domínio DESENVOLVIMENTO autorizado;
+--   - src/manager/positive-signals.service.ts — 4 call sites do gerente.
+--
+-- Escolhido a partir das queries reais: igualdade em `subjectId` + faixa e
+-- ordenação em `createdAt`. `eventType` ficou fora — não ajudaria a ordenação
+-- e só aumentaria o índice de uma tabela append-only que só cresce.
+CREATE INDEX "feed_event_subjectId_createdAt_idx" ON "feed_event"("subjectId", "createdAt");
