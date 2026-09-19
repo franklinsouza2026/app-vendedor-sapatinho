@@ -1864,7 +1864,7 @@ Segunda etapa de implementação da Constituição. **Uma migration aprovada por
 
 **Três camadas, deliberadamente separadas:** `CoachMessage` = transcrição · `ProfessionalMemory` = memória profissional derivada de KPI · `CoachIntervention` = **continuidade relacional estruturada**.
 
-**Tipos (3) e estados (5).** `MENCIONOU`/`CELEBROU`/`SUGERIU`; `REGISTRADA`/`ACEITA`/`RECUSADA`/`ADIADA`/`CONCLUIDA`. **`RESOLVIDA` foi deliberadamente NÃO criada** — nenhum caso sobrou que ela cobrisse e que `CONCLUIDA`/`RECUSADA` já não cubram: uma sugestão que deixou de fazer sentido simplesmente não é mais selecionada, sem precisar de estado próprio. As transições vivem num `Record` exaustivo, e **nenhum estado terminal revive**.
+**Tipos (3 na 2B.2, 2 a partir da 2B.4) e estados (5).** `MENCIONOU`/`CELEBROU`/`SUGERIU` — `MENCIONOU` foi removido na Etapa 2B.4, ver abaixo; `REGISTRADA`/`ACEITA`/`RECUSADA`/`ADIADA`/`CONCLUIDA`. **`RESOLVIDA` foi deliberadamente NÃO criada** — nenhum caso sobrou que ela cobrisse e que `CONCLUIDA`/`RECUSADA` já não cubram: uma sugestão que deixou de fazer sentido simplesmente não é mais selecionada, sem precisar de estado próprio. As transições vivem num `Record` exaustivo, e **nenhum estado terminal revive**.
 
 **Dedupe e concorrência.** `dedupeKey = ${vendedorId}:${tipo}:${sourceType}:${sourceId}` — o sujeito entra na chave porque a fonte costuma ser catálogo **global** (competência, aula, cenário), e sem ele duas pessoas colidiriam. Um **índice único PARCIAL** sobre os estados ativos garante no banco que duas requisições concorrentes não criam a mesma sugestão pendente — provado com 5 chamadas simultâneas. Estados terminais ficam **fora** do índice de propósito: recusa é contextual, então o mesmo assunto pode voltar mais tarde como intervenção nova; quem impede a repetição imediata é o cooldown na **leitura**.
 
@@ -1914,7 +1914,7 @@ Preferimos **selecionar antes de gerar** a **gerar e tentar descobrir depois o q
 
 **Falha de provider não consome intervenção.** Selecionada e não apresentada continua elegível — testado forçando erro no meio do turno e confirmando que a conquista reaparece no turno seguinte.
 
-**`MENCIONOU`: declarado e não produzido.** Auditei a semântica e **não encontrei uso legítimo** que `CELEBROU`/`SUGERIU` não cubram — o caso que parecia candidato ("você comentou que queria melhorar abordagem") é **follow-up**, que já é comportamento derivado da continuidade, não um tipo novo. **Não inventei uso para justificar o enum.** Removê-lo exigiria migration, que é gate; fica registrado como **recomendação para a 2B.4**.
+**`MENCIONOU`: declarado e não produzido.** Auditei a semântica e **não encontrei uso legítimo** que `CELEBROU`/`SUGERIU` não cubram — o caso que parecia candidato ("você comentou que queria melhorar abordagem") é **follow-up**, que já é comportamento derivado da continuidade, não um tipo novo. **Não inventei uso para justificar o enum.** Removê-lo exigiria migration, que é gate; ficou registrado como recomendação para a 2B.4 — e **foi removido lá**.
 
 **REGRA PERMANENTE registrada:** *comportamento crítico do Conselheiro precisa ser provado no fluxo final efetivamente apresentado ao vendedor. Testar apenas classificador, service, formatter ou prompt isoladamente não é suficiente.* A 2B.1 encontrou um prompt corrompido que a suíte não via; a 2B.2 encontrou as duas funções do fluxo real sem cobertura. Os 25 testes novos passam quase todos por `enviarMensagem` — a mesma porta da rota HTTP.
 
@@ -1934,6 +1934,80 @@ O review pegou quatro problemas ALTOS **na própria fatia que existia para fech�
 **Também corrigidos:** a janela de novidade da celebração passou a ser **derivada** do cooldown em vez de escolhida em paralelo (a constante estava replicada em três arquivos com o mesmo `7`; enquanto forem números independentes, mexer num deles produz um sistema que celebra de novo antes de poder sugerir de novo, sem nenhum teste perceber); empate de `ocorridoEm` passou a desempatar por `id` (duas intervenções do mesmo instante deixavam a escolha do alvo à ordem do banco — teste que passa por sorte, produção que erra de vez em quando); e o caminho quente caiu de até 7 idas sequenciais ao banco por mensagem para 2 consultas bateladas.
 
 **Bug de relógio corrigido de passagem:** um teste da 2B.1 criava o indicador às "10:00 de hoje" e falhava quando a suíte rodava de madrugada (o snapshot ficava no futuro e o realizado vinha zero). Ancorado ao início do dia e limitado ao agora.
+
+### Etapa 2B.4 — Higiene e Governança da Memória — CONCLUÍDA (2026-09-19)
+
+Quarta etapa da Constituição. Três frentes: fechar o histórico bruto, remover o `MENCIONOU`, auditar retenção.
+
+#### O vazamento, medido antes de qualquer código
+
+A 2B.1 transformou o silêncio comercial numa garantia de arquitetura: o que não é autorizado não é **carregado**, então não há o que vazar na renderização. Mas essa garantia parava nos dados **novos**. As últimas mensagens da conversa continuavam indo cruas ao provider:
+
+```
+turno 1  seller     "quanto falta pra minha meta?"           → COMERCIAL autorizado
+         assistant  "Faltam R$ 1000,00 pra bater sua meta de hoje."
+turno 2  seller     "hoje estou mal e só queria conversar"   → ACOLHER
+
+system prompt do turno 2: sem R$                ✅  (a garantia da 2B.1 funciona)
+janela de mensagens:      "Faltam R$ 1000,00…"  ❌  (BYPASS)
+```
+
+O KPI bloqueado hoje reaparecia por uma frase de ontem. **Autorização antiga virava autorização permanente.**
+
+#### A regra: autorização de contexto vale também para o passado
+
+**Autorização é POR TURNO.** Ter falado de performance ontem não autoriza falar de performance hoje.
+
+E o que **não** se faz: a transcrição original nunca é tocada. Nada é editado, apagado ou reescrito. **Persistência ≠ contexto de inferência** — `CoachMessage` continua sendo o que de fato aconteceu; o que muda é o que este turno manda ao provider.
+
+#### Como, sem regex e sem migration
+
+Regra de duas linhas, puramente estrutural — o filtro **nunca olha o conteúdo da mensagem**:
+
+- **Mensagem do vendedor: sempre entra.** São as palavras da própria pessoa, e apagá-las seria a amnésia que a Constituição proíbe — *"sobre aquilo que falei ontem"* precisa continuar funcionando. Se ela disse "acho que vendi uns 300", isso é **declaração dela**, não apuração do sistema.
+- **Mensagem do Conselheiro: entra só se couber na autorização de agora.** Ela pode carregar dado authoritative entregue sob outra autorização.
+
+O teto de uma resposta é a autorização da **pergunta que a precedeu** — e essa é reconstruível com exatidão, sem coluna nova e sem chamada de IA, porque `classificarDeterministicamente` é **função pura do texto**: se hoje ela devolve X para aquela mensagem, devolveu X naquele dia (o curto-circuito teria disparado antes do LLM). Quando devolve `null`, foi o LLM que decidiu na época — e aí o assunto entra como **desconhecido**, que é excluído. **Em dúvida, silêncio comercial**, o mesmo princípio que governa toda falha de classificação desde a 2B.1.
+
+O check-in não entra na reconstrução de propósito: ele só sabe **estreitar** domínios, então reconstruir sem ele devolve o conjunto mais largo possível — o lado conservador para um filtro que exige caber.
+
+**Alternativas rejeitadas:** (a) *sanitização textual* — proibida pela própria etapa e frágil por natureza: vira lista infinita de padrões para esconder KPI, e a segurança passa a depender da regex; (b) *summary por LLM* — uma chamada de IA a mais por turno, custo e latência, e o resumo herdaria o problema; (c) *coluna nova em `CoachMessage` gravando os domínios do turno* — seria a solução mais precisa, e foi descartada porque a reconstrução determinística é exata justamente onde importa; teria exigido migration num gate humano, sem ganho de segurança.
+
+**Custo: zero.** Nenhuma chamada de IA nova, nenhuma consulta nova, nenhuma dependência nova. O filtro roda sobre dados já em memória. A janela continua bounded (16) e só pode **encolher** — tokens caem ou ficam iguais, nunca sobem.
+
+**Limitação assumida e registrada:** quando o turno passado foi classificado pelo LLM, a resposta do Conselheiro àquele turno sai da janela. A fala da **pessoa** nunca sai, então a continuidade humana — que é a que importa para coerência — está preservada; o que se perde é um pouco de fluidez. O custo é assimétrico e a escolha é deliberada: perder fluidez nunca é pior que devolver um número proibido.
+
+**Também auditado, deliberadamente não alterado:** o Treinador é o outro consumidor da janela histórica. Ele **não tem motor de pertinência** — carrega performance sempre, por desenho, porque é um espaço de treino em que se entra de propósito, não uma conversa onde se pode chegar para desabafar. Sem autorização variável não há autorização a furar: o histórico dele nunca pode exceder o contexto dele. Fica registrado que o Treinador não tem gate algum — isso é pergunta de produto para uma fatia futura, não vazamento.
+
+#### `MENCIONOU` removido
+
+Auditoria antes da migration: **zero registros** em dev e em teste, e o enum servia exatamente uma coluna. PostgreSQL 16 não suporta `ALTER TYPE … DROP VALUE`, então a migration renomeia o tipo, cria o novo sem o valor, converte a coluna com cast explícito e remove o antigo. **O cast é a rede de segurança**: uma única linha `MENCIONOU` faria a migration inteira reverter, em vez de reclassificar dado em silêncio.
+
+Validada em três bancos: **limpo** (todas as migrations do zero), **teste** (1.422 linhas preservadas: 197 CELEBROU + 1.225 SUGERIU) e **dev**. Os quatro índices sobreviveram — inclusive o único parcial, que é a garantia de uma intervenção ativa por assunto — e nenhum tipo órfão ficou para trás. Enum final: **`CELEBROU` | `SUGERIU`**.
+
+Achado de infraestrutura corrigido de passagem: o banco de teste tinha a migration da 2B.2 registrada como **falha** (resíduo da sessão em que o DDL foi aplicado à mão depois de um `P3005`), e a do índice de feed não estava registrada. Reconciliados com `migrate resolve --applied` antes do deploy — sem isso o Prisma tentava recriar um tipo que já existia.
+
+#### Governança de retenção — auditoria, nenhuma purga
+
+Documento novo: **`docs/MATRIZ_DE_RETENCAO.md`**, com os 76 models classificados.
+
+**O achado principal: o produto não tem nenhum mecanismo de retenção.** Varrendo todo `delete`/`deleteMany` da aplicação, não existe uma única remoção por tempo — só recomputação de ranking, troca de configuração e CRUD administrativo. Tudo que é histórico de pessoa cresce para sempre. Isso nunca foi decidido; é o default de um produto que ainda não precisou decidir.
+
+**Nenhum prazo foi definido e nada foi apagado.** A matriz propõe oito categorias conceituais e, para cada classe de dado, a **pergunta** que o usuário precisa responder — nunca a resposta. Uma regra global seria errada por construção: `SeasonPointLedger` é ledger append-only e apagar linha reescreve saldo; `AuditEvent` existe para sobreviver ao que registra; `UserCertification` é credencial da pessoa; `CoachCheckIn` é o oposto de todos eles.
+
+**`CoachCheckIn` recebeu atenção especial** e não foi tocado: é o dado mais sensível do produto (como a pessoa disse que estava, num dia, identificada), hoje ninguém além dela acessa, nunca vira score — e acumula **uma linha por dia, para sempre**. O risco não é exposição, é acúmulo: a base cria um dataset emocional longitudinal que nenhuma funcionalidade pede. A pergunta é direta: *precisa ser histórico, ou basta ser estado do dia?*
+
+**Privacidade revalidada e reforçada:** a allowlist que impedia rotas de gerente/admin de ler a memória do Conselheiro cobria **só** `coachIntervention`. Agora cobre as quatro camadas privadas — transcrição, humor, conversa e continuidade. Deixar três de fora era confiar em ninguém ter vontade.
+
+#### Provas
+
+Fluxo final, sempre por `enviarMensagem` e **inspecionando o payload que o provider recebeu**: bypass comercial fechado; agência do vendedor intacta (pedido explícito reabre, com dado atual); coerência humana preservada; declaração do vendedor não vira dado do sistema; dado atual vence dado histórico; classificador continua cego a KPI (recebe uma mensagem e nada mais); transcrição persistida intacta; Mock recebe exatamente a janela filtrada; injeção não recupera KPI bloqueado; falha do classificador mantém o silêncio comercial; continuidade estruturada (celebração e recusa) inalterada; zero chamadas de IA a mais.
+
+Smoke real contra o servidor, 11 passos: pergunta a meta → `R$ 300,00` → persistido com números → turno ACOLHER → acolhe sem citar número → transcrição intacta → pergunta de novo → `R$ 300,00` **atual**. Regressão 2B.3 confirmada ao vivo: certificação numa conversa, PDI na seguinte, terceira sem repetir nenhuma.
+
+**Ordenação tornada determinística** de passagem: o filtro pareia cada resposta com a pergunta anterior, então trocar duas mensagens de lugar poderia avaliá-la contra a pergunta errada — possivelmente mais permissiva. Não há empate em nenhum banco hoje, mas empate sem critério é teste que passa por sorte (lição da 2B.3). O desempate é a própria regra do domínio: resposta vem depois de pergunta.
+
+**807 backend + 173 frontend + 41 E2E.** Zero regressões.
 
 ### Fatia 10 — Linx real
 Executar assim que contrato/credenciais reais estiverem disponíveis, sem bloquear fatias independentes.
