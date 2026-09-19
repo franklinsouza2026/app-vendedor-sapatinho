@@ -28,6 +28,37 @@ export type SourceType = (typeof SOURCE_TYPES)[number];
 const STATUS_ATIVOS: StatusIntervencaoCoach[] = ['REGISTRADA', 'ACEITA', 'ADIADA'];
 
 /**
+ * Por quanto tempo uma pendência continua sendo "assunto vivo".
+ *
+ * Uma sugestão que a pessoa simplesmente ignorou não pode ficar no prompt para
+ * sempre — vira cobrança silenciosa e, pior, faz o classificador de resposta
+ * ser chamado em toda mensagem ambígua daí em diante, gastando IA à toa.
+ * Passado esse prazo, o assunto some da continuidade (a linha fica no banco:
+ * nada é apagado, só deixa de ser trazido).
+ */
+export const DIAS_PENDENCIA_VIVA = 30;
+
+/**
+ * Silêncio após falar de um assunto — a janela da anti-repetição.
+ *
+ * Fonte ÚNICA. Estava replicada em três arquivos (celebração, seleção,
+ * continuidade) com o mesmo `7`: enquanto forem números independentes, mudar um
+ * deles produz um sistema que celebra de novo antes de poder sugerir de novo,
+ * sem que nenhum teste perceba.
+ */
+export const COOLDOWN_INTERVENCAO_DIAS = 7;
+
+/** Início da janela de silêncio a partir de `agora`. */
+export function inicioDoCooldown(agora: Date): Date {
+  return new Date(agora.getTime() - COOLDOWN_INTERVENCAO_DIAS * 24 * 60 * 60 * 1000);
+}
+
+/** Início da janela em que uma pendência ainda conta como assunto vivo. */
+export function inicioDaPendenciaViva(agora: Date): Date {
+  return new Date(agora.getTime() - DIAS_PENDENCIA_VIVA * 24 * 60 * 60 * 1000);
+}
+
+/**
  * Transições permitidas. `Record` exaustivo sobre o enum: um estado novo não
  * compila até alguém decidir de onde ele pode vir.
  *
@@ -133,25 +164,29 @@ export async function transicionarIntervencao(id: string, vendedorId: string, no
 }
 
 /**
- * Este assunto já foi tratado recentemente?
+ * A intervenção estruturada apresentada por ÚLTIMO nesta conversa.
  *
- * É o coração da anti-repetição — e é uma pergunta de LEITURA, não uma
- * constraint: um assunto recusado ou concluído sai do índice único, mas
- * continua "falado recentemente" por esta janela. Sem isso, o Conselheiro
- * celebraria a mesma certificação em toda conversa (comportamento medido antes
- * desta etapa).
+ * É o alvo de uma resposta do vendedor. Determinístico porque cada turno
+ * registra no máximo UMA intervenção, e só depois de a resposta existir — então
+ * a mais recente desta conversa é, de fato, a última coisa que ele viu.
+ *
+ * Resolve o "alvo ambíguo" que a Etapa 2B.2 deixou em aberto: antes, com duas
+ * pendências, nada era alterado por segurança; agora sabe-se exatamente qual
+ * foi mostrada.
  */
-export async function jaTratadoRecentemente(
-  vendedorId: string,
-  tipo: TipoIntervencaoCoach,
-  sourceType: SourceType,
-  sourceId: string,
-  desde: Date
-): Promise<boolean> {
-  const n = await prisma.coachIntervention.count({
-    where: { dedupeKey: montarDedupeKey(vendedorId, tipo, sourceType, sourceId), ocorridoEm: { gte: desde } },
+export async function ultimaIntervencaoApresentada(vendedorId: string, conversationId: string, agora: Date = new Date()) {
+  return prisma.coachIntervention.findFirst({
+    // Mesma janela da continuidade: uma intervenção de meses atrás não é "a
+    // última coisa que ele viu" em nenhum sentido útil. Sem esse corte, mandar
+    // "não quero" numa conversa antiga levaria uma sugestão esquecida direto
+    // pra um estado terminal.
+    where: { vendedorId, conversationId, ocorridoEm: { gte: inicioDaPendenciaViva(agora) } },
+    // `id` desempata: `ocorridoEm` tem default `now()` e duas intervenções da
+    // mesma conversa podem cair no mesmo instante (o teste que prova o ALVO
+    // EXATO criava as duas assim). Empate sem critério = ordem do banco = teste
+    // que passa por sorte e produção que escolhe o alvo errado de vez em quando.
+    orderBy: [{ ocorridoEm: 'desc' }, { id: 'desc' }],
   });
-  return n > 0;
 }
 
 /**
@@ -164,17 +199,6 @@ export async function jaTratadoRecentemente(
  */
 export const MAX_INTERVENCOES_NO_CONTEXTO = 3;
 
-/**
- * Por quanto tempo uma pendência continua sendo "assunto vivo".
- *
- * Uma sugestão que a pessoa simplesmente ignorou não pode ficar no prompt para
- * sempre — vira cobrança silenciosa e, pior, faz o classificador de resposta
- * ser chamado em toda mensagem ambígua daí em diante, gastando IA à toa.
- * Passado esse prazo, o assunto some da continuidade (a linha fica no banco:
- * nada é apagado, só deixa de ser trazido).
- */
-const DIAS_PENDENCIA_VIVA = 30;
-
 export async function listarContinuidadeRelevante(vendedorId: string, agora: Date = new Date()) {
   return prisma.coachIntervention.findMany({
     // Só assunto vivo: o que foi recusado ou concluído não é pendência, e o que
@@ -183,9 +207,9 @@ export async function listarContinuidadeRelevante(vendedorId: string, agora: Dat
       vendedorId,
       status: { in: STATUS_ATIVOS },
       tipo: 'SUGERIU',
-      ocorridoEm: { gte: new Date(agora.getTime() - DIAS_PENDENCIA_VIVA * 24 * 60 * 60 * 1000) },
+      ocorridoEm: { gte: inicioDaPendenciaViva(agora) },
     },
-    orderBy: { ocorridoEm: 'desc' },
+    orderBy: [{ ocorridoEm: 'desc' }, { id: 'desc' }],
     take: MAX_INTERVENCOES_NO_CONTEXTO,
   });
 }

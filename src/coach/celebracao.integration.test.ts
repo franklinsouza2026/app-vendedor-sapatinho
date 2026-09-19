@@ -60,9 +60,11 @@ describe('TESTE CRÍTICO #4 — celebração vem de fato real, nunca inventada',
     const contexto = await buildCoachContext(vendedor.id, pertinencia);
     const prompt = formatarContextoParaPrompt(contexto);
     expect(prompt).toContain('Certificação de Abordagem');
-    expect(prompt).toMatch(/Conquistas de desenvolvimento recentes \(fato, pode reconhecer\)/);
+    expect(prompt).toMatch(/Conquista recente que vale reconhecer/);
     // Fixture nova: sem empresa/loja no filtro, o teste passaria por acidente.
-    expect(contexto.desenvolvimento!.positiveSignals).toHaveLength(1);
+    // Etapa 2B.3: o contexto carrega UMA intervenção selecionada, não a lista
+    // de candidatos — é o que impede um candidato não apresentado de queimar.
+    expect(contexto.desenvolvimento!.intervencaoDoTurno?.tipo).toBe('CELEBROU');
   });
 
   it('sem conquista nenhuma, NÃO fabrica elogio genérico', async () => {
@@ -70,7 +72,7 @@ describe('TESTE CRÍTICO #4 — celebração vem de fato real, nunca inventada',
     expect(await listarSinaisPositivosDoVendedor(vendedor.id)).toEqual([]);
 
     const contexto = await buildCoachContext(vendedor.id, decidirPertinencia('CELEBRACAO', null, 'LLM'));
-    expect(formatarContextoParaPrompt(contexto)).not.toMatch(/Conquistas de desenvolvimento recentes/);
+    expect(formatarContextoParaPrompt(contexto)).not.toMatch(/Conquista recente que vale reconhecer/);
   });
 
   it('CELEBRAR não puxa contexto comercial — parabéns não vem emendado com cobrança', async () => {

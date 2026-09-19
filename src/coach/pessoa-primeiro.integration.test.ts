@@ -30,7 +30,14 @@ async function vendedorComNumeros() {
       empresaId: fixture.empresa.id,
       lojaId: fixture.loja.id,
       vendedorId: fixture.vendedor.id,
-      dataHora: new Date(hoje.getTime() + 10 * 60 * 60 * 1000),
+      // Logo após o início do dia, e nunca no futuro.
+      //
+      // `realizadoNoPeriodo` conta snapshots entre `inicioDoDia` e `agora`.
+      // Uma hora fixa ("10:00 de hoje") caía no FUTURO quando a suíte rodava
+      // de madrugada; "uma hora atrás" caía em ONTEM pelo mesmo motivo. Nos
+      // dois casos o realizado vinha zero e o teste falhava por relógio de
+      // parede, não por regressão.
+      dataHora: new Date(Math.min(hoje.getTime() + 60_000, Date.now())),
       faturamento: 620,
       ticketMedio: 155,
       pa: 2,

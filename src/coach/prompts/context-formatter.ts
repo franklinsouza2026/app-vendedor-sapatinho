@@ -85,8 +85,15 @@ export function formatarContextoParaPrompt(ctx: CoachContext): string {
   if (ctx.desenvolvimento) {
     const d = ctx.desenvolvimento;
 
-    if (d.positiveSignals.length > 0) {
-      linhas.push(`Conquistas de desenvolvimento recentes (fato, pode reconhecer): ${d.positiveSignals.map((s) => s.descricao).join('; ')}`);
+    // UMA intervenção estruturada por turno (Etapa 2B.3). O que não foi
+    // selecionado não chega aqui — e por isso não é consumido.
+    if (d.intervencaoDoTurno) {
+      const i = d.intervencaoDoTurno;
+      linhas.push(
+        i.tipo === 'CELEBROU'
+          ? `Conquista recente que vale reconhecer (fato): ${i.titulo}.`
+          : `Caminho concreto pra oferecer, se couber na conversa: ${i.titulo}.`
+      );
     }
     if (d.recentTrainings.length > 0) {
       const atividades = d.recentTrainings

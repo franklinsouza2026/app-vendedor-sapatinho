@@ -10,7 +10,7 @@ import { verificarBudgetMensal } from '../ai-platform/budget.service';
 import { buildCoachContext } from './context-builder.service';
 import { getCheckinHoje } from './checkin.service';
 import { classificarIntencao } from '../pertinencia/classificador.service';
-import { processarRespostaASugestao, registrarIntervencoesDoTurno } from './continuidade.service';
+import { processarRespostaASugestao, registrarIntervencaoApresentada } from './continuidade.service';
 import { getSystemPrompt } from './prompts/system-prompt';
 import { formatarContextoParaPrompt } from './prompts/context-formatter';
 import { verificarRateLimitDiario } from './limites.service';
@@ -105,7 +105,17 @@ export async function listarMensagens(conversationId: string, vendedorId: string
  * diário, budget mensal, lock de "1 geração por vez" na conversa.
  */
 export async function enviarMensagem(conversationId: string, vendedorId: string, content: string, clientMessageId?: string) {
-  await getConversaComOwnership(conversationId, vendedorId);
+  const conversa = await getConversaComOwnership(conversationId, vendedorId);
+
+  // Só conversa ABERTA recebe mensagem. Ler o histórico de uma encerrada
+  // continua permitido (é `listarMensagens`), mas escrever nela furava duas
+  // coisas: o lock de geração é POR conversa, então duas abertas em paralelo
+  // burlariam o sequenciamento; e a associação de resposta passa a mirar "a
+  // última intervenção apresentada nesta conversa" — numa conversa encerrada,
+  // isso seria uma pendência antiga recebendo estado terminal.
+  if (conversa.status !== 'ABERTA') {
+    throw new CoachError('not_found', 'conversa não encontrada');
+  }
 
   if (content.length > env.AI_MAX_INPUT_CHARS) {
     throw new CoachError('message_too_long', `mensagem excede o limite de ${env.AI_MAX_INPUT_CHARS} caracteres`);
@@ -189,7 +199,7 @@ export async function enviarMensagem(conversationId: string, vendedorId: string,
     // CONTINUIDADE (Etapa 2B.2), antes de tudo: se há sugestão pendente, esta
     // mensagem pode ser a resposta dela ("vou fazer", "agora não", "já fiz").
     // Roda primeiro pra que o contexto montado abaixo já reflita o novo estado.
-    await processarRespostaASugestao({ empresaId: vendedor.empresaId, vendedorId, conversationId, mensagem: content });
+    const respondeuSugestao = await processarRespostaASugestao({ empresaId: vendedor.empresaId, vendedorId, conversationId, mensagem: content });
 
     const pertinencia = await classificarIntencao({
       empresaId: vendedor.empresaId,
@@ -198,7 +208,10 @@ export async function enviarMensagem(conversationId: string, vendedorId: string,
       checkin: checkin?.mood ?? null,
     });
 
-    const contexto = await buildCoachContext(vendedorId, pertinencia, new Date(), checkin?.mood ?? null);
+    // `respondeuSugestao` impede que o mesmo turno abra OUTRA sugestão: quem
+    // acabou de dizer "não quero" não pode receber "então faz este outro" na
+    // mesma frase.
+    const contexto = await buildCoachContext(vendedorId, pertinencia, new Date(), checkin?.mood ?? null, respondeuSugestao);
     const systemPrompt = `${getSystemPrompt()}\n\n${formatarContextoParaPrompt(contexto)}`;
 
     const historico = await prisma.coachMessage.findMany({
@@ -253,13 +266,14 @@ export async function enviarMensagem(conversationId: string, vendedorId: string,
       },
     });
 
-    // Registra a continuidade DEPOIS da geração bem-sucedida (Etapa 2B.2).
+    // Registra a intervenção DEPOIS da geração bem-sucedida e da mensagem
+    // persistida (Etapas 2B.2 e 2B.3).
     //
     // Se o provider falhar, a mensagem nunca chega ao vendedor — e registrar
-    // antes faria a conquista contar como "já celebrada" sem ninguém ter visto
+    // antes faria a conquista contar como apresentada sem ninguém ter visto
     // nada. Pela janela de cooldown, ela nunca mais voltaria. Registrar tarde
-    // não custa nada; registrar cedo perde o fato.
-    await registrarIntervencoesDoTurno(contexto, vendedor.empresaId, vendedorId, conversationId);
+    // não custa nada; registrar cedo queima o fato.
+    await registrarIntervencaoApresentada(contexto, vendedor.empresaId, vendedorId, conversationId);
 
     void mensagemUsuario; // já persistida acima; mantido só pra clareza do fluxo
     return mensagemAssistente;

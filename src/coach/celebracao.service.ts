@@ -23,29 +23,18 @@
 //    faria performance chegar a uma conversa de acolhimento por via indireta.
 import { prisma } from '../db';
 import { SinalPositivoDoVendedor } from './context.types';
-import { jaTratadoRecentemente } from './intervencao.service';
+import { COOLDOWN_INTERVENCAO_DIAS, inicioDoCooldown, montarDedupeKey } from './intervencao.service';
 
 /**
  * Quanto tempo pra trás um fato ainda merece ser mencionado como novidade.
  *
- * Precisa ser <= COOLDOWN_CELEBRACAO_DIAS: como `ocorridoEm` da intervenção
- * nunca é renovado, se a janela de eventos fosse MAIOR que o cooldown, a
- * conquista voltaria a ser celebrada todo dia no intervalo entre os dois.
+ * Derivado do cooldown, não escolhido em paralelo: como o `ocorridoEm` da
+ * intervenção nunca é renovado, uma janela de eventos MAIOR que o cooldown faria
+ * a conquista voltar a ser celebrada todo dia no intervalo entre os dois. Sendo
+ * a mesma constante, o invariante `JANELA <= COOLDOWN` não tem como ser quebrado
+ * por alguém mexendo só num dos dois.
  */
-const JANELA_DIAS = 7;
-
-/**
- * Por quanto tempo uma conquista JÁ CELEBRADA fica em silêncio (Etapa 2B.2).
- *
- * Antes desta janela o Conselheiro repetia a mesma celebração em toda conversa
- * — comportamento medido: a mesma certificação apareceu idêntica em três
- * conversas seguidas. Celebrar é de primeira classe; virar spam anula isso.
- *
- * Não bloqueia o assunto: se o vendedor perguntar sobre a conquista, a conversa
- * acontece normalmente. O que o cooldown impede é o Conselheiro TRAZER de novo
- * por conta própria.
- */
-const COOLDOWN_CELEBRACAO_DIAS = 7;
+const JANELA_DIAS = COOLDOWN_INTERVENCAO_DIAS;
 
 /**
  * Eventos de DESENVOLVIMENTO: fatos binários, sem limiar, cujo domínio é
@@ -92,18 +81,27 @@ export async function listarSinaisPositivosDoVendedor(vendedorId: string, agora:
     take: 5,
   });
 
-  const desdeCooldown = new Date(agora.getTime() - COOLDOWN_CELEBRACAO_DIAS * 24 * 60 * 60 * 1000);
-  const sinais: SinalPositivoDoVendedor[] = [];
+  if (eventos.length === 0) return [];
 
-  for (const evento of eventos) {
-    // Já celebrei este fato com esta pessoa recentemente? Se sim, silêncio —
-    // o fato continua verdadeiro, só não é mais novidade.
-    if (await jaTratadoRecentemente(vendedorId, 'CELEBROU', 'FEED_EVENT', evento.id, desdeCooldown)) continue;
+  // Quais destes eu já celebrei com esta pessoa recentemente? Uma consulta só —
+  // antes era uma por evento, sequenciais, no caminho quente de toda mensagem.
+  // Silêncio aqui não nega o fato: ele continua verdadeiro, só deixou de ser
+  // novidade. Se o vendedor puxar o assunto, a conversa acontece normalmente.
+  const jaCelebrados = await prisma.coachIntervention.findMany({
+    where: {
+      vendedorId,
+      dedupeKey: { in: eventos.map((e) => montarDedupeKey(vendedorId, 'CELEBROU', 'FEED_EVENT', e.id)) },
+      ocorridoEm: { gte: inicioDoCooldown(agora) },
+    },
+    select: { dedupeKey: true },
+  });
+  const emSilencio = new Set(jaCelebrados.map((i) => i.dedupeKey));
 
-    const definicao = EVENTOS_DE_DESENVOLVIMENTO[evento.eventType];
-    const dados = (evento.templateData ?? {}) as Record<string, unknown>;
-    sinais.push({ tipo: evento.eventType, descricao: definicao.rotulo(nomeDe(dados, definicao.chaveNome)), sourceId: evento.id });
-  }
-
-  return sinais;
+  return eventos
+    .filter((e) => !emSilencio.has(montarDedupeKey(vendedorId, 'CELEBROU', 'FEED_EVENT', e.id)))
+    .map((evento) => {
+      const definicao = EVENTOS_DE_DESENVOLVIMENTO[evento.eventType];
+      const dados = (evento.templateData ?? {}) as Record<string, unknown>;
+      return { tipo: evento.eventType, descricao: definicao.rotulo(nomeDe(dados, definicao.chaveNome)), sourceId: evento.id };
+    });
 }

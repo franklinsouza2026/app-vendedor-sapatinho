@@ -1,5 +1,6 @@
 // Reseta o estado do Coach (check-in de hoje, conversas, mensagens, memória
-// profissional, uso de IA) pra VEND001/VEND002 antes do E2E de
+// profissional, memória de intervenções, conquistas do feed, uso de IA)
+// pra VEND001/VEND002 antes do E2E de
 // web/e2e/jornada-coach.spec.ts — sem isso, o teste depende de "hoje ainda não
 // ter check-in", o que quebra na segunda execução no mesmo dia contra o banco
 // de dev compartilhado. Roda só contra dev, nunca contra produção.
@@ -31,6 +32,18 @@ async function main() {
   await prisma.coachConversation.deleteMany({ where: { vendedorId: { in: ids } } });
   await prisma.coachCheckIn.deleteMany({ where: { vendedorId: { in: ids } } });
   await prisma.professionalMemory.deleteMany({ where: { vendedorId: { in: ids } } });
+
+  // Memória de intervenções e conquistas do feed (Etapa 2B.3).
+  //
+  // A partir da 2B.3 o turno apresenta UMA intervenção, e celebrar tem
+  // precedência: uma conquista pendente de uma execução anterior faz o
+  // Conselheiro celebrar em vez de responder ao quick action, quebrando o E2E
+  // por estado residual. Zerar aqui é o mesmo princípio de isolamento por
+  // construção da Fatia 9.7.
+  await prisma.coachIntervention.deleteMany({ where: { vendedorId: { in: ids } } });
+  await prisma.feedEvent.deleteMany({
+    where: { subjectId: { in: ids }, eventType: { in: ['CERTIFICATION_ISSUED', 'PDI_COMPLETED'] } },
+  });
 
   const hoje = inicioDoDia(new Date());
   await prisma.indicadorRealizado.deleteMany({ where: { vendedorId: { in: ids }, dataHora: { gte: hoje } } });

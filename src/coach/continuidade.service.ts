@@ -11,7 +11,11 @@
 import { CoachContext } from './context.types';
 import { classificarResposta } from './resposta-classificador.service';
 import { confirmarDeclaracaoDeConclusao } from './conclusao.service';
-import { SourceType, listarContinuidadeRelevante, log, registrarIntervencao, transicionarIntervencao } from './intervencao.service';
+import { StatusIntervencaoCoach } from '@prisma/client';
+import { SourceType, log, registrarIntervencao, transicionarIntervencao, ultimaIntervencaoApresentada } from './intervencao.service';
+
+/** Estados em que uma sugestão ainda pode receber resposta do vendedor. */
+const STATUS_RESPONDIVEIS: StatusIntervencaoCoach[] = ['REGISTRADA', 'ACEITA', 'ADIADA'];
 
 /**
  * A mensagem do vendedor responde a alguma sugestão pendente?
@@ -23,28 +27,36 @@ import { SourceType, listarContinuidadeRelevante, log, registrarIntervencao, tra
  * provider) deixa tudo como está: o custo de deixar aberto por mais um dia é
  * inofensivo; marcar como recusado o que não foi apaga algo que a pessoa ainda
  * queria.
+ *
+ * Devolve `true` quando a mensagem FOI mesmo uma resposta a uma sugestão. Quem
+ * chama usa isso pra não abrir outra sugestão no mesmo turno — ver
+ * `selecionarIntervencaoDoTurno`.
  */
 export async function processarRespostaASugestao(params: {
   empresaId: string;
   vendedorId: string;
   conversationId: string;
   mensagem: string;
-}): Promise<void> {
+}): Promise<boolean> {
   try {
-    // Só é "resposta" o que vem na MESMA conversa em que a sugestão foi feita,
-    // e só quando há exatamente UMA pendência ali.
+    // ALVO EXATO (Etapa 2B.3): a resposta é sobre o que foi APRESENTADO por
+    // último nesta conversa — não sobre "alguma pendência".
     //
-    // Sem esses dois cortes, qualquer mensagem futura era lida como resposta a
-    // uma sugestão antiga: um desabafo viraria recusa terminal, e com duas
-    // pendências o estado iria parar no assunto errado (a ordenação é por data
-    // de criação, não pela última apresentada).
-    const pendentes = (await listarContinuidadeRelevante(params.vendedorId)).filter((i) => i.conversationId === params.conversationId);
-    if (pendentes.length !== 1) return;
+    // A 2B.2 não sabia disso e, por segurança, não alterava nada quando havia
+    // duas pendências. Agora cada turno registra no máximo UMA intervenção, e
+    // só depois de a resposta existir — então a mais recente desta conversa é,
+    // deterministicamente, a última coisa que o vendedor viu.
+    const ultima = await ultimaIntervencaoApresentada(params.vendedorId, params.conversationId);
+
+    // Só sugestão viva pode receber resposta: ninguém "aceita" uma celebração,
+    // e um assunto já encerrado não reabre. Se a última coisa apresentada foi
+    // outra coisa, não há associação segura — e aí não se altera nada (§48).
+    if (!ultima || ultima.tipo !== 'SUGERIU' || !STATUS_RESPONDIVEIS.includes(ultima.status)) return false;
 
     const resposta = await classificarResposta(params);
-    if (resposta === 'INDETERMINADO') return;
+    if (resposta === 'INDETERMINADO') return false;
 
-    const alvo = pendentes[0];
+    const alvo = ultima;
 
     if (resposta === 'DECLAROU_CONCLUSAO') {
       // DECLARAÇÃO ≠ FATO. Só fecha se o sistema comprovar.
@@ -52,19 +64,22 @@ export async function processarRespostaASugestao(params: {
         alvo.sourceId !== null && (await confirmarDeclaracaoDeConclusao(params.vendedorId, alvo.sourceType as SourceType, alvo.sourceId, alvo.ocorridoEm));
       if (verificado) await transicionarIntervencao(alvo.id, params.vendedorId, 'CONCLUIDA');
       // Sem fato: nada é gravado. A fala pode orientar a conversa, mas não
-      // cria conclusão, competência, score nem XP.
-      return;
+      // cria conclusão, competência, score nem XP. Ainda assim o turno FOI
+      // sobre a sugestão — é disso que a conversa está tratando agora.
+      return true;
     }
 
     const novo = { ACEITOU: 'ACEITA', RECUSOU: 'RECUSADA', ADIOU: 'ADIADA' } as const;
     await transicionarIntervencao(alvo.id, params.vendedorId, novo[resposta]);
+    return true;
   } catch (err) {
     log.warn({ err, vendedorId: params.vendedorId }, 'falha ao processar resposta a sugestão — estado preservado');
+    return false;
   }
 }
 
 /**
- * Registra o que o sistema efetivamente colocou na frente do Conselheiro.
+ * Registra a ÚNICA intervenção que o turno de fato apresentou.
  *
  * O que se registra é a decisão do BACKEND (quais fatos foram disponibilizados
  * em que estado), não uma leitura do texto que o LLM produziu — parsear a saída
@@ -76,51 +91,29 @@ export async function processarRespostaASugestao(params: {
  * pequeno perto do inverso — repetir a mesma celebração indefinidamente, que é
  * o comportamento medido antes desta etapa.
  */
-export async function registrarIntervencoesDoTurno(contexto: CoachContext, empresaId: string, vendedorId: string, conversationId: string): Promise<void> {
+export async function registrarIntervencaoApresentada(
+  contexto: CoachContext,
+  empresaId: string,
+  vendedorId: string,
+  conversationId: string
+): Promise<void> {
   try {
-    // A condição é "o backend colocou o fato na frente do Conselheiro", NÃO o
-    // estado comportamental.
-    //
-    // Amarrar ao estado deixava o bug vivo no caminho mais comum: os sinais
-    // positivos são renderizados sempre que o domínio DESENVOLVIMENTO está
-    // autorizado (REFLETIR, DESENVOLVER, TREINAR), e não só em CELEBRAR. Um
-    // "oi, tudo bem?" cai em REFLETIR, o Conselheiro celebra a certificação —
-    // e nada era registrado. No dia seguinte, idêntico. Era exatamente o
-    // comportamento medido que esta fatia existe pra matar.
-    if (contexto.desenvolvimento) {
-      for (const sinal of contexto.desenvolvimento.positiveSignals) {
-        await registrarIntervencao({
-          empresaId,
-          vendedorId,
-          conversationId,
-          tipo: 'CELEBROU',
-          sourceType: 'FEED_EVENT',
-          sourceId: sinal.sourceId,
-          metadata: { titulo: sinal.descricao },
-        });
-      }
-    }
+    // A identidade vem da SELEÇÃO feita antes de gerar, não de uma leitura do
+    // texto que o modelo produziu. Refazer a escolha aqui seria
+    // não-determinístico: o estado pode ter mudado no meio do turno.
+    const alvo = contexto.desenvolvimento?.intervencaoDoTurno;
+    if (!alvo) return;
 
-    // SUGERIU — só quando há alvo CONCRETO E IDENTIFICÁVEL. Uma frase solta
-    // ("talvez seja bom descansar") nunca vira compromisso estruturado.
-    if (contexto.desenvolvimento) {
-      const alvo = contexto.desenvolvimento.competencyGaps[0];
-      if (alvo) {
-        // Id vindo direto da matriz — `Competency.name` não é único (só `code`
-        // é), então procurar por nome escolheria uma competência arbitrária
-        // entre homônimas, e ainda gastaria uma query.
-        await registrarIntervencao({
-          empresaId,
-          vendedorId,
-          conversationId,
-          tipo: 'SUGERIU',
-          sourceType: 'COMPETENCY',
-          sourceId: alvo.competencyId,
-          metadata: { titulo: `trabalhar ${alvo.nome}` },
-        });
-      }
-    }
+    await registrarIntervencao({
+      empresaId,
+      vendedorId,
+      conversationId,
+      tipo: alvo.tipo,
+      sourceType: alvo.sourceType,
+      sourceId: alvo.sourceId,
+      metadata: { titulo: alvo.titulo },
+    });
   } catch (err) {
-    log.warn({ err, vendedorId }, 'falha ao registrar intervenções do turno — conversa segue normalmente');
+    log.warn({ err, vendedorId }, 'falha ao registrar a intervenção do turno — conversa segue normalmente');
   }
 }

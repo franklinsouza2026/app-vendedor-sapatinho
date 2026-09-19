@@ -14,6 +14,7 @@
 // Nomes de campo em inglês conforme a fonte de verdade; nunca inclui objeto ORM
 // inteiro, hash, token, ID desnecessário ou dado de outro vendedor/tenant.
 import { MoodCheckIn, StatusIntervencaoCoach } from '@prisma/client';
+import { IntervencaoDoTurno } from './selecao-intervencao.service';
 import { DecisaoPertinencia } from '../pertinencia/tipos';
 
 export type BaselineStatus = 'disponivel' | 'em_formacao';
@@ -62,8 +63,16 @@ export interface ContextoDesenvolvimento {
   competencyGaps: { competencyId: string; nome: string; score: number; target: number; gap: number; prioridade: string }[];
   /** Atividades de aprendizagem concluídas recentemente — fato, não catálogo. */
   recentTrainings: AtividadeRecente[];
-  /** Conquistas reais e verificáveis do PRÓPRIO vendedor (Constituição §10). */
-  positiveSignals: SinalPositivoDoVendedor[];
+  /**
+   * A ÚNICA intervenção estruturada deste turno (Etapa 2B.3) — ou `null`.
+   *
+   * Substituiu a lista de candidatos. Antes, todos os sinais positivos iam ao
+   * prompt e todos eram registrados como apresentados: uma conquista que o
+   * Conselheiro nunca mencionou queimava mesmo assim. Agora candidato,
+   * selecionado e apresentado são a mesma coisa — o que não foi escolhido não
+   * entra no contexto e continua elegível.
+   */
+  intervencaoDoTurno: IntervencaoDoTurno | null;
   /** Missão de aprendizagem do dia — só as de desenvolvimento entram aqui. */
   currentMission: string | null;
 }

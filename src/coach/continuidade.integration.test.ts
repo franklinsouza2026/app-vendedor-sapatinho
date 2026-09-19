@@ -23,7 +23,7 @@ import { confirmarDeclaracaoDeConclusao, reconciliarConclusoes } from './conclus
 import { buildCoachContext } from './context-builder.service';
 import { formatarContextoParaPrompt } from './prompts/context-formatter';
 import { decidirPertinencia } from '../pertinencia/gate.service';
-import { processarRespostaASugestao, registrarIntervencoesDoTurno } from './continuidade.service';
+import { processarRespostaASugestao, registrarIntervencaoApresentada } from './continuidade.service';
 import { criarNovaConversa, getOrCreateConversaAtual } from './conversation.service';
 
 async function conquistaReal(fixture: Awaited<ReturnType<typeof criarFixtureEmpresa>>, nome = 'Certificação de Abordagem') {
@@ -434,7 +434,7 @@ describe('custo do classificador de resposta entra no orçamento', () => {
 
 // A revisão de código encontrou estas duas funções com cobertura ZERO — e são
 // justamente as ligadas ao fluxo real da conversa.
-describe('registrarIntervencoesDoTurno — o caminho de produção', () => {
+describe('registrarIntervencaoApresentada — o caminho de produção', () => {
   it('REGRESSÃO CRÍTICA: registra a celebração mesmo FORA do estado CELEBRAR', async () => {
     const f = await criarFixtureEmpresa();
     const evento = await conquistaReal(f);
@@ -445,9 +445,9 @@ describe('registrarIntervencoesDoTurno — o caminho de produção', () => {
     // autorizado), então o Conselheiro celebra. Amarrar o registro ao estado
     // CELEBRAR deixava o bug vivo exatamente aqui — no caminho mais comum.
     const contexto = await buildCoachContext(f.vendedor.id, decidirPertinencia('CONVERSA', null, 'LLM'));
-    expect(contexto.desenvolvimento!.positiveSignals).toHaveLength(1);
+    expect(contexto.desenvolvimento!.intervencaoDoTurno?.tipo).toBe('CELEBROU');
 
-    await registrarIntervencoesDoTurno(contexto, f.empresa.id, f.vendedor.id, conversa.id);
+    await registrarIntervencaoApresentada(contexto, f.empresa.id, f.vendedor.id, conversa.id);
 
     expect(await prisma.coachIntervention.count({ where: { vendedorId: f.vendedor.id, tipo: 'CELEBROU', sourceId: evento.id } })).toBe(1);
     // E o efeito que importa: a conquista não volta sozinha.
@@ -460,8 +460,8 @@ describe('registrarIntervencoesDoTurno — o caminho de produção', () => {
     const conversa = await getOrCreateConversaAtual(f.vendedor.id);
     const contexto = await buildCoachContext(f.vendedor.id, decidirPertinencia('CELEBRACAO', null, 'LLM'));
 
-    await registrarIntervencoesDoTurno(contexto, f.empresa.id, f.vendedor.id, conversa.id);
-    await registrarIntervencoesDoTurno(contexto, f.empresa.id, f.vendedor.id, conversa.id);
+    await registrarIntervencaoApresentada(contexto, f.empresa.id, f.vendedor.id, conversa.id);
+    await registrarIntervencaoApresentada(contexto, f.empresa.id, f.vendedor.id, conversa.id);
 
     expect(await prisma.coachIntervention.count({ where: { vendedorId: f.vendedor.id, tipo: 'CELEBROU' } })).toBe(1);
   });
@@ -471,7 +471,7 @@ describe('registrarIntervencoesDoTurno — o caminho de produção', () => {
     const conversa = await getOrCreateConversaAtual(f.vendedor.id);
     const contexto = await buildCoachContext(f.vendedor.id, decidirPertinencia('CONVERSA', null, 'LLM'));
 
-    await registrarIntervencoesDoTurno(contexto, f.empresa.id, f.vendedor.id, conversa.id);
+    await registrarIntervencaoApresentada(contexto, f.empresa.id, f.vendedor.id, conversa.id);
     expect(await prisma.coachIntervention.count({ where: { vendedorId: f.vendedor.id } })).toBe(0);
   });
 
@@ -482,7 +482,7 @@ describe('registrarIntervencoesDoTurno — o caminho de produção', () => {
     const contexto = await buildCoachContext(f.vendedor.id, decidirPertinencia('DESABAFO', 'NOT_GOOD', 'DETERMINISTICO'));
 
     expect(contexto.desenvolvimento).toBeNull();
-    await registrarIntervencoesDoTurno(contexto, f.empresa.id, f.vendedor.id, conversa.id);
+    await registrarIntervencaoApresentada(contexto, f.empresa.id, f.vendedor.id, conversa.id);
     expect(await prisma.coachIntervention.count({ where: { vendedorId: f.vendedor.id } })).toBe(0);
   });
 });
@@ -534,23 +534,46 @@ describe('processarRespostaASugestao — o caminho de produção', () => {
     expect((await prisma.coachIntervention.findFirstOrThrow({ where: { id: sugestao.id } })).status).toBe('REGISTRADA');
   });
 
-  it('com DUAS pendências na mesma conversa, nada é alterado — alvo ambíguo', async () => {
-    const { f, conversa, sugestao } = await comSugestaoNaConversa();
-    await registrarIntervencao({
+  it('ALVO EXATO: com duas pendências, a recusa atinge a APRESENTADA POR ÚLTIMO', async () => {
+    const { f, conversa, sugestao: primeira } = await comSugestaoNaConversa();
+    const segunda = await registrarIntervencao({
       empresaId: f.empresa.id,
       vendedorId: f.vendedor.id,
       conversationId: conversa.id,
       tipo: 'SUGERIU',
       sourceType: 'COMPETENCY',
       sourceId: randomUUID(),
+      metadata: { titulo: 'trabalhar Sondagem' },
     });
 
-    // Ordenar por data de criação não diz qual foi a última APRESENTADA —
-    // então o estado iria parar no assunto errado. Melhor não mexer.
+    // A 2B.2 não sabia qual era o alvo e, por segurança, não alterava nada.
+    // Agora cada turno apresenta no máximo UMA intervenção e a registra só
+    // depois da resposta existir — então a mais recente é, deterministicamente,
+    // a última coisa que o vendedor viu.
+    await processarRespostaASugestao({ empresaId: f.empresa.id, vendedorId: f.vendedor.id, conversationId: conversa.id, mensagem: 'não quero fazer isso' });
+
+    expect((await prisma.coachIntervention.findFirstOrThrow({ where: { id: segunda.id } })).status).toBe('RECUSADA');
+    // A outra pendência fica INTACTA — recusar uma não atinge as demais.
+    expect((await prisma.coachIntervention.findFirstOrThrow({ where: { id: primeira.id } })).status).toBe('REGISTRADA');
+  });
+
+  it('se a última coisa apresentada foi uma CELEBRAÇÃO, não há associação segura', async () => {
+    const { f, conversa, sugestao } = await comSugestaoNaConversa();
+    // Depois da sugestão, o turno seguinte celebrou algo.
+    await registrarIntervencao({
+      empresaId: f.empresa.id,
+      vendedorId: f.vendedor.id,
+      conversationId: conversa.id,
+      tipo: 'CELEBROU',
+      sourceType: 'FEED_EVENT',
+      sourceId: randomUUID(),
+    });
+
+    // "Não quero" depois de um elogio não é recusa de uma sugestão anterior.
+    // Ninguém "recusa" uma celebração — sem associação segura, nada muda (§48).
     await processarRespostaASugestao({ empresaId: f.empresa.id, vendedorId: f.vendedor.id, conversationId: conversa.id, mensagem: 'não quero fazer isso' });
 
     expect((await prisma.coachIntervention.findFirstOrThrow({ where: { id: sugestao.id } })).status).toBe('REGISTRADA');
-    expect(await prisma.coachIntervention.count({ where: { vendedorId: f.vendedor.id, status: 'RECUSADA' } })).toBe(0);
   });
 
   it('"já fiz" sem fato de sistema NÃO conclui', async () => {

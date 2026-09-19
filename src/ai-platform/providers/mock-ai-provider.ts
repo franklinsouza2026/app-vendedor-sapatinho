@@ -49,7 +49,10 @@ interface ContextoCoachMinimo {
   desenvolvimento?: {
     competencyGaps: { nome: string }[];
     recentTrainings: { titulo: string; tipo: string }[];
-    positiveSignals: { descricao: string }[];
+    // Etapa 2B.3: UMA intervenção estruturada por turno, escolhida antes de
+    // gerar. O mock tem que respeitar isso, senão volta a ser um segundo motor
+    // comportamental e a suíte fica verde sobre o produto errado.
+    intervencaoDoTurno: { tipo: string; titulo: string } | null;
   } | null;
   comercial?: {
     goal: { todayGoal: number | null; amountRemaining: number | null; estimatedSalesRemaining: number | null };
@@ -442,8 +445,10 @@ function gerarRespostaCoach(mensagemUsuario: string, contexto?: ContextoCoachMin
     return `Poxa, ${nome}. Obrigado por dizer. Quer me contar o que aconteceu, ou prefere que a gente fale de outra coisa agora?`;
   }
 
-  if (contexto.pertinencia?.estado === 'CELEBRAR' && desenvolvimento && desenvolvimento.positiveSignals.length > 0) {
-    return `Boa, ${nome}! Vi que você ${desenvolvimento.positiveSignals[0].descricao}. Como foi?`;
+  // A intervenção do turno é o que o Conselheiro de fato traz — quando houver.
+  const intervencao = desenvolvimento?.intervencaoDoTurno ?? null;
+  if (intervencao?.tipo === 'CELEBROU') {
+    return `Boa, ${nome}! Vi que você ${intervencao.titulo}. Como foi?`;
   }
 
   // Sem bloco comercial autorizado, o mock NÃO tem número pra citar — é
@@ -452,12 +457,17 @@ function gerarRespostaCoach(mensagemUsuario: string, contexto?: ContextoCoachMin
     if (texto.includes('como estou') || texto.includes('meta') || texto.includes('ticket')) {
       return `Posso puxar seus números se você quiser, ${nome} — é só pedir. Antes disso, como está sendo seu dia?`;
     }
-    if (texto.includes('foco') || texto.includes('organizar')) {
-      const alvo = desenvolvimento?.competencyGaps[0]?.nome;
-      return `Vamos organizar seu foco, ${nome}.${alvo ? ` Uma coisa concreta pra hoje: ${alvo}.` : ' O que você quer que saia do dia de hoje?'}`;
+    // SUGERIU vem ANTES de qualquer ramo que proponha caminho. O mock já
+    // fabricou sugestão a partir de `competencyGaps[0]` aqui: nascia uma
+    // sugestão que ninguém selecionou e que, por isso, nunca era registrada —
+    // e "organizar meu foco" cai em DESENVOLVER, então o ramo era alcançável
+    // de verdade. O mock é o segundo motor de comportamento do projeto; se ele
+    // enxerga candidato, a suíte fica verde sobre o bug que a fatia fecha.
+    if (intervencao?.tipo === 'SUGERIU') {
+      return `Dá pra ${intervencao.titulo}, ${nome}. Quer começar por aí?`;
     }
-    if (desenvolvimento && desenvolvimento.competencyGaps.length > 0) {
-      return `Dá pra trabalhar ${desenvolvimento.competencyGaps[0].nome}, ${nome}. Quer começar por aí?`;
+    if (texto.includes('foco') || texto.includes('organizar')) {
+      return `Vamos organizar seu foco, ${nome}. O que você quer que saia do dia de hoje?`;
     }
     if (desenvolvimento && desenvolvimento.recentTrainings.length > 0) {
       return `Vi que você concluiu "${desenvolvimento.recentTrainings[0].titulo}". Deu pra aplicar em algum atendimento?`;

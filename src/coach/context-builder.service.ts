@@ -19,6 +19,7 @@ import { getMissaoPrioritariaParaCoach } from '../missoes/service';
 import { getCheckinHoje } from './checkin.service';
 import { listarAtividadesRecentes } from './atividades.service';
 import { listarSinaisPositivosDoVendedor } from './celebracao.service';
+import { selecionarIntervencaoDoTurno } from './selecao-intervencao.service';
 import { listarContinuidadeRelevante } from './intervencao.service';
 import { reconciliarConclusoes } from './conclusao.service';
 
@@ -64,7 +65,9 @@ export async function buildCoachContext(
   pertinencia: DecisaoPertinencia,
   agora: Date = new Date(),
   /** Check-in já lido pelo chamador — evita reler o mesmo registro na mesma requisição. */
-  checkinJaLido?: MoodCheckIn | null
+  checkinJaLido?: MoodCheckIn | null,
+  /** Esta mensagem foi a resposta a uma sugestão? Então o turno não abre outra. */
+  respondeuSugestao = false
 ): Promise<CoachContext> {
   const vendedor = await prisma.vendedor.findUniqueOrThrow({
     where: { id: vendedorId },
@@ -107,10 +110,28 @@ export async function buildCoachContext(
           listarAtividadesRecentes(vendedorId, agora),
           listarSinaisPositivosDoVendedor(vendedorId, agora),
         ]);
+
+        // SELECIONA ANTES DE GERAR (Etapa 2B.3): dos candidatos acima, no
+        // máximo UM vira intervenção estruturada do turno. Os demais não
+        // entram no prompt — e, por não entrarem, continuam elegíveis.
+        //
+        // `gapsParaContexto` não é o mesmo que `competencyGaps`: sai dele o que
+        // tem intervenção viva ou em silêncio. Mandar a lista crua ao prompt
+        // reabriria pelo canal não rastreado exatamente o que a seleção acabou
+        // de fechar — o modelo re-sugeriria a competência pendente, sem
+        // registro nenhum, que é o bug original vestido de outra roupa.
+        const { intervencao, gapsParaContexto } = await selecionarIntervencaoDoTurno(
+          vendedorId,
+          pertinencia.estado,
+          { positiveSignals, competencyGaps },
+          agora,
+          respondeuSugestao
+        );
+
         return {
-          competencyGaps,
+          competencyGaps: gapsParaContexto,
           recentTrainings,
-          positiveSignals,
+          intervencaoDoTurno: intervencao,
           currentMission: missaoEhComercial ? null : textoMissao,
         };
       })()
