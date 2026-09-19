@@ -309,7 +309,7 @@ describe('TESTES 13-16 — privacidade', () => {
     expect((await prisma.coachIntervention.findFirstOrThrow({ where: { id: sugestao.id } })).status).toBe('REGISTRADA');
   });
 
-  it('nenhuma rota de gerente ou admin lê a memória de intervenções', async () => {
+  it('nenhuma rota de gerente ou admin lê NADA da esfera privada do Conselheiro', async () => {
     const { readFileSync, readdirSync } = await import('node:fs');
     const { join } = await import('node:path');
 
@@ -318,8 +318,16 @@ describe('TESTES 13-16 — privacidade', () => {
       ...['manager-panel.ts', 'manager-panel-admin.ts', 'admin.ts', 'admin-ai.ts', 'universidade-manager.ts'].map((f) => join(__dirname, '../routes', f)),
     ].filter((f) => f.endsWith('.ts') && !f.includes('.test.'));
 
+    // Etapa 2B.4: a allowlist cobria só a memória de intervenções. As quatro
+    // camadas privadas são as quatro — transcrição, humor, conversa e
+    // continuidade. Deixar três de fora era confiar em ninguém ter vontade.
+    const privados = [/coachIntervention/, /coachCheckIn/, /coachMessage/, /coachConversation/];
+
     for (const arquivo of arquivos) {
-      expect(readFileSync(arquivo, 'utf8'), `${arquivo} acessa a memória privada do Conselheiro`).not.toMatch(/coachIntervention/);
+      const conteudo = readFileSync(arquivo, 'utf8');
+      for (const tabela of privados) {
+        expect(conteudo, `${arquivo} acessa a esfera privada do Conselheiro (${tabela})`).not.toMatch(tabela);
+      }
     }
   });
 

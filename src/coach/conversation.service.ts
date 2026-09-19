@@ -13,6 +13,7 @@ import { classificarIntencao } from '../pertinencia/classificador.service';
 import { processarRespostaASugestao, registrarIntervencaoApresentada } from './continuidade.service';
 import { getSystemPrompt } from './prompts/system-prompt';
 import { formatarContextoParaPrompt } from './prompts/context-formatter';
+import { filtrarHistoricoAutorizado } from './historico-autorizado.service';
 import { verificarRateLimitDiario } from './limites.service';
 import { createLogger } from '../utils/logger';
 
@@ -219,9 +220,26 @@ export async function enviarMensagem(conversationId: string, vendedorId: string,
       orderBy: { createdAt: 'desc' },
       take: env.AI_CONVERSATION_WINDOW,
     });
-    const mensagensParaProvider = historico
-      .reverse()
-      .map((m) => ({ role: mapRole(m.role), content: m.content }));
+    // HISTÓRICO AUTORIZADO (Etapa 2B.4). A janela continua bounded e a
+    // transcrição continua intacta no banco — o que muda é o que ESTE turno
+    // pode mandar ao provider. Sem isto, uma resposta comercial de ontem
+    // reentregava, num turno de acolhimento, o KPI que o gate acabou de negar.
+    //
+    // A ordem precisa ser DETERMINÍSTICA: o filtro pareia cada resposta com a
+    // pergunta que a precedeu, então trocar duas mensagens de lugar pode
+    // avaliá-la contra a pergunta errada — possivelmente mais permissiva.
+    // `createdAt` tem precisão de milissegundo e hoje não há nenhum empate nos
+    // bancos, mas empate sem critério é teste que passa por sorte (lição da
+    // 2B.3). O desempate é a própria regra do domínio: uma resposta é sempre
+    // resposta a uma pergunta, nunca o contrário — então USER vem primeiro.
+    const emOrdem = historico.sort(
+      (a, b) => a.createdAt.getTime() - b.createdAt.getTime() || (a.role === b.role ? 0 : a.role === 'USER' ? -1 : 1)
+    );
+
+    const mensagensParaProvider = filtrarHistoricoAutorizado(
+      emOrdem.map((m) => ({ role: mapRole(m.role), content: m.content })),
+      pertinencia.dominios
+    );
 
     let resultado, custoUSD;
     try {

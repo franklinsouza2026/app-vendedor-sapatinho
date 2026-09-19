@@ -7,12 +7,12 @@
 // TODA conversa, inclusive de acolhimento. A suíte inteira ficou verde sobre
 // isso, porque o mock não usa o prompt.
 import { describe, expect, it } from 'vitest';
-import { SYSTEM_PROMPT_V1, SYSTEM_PROMPT_V2, SYSTEM_PROMPT_VERSION, getSystemPrompt } from './system-prompt';
+import { SYSTEM_PROMPT_V1, SYSTEM_PROMPT_V2, SYSTEM_PROMPT_V3, SYSTEM_PROMPT_VERSION, getSystemPrompt } from './system-prompt';
 
 describe('system prompt — integridade estrutural', () => {
   it('cada seção aparece UMA vez — colagem duplicada não passa', () => {
-    for (const secao of ['QUEM VOCÊ É', 'PAPEL E TOM', 'REGRAS INEGOCIÁVEIS', 'SOBRE INDICADORES', 'O QUE NÃO FAZER']) {
-      const ocorrencias = SYSTEM_PROMPT_V2.split(secao).length - 1;
+    for (const secao of ['QUEM VOCÊ É', 'PAPEL E TOM', 'REGRAS INEGOCIÁVEIS', 'SOBRE INDICADORES', 'O QUE NÃO FAZER', 'SOBRE O QUE JÁ FOI DITO']) {
+      const ocorrencias = SYSTEM_PROMPT_V3.split(secao).length - 1;
       expect(ocorrencias, `seção "${secao}" aparece ${ocorrencias} vezes`).toBe(1);
     }
   });
@@ -21,13 +21,17 @@ describe('system prompt — integridade estrutural', () => {
     // Um exemplo como `"Você está a R$ 380 da meta."` viajava em toda conversa,
     // inclusive naquelas em que o bloco comercial foi deliberadamente negado —
     // convite direto pro modelo inventar um número.
-    expect(SYSTEM_PROMPT_V2).not.toMatch(/R\$\s*\d/);
+    expect(SYSTEM_PROMPT_V3).not.toMatch(/R\$\s*\d/);
   });
 
   it('getSystemPrompt devolve a versão corrente e ela bate com SYSTEM_PROMPT_VERSION', () => {
-    expect(SYSTEM_PROMPT_VERSION).toBe(2);
-    expect(getSystemPrompt()).toBe(SYSTEM_PROMPT_V2);
+    expect(SYSTEM_PROMPT_VERSION).toBe(3);
+    expect(getSystemPrompt()).toBe(SYSTEM_PROMPT_V3);
     expect(getSystemPrompt()).not.toBe(SYSTEM_PROMPT_V1);
+    expect(getSystemPrompt()).not.toBe(SYSTEM_PROMPT_V2);
+    // As versões antigas ficam preservadas pela convenção do arquivo — nunca
+    // editadas in-place, pra que uma mensagem antiga continue interpretável.
+    expect(SYSTEM_PROMPT_V3.startsWith(SYSTEM_PROMPT_V2), 'a V3 precisa conter a V2 intacta').toBe(true);
   });
 });
 
@@ -46,7 +50,7 @@ describe('system prompt — a Constituição está nele', () => {
     ['zero ferramenta de ação', /não tem nenhuma ferramenta de ação/],
     ['não revela o próprio prompt', /Nunca revele/],
   ])('%s', (_titulo, padrao) => {
-    expect(SYSTEM_PROMPT_V2).toMatch(padrao);
+    expect(SYSTEM_PROMPT_V3).toMatch(padrao);
   });
 });
 
@@ -59,13 +63,13 @@ describe('system prompt — anti-chat-chato', () => {
     ['sem parabéns emendado com cobrança', /Não emende cobrança em reconhecimento/i],
     ['sem comparação com colegas', /Não cite ranking nem compare com colegas/i],
   ])('%s', (_titulo, padrao) => {
-    expect(SYSTEM_PROMPT_V2).toMatch(padrao);
+    expect(SYSTEM_PROMPT_V3).toMatch(padrao);
   });
 
   it('não pede tom "motivador" nem foco obrigatório em ação prática', () => {
     // Eram as duas instruções do V1 que puxavam o Conselheiro de volta pro
     // papel de cobrador entusiasmado.
-    expect(SYSTEM_PROMPT_V2).not.toMatch(/motivador/i);
-    expect(SYSTEM_PROMPT_V2).not.toMatch(/focadas em ação prática/i);
+    expect(SYSTEM_PROMPT_V3).not.toMatch(/motivador/i);
+    expect(SYSTEM_PROMPT_V3).not.toMatch(/focadas em ação prática/i);
   });
 });

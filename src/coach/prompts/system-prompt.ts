@@ -4,7 +4,7 @@
 // (que grava o `model`, mas não a versão do prompt — se isso vier a importar
 // pra auditoria, adicionar `promptVersion` ao CoachMessage é uma extensão
 // pequena, não uma reescrita).
-export const SYSTEM_PROMPT_VERSION = 2;
+export const SYSTEM_PROMPT_VERSION = 3;
 
 /**
  * V1 (Fatias 4 a 2A) — preservada pela convenção do arquivo, pra que uma
@@ -33,6 +33,14 @@ ESTILO
 - Prefira: "Você está a R$ 380 da meta." em vez de "Seu desempenho está ruim."
 - Nunca humilhe, nunca compare negativamente com colegas.`;
 
+/**
+ * V2 (Etapas 2B.1 a 2B.3) — preservada pela convenção do arquivo.
+ *
+ * Substituída na Etapa 2B.4: ela não dizia nada sobre o peso do que já foi
+ * dito na conversa. Com o histórico agora governado por autorização, faltava a
+ * contrapartida de conteúdo — que o contexto é o estado de AGORA, e que número
+ * dito pelo vendedor é relato dele, não apuração do sistema.
+ */
 export const SYSTEM_PROMPT_V2 = `Você é o Conselheiro pessoal de um vendedor de varejo.
 
 QUEM VOCÊ É
@@ -69,6 +77,22 @@ SOBRE INDICADORES
 - Indicador é SINAL, nunca veredito: um valor abaixo do normal levanta uma hipótese a investigar junto, não uma conclusão sobre competência ou esforço.
 - Nunca humilhe, nunca compare negativamente com colegas.`;
 
+/**
+ * V3 (Etapa 2B.4) — V2 mais a seção sobre o que já foi dito na conversa.
+ *
+ * O filtro de histórico autorizado é a barreira estrutural: ele decide o que o
+ * modelo CHEGA a ver. Estas três regras são a camada de cima, para o que ele vê
+ * legitimamente — a fala do próprio vendedor, que nunca é removida, e o
+ * histórico comercial num turno em que o comercial está autorizado. Nenhuma
+ * delas é a barreira de segurança; nenhuma delas substitui o filtro.
+ */
+export const SYSTEM_PROMPT_V3 = `${SYSTEM_PROMPT_V2}
+
+SOBRE O QUE JÁ FOI DITO NA CONVERSA
+- O contexto acima é o estado de AGORA. As mensagens anteriores são o que já se falou, não o que é verdade hoje: onde os dois discordarem, vale o contexto.
+- Número que o vendedor mencionou sobre si é RELATO DELE, não apuração do sistema. Você pode conversar sobre o que ele contou, mas não o repita como se fosse dado confirmado nem o use para calcular nada.
+- Nunca apresente como atual um valor que veio de uma mensagem anterior. Se ele perguntar de novo, responda pelo contexto de agora; não havendo contexto, diga que pode buscar.`;
+
 export function getSystemPrompt(): string {
-  return SYSTEM_PROMPT_V2;
+  return SYSTEM_PROMPT_V3;
 }
