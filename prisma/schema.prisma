@@ -2508,9 +2508,13 @@ model ManagerAlertConfig {
 // é garantida pelo service, que resolve o sujeito sempre pelo JWT.
 // =====================================================================
 
+// `MENCIONOU` existiu aqui e foi REMOVIDO na Etapa 2B.4, com zero registros em
+// dev e em teste. A auditoria da 2B.3 não achou uso legítimo que CELEBROU/
+// SUGERIU não cobrissem: o caso que parecia candidato ("você comentou que
+// queria melhorar abordagem") é follow-up, comportamento já derivado da
+// continuidade, não um tipo novo. Tipo declarado e nunca produzido é armadilha
+// — alguém acaba inventando um uso pra justificar o enum.
 enum TipoIntervencaoCoach {
-  // O Conselheiro trouxe um assunto (ex.: uma competência a desenvolver).
-  MENCIONOU
   // Um fato positivo real foi levado à conversa pra ser reconhecido.
   CELEBROU
   // Houve sugestão concreta e identificável de uma ação sobre um recurso real.
@@ -2522,7 +2526,7 @@ enum TipoIntervencaoCoach {
 // sugestão que deixou de fazer sentido simplesmente não é mais selecionada
 // pelo motor de pertinência, sem precisar de estado próprio.
 enum StatusIntervencaoCoach {
-  // Registrada. Para MENCIONOU/CELEBROU é terminal (elas não têm resposta a
+  // Registrada. Para CELEBROU é terminal (uma celebração não tem resposta a
   // aguardar); para SUGERIU significa "aguardando o que a pessoa disser".
   REGISTRADA
   // "Vou fazer." — NÃO é conclusão.
