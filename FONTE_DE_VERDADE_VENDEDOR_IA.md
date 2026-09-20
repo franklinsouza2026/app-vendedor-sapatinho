@@ -2009,6 +2009,34 @@ Smoke real contra o servidor, 11 passos: pergunta a meta → `R$ 300,00` → per
 
 **807 backend + 173 frontend + 41 E2E.** Zero regressões.
 
+### Etapa 2C.0 — Arquitetura do Conhecimento do Conselheiro — CONCLUÍDA (2026-09-19) — DESENHO, ZERO CÓDIGO
+
+Auditoria + desenho. **Nenhum comportamento de produção alterado, zero migration, zero dependência, zero chamada de IA nova.** Documento canônico: `docs/ARQUITETURA_CONHECIMENTO_CONSELHEIRO.md`.
+
+**O achado central: o projeto tem duas metades de um sistema de conhecimento que nunca se encontraram.** O Conselheiro tem motor de pertinência completo (2B.0–2B.4) e **zero** conhecimento — `listarAtividadesRecentes` leva apenas *títulos* de atividades concluídas, nunca o conteúdo de uma aula. O Treinador tem conhecimento governado há cinco fatias (Playbook versionado, tenant-scoped, rotulado `[OFICIAL]`/`[DEMONSTRATIVO]`, recuperado por `Record<modo, categorias>` sem nenhuma IA) e **nenhum** motor de pertinência. A 2C não precisa construir uma plataforma de conhecimento; precisa casar o que já existe.
+
+**Sem RAG, sem embeddings, sem vector DB — medido.** Contagem real: 37 unidades de texto recuperáveis (10 aulas, 14 seções de playbook, 13 mandamentos), média de **451 caracteres**. O corpus inteiro dá ~5 mil tokens; a 20× daria ~90 mil. RAG resolve "o corpus não cabe no contexto" — o nosso cabe com folga. Embeddings custariam uma chamada por item e uma por query, adicionariam latência no caminho quente e trariam o item *parecido* em vez do *certo*. Vector DB exigiria extensão nova: o Postgres do projeto tem **só `plpgsql`**.
+
+**Sem CMS novo e sem agente novo.** `StatusConteudo` (DRAFT→REVIEW_PENDING→APPROVED→PUBLISHED→ARCHIVED) + `version` + `createdBy`/`approvedBy`/`publishedAt` + `origemEditorial` + `audience` já são o lifecycle pedido, com UI de Admin e reuso por três módulos. E já existem **12 especialistas** em `EspecialistaIA` — recuperar conhecimento é *lookup*, não conversa.
+
+**Taxonomia já existe:** `EscolaUniversidade`, 8 escolas seedadas, incluindo *Organização e Produtividade* e *Desenvolvimento Pessoal e Financeiro* — exatamente o território da 2C, hoje vazias. Não se inventam 18 famílias novas. **Skill = Escola + Knowledge Cards ligados a ela**, nunca um LLM novo.
+
+**Knowledge Card, não cópia de livro.** A unidade recuperável carrega *princípio + quando usar + **quando não usar** + exemplo + limites + origem*. `quandoNaoUsar` não existe em nenhum conteúdo atual e é o campo mais importante: é ele que impede oferecer conselho de hábito para quem está sobrecarregado. Tabela separada da `AcademyLesson` de propósito — card é lido pelo Conselheiro, aula é lida pelo vendedor.
+
+**O router não custa chamada de IA.** `NO_KNOWLEDGE` é o default e o short-circuit; ~2/3 das mensagens já são resolvidas sem IA pelo curto-circuito da 2B.1, e as ambíguas ganham um segundo campo no JSON do classificador que **já roda**. A disciplina da 2B.1 vale inteira: o LLM nomeia um tema, **o código decide o que carregar**.
+
+**Bounded: um card por turno.** Mesma regra que a 2B.3 provou para intervenções, e medida — um card de ~600 chars custa ~160 tokens sobre os **~1220 tokens medidos** do prompt atual (+13%). Cinco cards seriam +65%: a palestra que a fatia existe para evitar.
+
+**Física quântica é classificada, não proibida.** Eixo novo `tipoFonte`, ortogonal ao `OFICIAL/DEMONSTRATIVO`. Física quântica **como ciência** é `CIENTIFICO`; interpretações espirituais com linguagem "quântica" são `REFLEXIVO`. A consequência é só uma: não apresentar afirmação metafórica como conclusão estabelecida da física — mesmo mecanismo de rotulagem que já distingue oficial de demonstrativo no Treinador.
+
+**Conteúdo é DADO, nunca instrução.** O card entra em bloco rotulado no system prompt, nunca no array de mensagens, reusando inclusive a sanitização de quebras de linha que a Fatia 5 criou depois de um achado real de forja de bloco de playbook.
+
+**Piloto recomendado: HÁBITOS E CONSISTÊNCIA — não objeções.** Objeções parece óbvio e é o errado para validar a camada: já tem dono (categoria `OBJECOES`, competência `QUEBRA_DE_OBJECOES`, recuperação no Treinador), então um piloto ali mediria duplicação. Hábitos é o único candidato que o Conselheiro **não pode delegar**. Espiritualidade e conteúdo "quântico" **não** são piloto: maior ambiguidade e maior custo de erro, e exigem o eixo `tipoFonte` validado antes.
+
+**Sequência proposta:** 2C.1 KnowledgeCard + governança (**único ponto com migration — gate humano**) → 2C.2 retriever + escopo multiempresa → 2C.3 conteúdo piloto curado → 2C.4 router com `NO_KNOWLEDGE` primeiro → 2C.5 integração no Conselheiro → 2C.6 avaliação real → 2C.7 compartilhar a camada com o Treinador. A ordem é deliberada: **se a camada entrar sabendo só falar, nunca aprenderá a calar.**
+
+Decisões 219–226 no vault; seis decisões humanas registradas em aberto.
+
 ### Fatia 10 — Linx real
 Executar assim que contrato/credenciais reais estiverem disponíveis, sem bloquear fatias independentes.
 
