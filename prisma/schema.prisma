@@ -2742,3 +2742,69 @@ model KnowledgeCard {
   @@index([empresaId, status])
   @@map("knowledge_card")
 }
+
+// =====================================================================
+// ETAPA 2C.3C — ATOR DE PLATAFORMA
+//
+// Por que estes dois modelos existem, e por que são separados do resto:
+//
+// `AuditEvent.actorId` é FK para `Vendedor` e `AuditEvent.empresaId` é
+// obrigatório. Uma operação de PLATAFORMA não tem vendedor nem empresa —
+// registrar Franklin ali exigiria ou falsificar a FK, ou dizer que a ação
+// aconteceu dentro de uma empresa que não tem nada a ver com ela. As duas
+// coisas são mentira de auditoria, que é o oposto do que auditoria serve.
+//
+// A alternativa medida era encaixar a autoridade de plataforma dentro de
+// `Vendedor` (tornando empresa/loja opcionais): **246 erros de tipo em 26
+// arquivos de produção**, porque todo service escopa consulta por empresa.
+// Adaptar o domínio operacional para caber uma exceção de plataforma é
+// arquitetura errada — a exceção vai na camada à qual ela pertence.
+//
+// O QUE ISTO **NÃO** É: não é conta, não é login, não tem senha, não tem
+// JWT, não tem CPF, não tem matrícula e não participa da hierarquia
+// operacional. Quando a plataforma ganhar uma interface real, aí se avalia
+// uma identidade logável (`PlatformUser` com auth próprio). Construir esse
+// stack agora seria login sem lugar nenhum onde ser usado.
+// =====================================================================
+
+// A pessoa que exerce autoridade de plataforma numa operação administrativa.
+//
+// `id` é opaco e estável: é ele que vai em `KnowledgeCard.approvedBy` (campo
+// scalar solto, sem FK — por isso comporta um ator que não é vendedor) e é ele
+// que amarra os eventos de auditoria da mesma pessoa entre execuções.
+model PlatformActor {
+  id String @id @default(uuid())
+  // Nome real de quem autoriza. Nunca "SYSTEM", "CLI" ou nome de ferramenta:
+  // o ponto inteiro é que exista um humano responsável.
+  nome      String @unique
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  eventos PlatformAuditEvent[]
+
+  @@map("platform_actor")
+}
+
+// Auditoria de operação de PLATAFORMA — separada de `AuditEvent`, que é
+// auditoria de empresa e continua exatamente como está.
+model PlatformAuditEvent {
+  id      String @id @default(uuid())
+  actorId String
+  // Nome no momento do ato: auditoria não pode mudar retroativamente se
+  // alguém corrigir o cadastro depois.
+  actorName String
+  acao      String
+  // Que recurso foi tocado — genérico de propósito, porque autoridade de
+  // plataforma não é só sobre conhecimento.
+  recursoTipo String
+  recursoId   String
+  // Contexto mínimo do ato (transição, escopo, origem). Nunca conteúdo.
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  ator PlatformActor @relation(fields: [actorId], references: [id])
+
+  @@index([recursoTipo, recursoId])
+  @@index([actorId, createdAt])
+  @@map("platform_audit_event")
+}

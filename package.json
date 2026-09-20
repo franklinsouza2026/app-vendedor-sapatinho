@@ -16,6 +16,7 @@
     "reset:coach-e2e": "tsx scripts/reset-coach-e2e.ts",
     "seed:piloto-habitos": "tsx scripts/seed-piloto-habitos.ts",
     "promover:platform-admin": "tsx scripts/promover-platform-admin.ts",
+    "publicar:piloto-habitos": "tsx scripts/publicar-piloto-habitos.ts",
     "reset:treinador-e2e": "tsx scripts/reset-treinador-e2e.ts",
     "reset:simulador-e2e": "tsx scripts/reset-simulador-e2e.ts",
     "reset:academia-e2e": "tsx scripts/reset-academia-e2e.ts",

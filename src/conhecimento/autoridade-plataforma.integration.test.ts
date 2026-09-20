@@ -384,3 +384,165 @@ describe('O BANCO É A AUTORIDADE ATUAL SOBRE O PAPEL (Etapa 2C.3C)', () => {
     expect((await request(app).get('/auth/me').set('Authorization', `Bearer ${token}`)).status).toBe(401);
   });
 });
+
+describe('ATOR DE PLATAFORMA — operação administrativa, não conta (Etapa 2C.3C)', () => {
+  async function atorDePlataforma(nome = `Pessoa Teste ${randomUUID().slice(0, 6)}`) {
+    const criado = await prisma.platformActor.create({ data: { nome } });
+    return { platformActorId: criado.id, nome: criado.nome };
+  }
+
+  it('governa o conhecimento GLOBAL pelo ciclo real e assina a aprovação', async () => {
+    const f = await criarFixtureEmpresa();
+    const e = await escola();
+    const ator = await atorDePlataforma();
+
+    const card = await criarCard(cardValido(e.id, { empresaId: null }), ator);
+    expect(card.empresaId).toBeNull();
+    expect(card.status).toBe('DRAFT');
+    // `createdBy` guarda a identidade de plataforma — o campo é scalar solto,
+    // então comporta um ator que não é vendedor sem apontar para FK nenhuma.
+    expect(card.createdBy).toBe(ator.platformActorId);
+
+    await transicionarCard(card.id, 'submeter', ator);
+    await transicionarCard(card.id, 'aprovar', ator);
+    const publicado = await transicionarCard(card.id, 'publicar', ator);
+
+    expect(publicado.status).toBe('PUBLISHED');
+    expect(publicado.approvedBy).toBe(ator.platformActorId);
+    expect(publicado.publishedAt).not.toBeNull();
+
+    // E o Retriever passa a encontrar, para qualquer empresa.
+    const r = await recuperarConhecimento({ empresaId: f.empresa.id, escolaId: e.id, audience: 'SELLER' });
+    expect(r.tipo === 'FOUND' && r.card.id).toBe(card.id);
+  });
+
+  it('a auditoria diz a verdade: quem, o quê, qual ação, quando, qual escopo', async () => {
+    const e = await escola();
+    // Nome único por execução: `PlatformActor.nome` é único de propósito —
+    // duas autoridades com o mesmo nome tornariam a auditoria ambígua.
+    const nome = `Auditoria Teste ${randomUUID().slice(0, 6)}`;
+    const ator = await atorDePlataforma(nome);
+
+    const card = await criarCard(cardValido(e.id, { empresaId: null }), ator);
+    await transicionarCard(card.id, 'submeter', ator);
+    await transicionarCard(card.id, 'aprovar', ator);
+    await transicionarCard(card.id, 'publicar', ator);
+
+    const eventos = await prisma.platformAuditEvent.findMany({ where: { recursoId: card.id }, orderBy: { createdAt: 'asc' } });
+    expect(eventos.map((ev) => ev.acao)).toEqual(['CONTENT_CREATED', 'CONTENT_SUBMITTED_FOR_REVIEW', 'CONTENT_APPROVED', 'CONTENT_PUBLISHED']);
+
+    for (const ev of eventos) {
+      expect(ev.actorId).toBe(ator.platformActorId);
+      // Nome gravado no momento do ato: auditoria não muda retroativamente.
+      expect(ev.actorName).toBe(nome);
+      expect(ev.recursoTipo).toBe('knowledge_card');
+      expect((ev.metadata as Record<string, unknown>).escopo).toBe('GLOBAL');
+      expect((ev.metadata as Record<string, unknown>).origem).toBe('operacao-administrativa-cli');
+    }
+
+    // NÃO fingimos que era um vendedor: nada foi para o log de empresa.
+    expect(await prisma.auditEvent.count({ where: { actorId: ator.platformActorId } })).toBe(0);
+  });
+
+  it('NÃO governa o conteúdo das empresas — nem pra escrever, nem pra ler', async () => {
+    const f = await criarFixtureEmpresa();
+    const e = await escola();
+    const ator = await atorDePlataforma();
+    const daEmpresa = await criarCard(cardValido(e.id), comoPapel(f, 'ADMIN'));
+
+    await expect(criarCard(cardValido(e.id), ator)).rejects.toMatchObject({ status: 403 });
+    // Nem leitura: autoridade de plataforma não é acesso universal a dados.
+    await expect(atualizarCard(daEmpresa.id, { titulo: 'x' }, ator)).rejects.toMatchObject({ status: 404 });
+    await expect(transicionarCard(daEmpresa.id, 'submeter', ator)).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('ADMIN de empresa continua sem alcançar o conhecimento global', async () => {
+    const f = await criarFixtureEmpresa();
+    const e = await escola();
+    const ator = await atorDePlataforma();
+    const global = await criarCard(cardValido(e.id, { empresaId: null }), ator);
+
+    await expect(atualizarCard(global.id, { titulo: 'x' }, comoPapel(f, 'ADMIN'))).rejects.toMatchObject({ status: 403 });
+    await expect(transicionarCard(global.id, 'submeter', comoPapel(f, 'ADMIN'))).rejects.toMatchObject({ status: 403 });
+  });
+
+  it('não existe atalho: o ator de plataforma também não pula etapa do ciclo', async () => {
+    const e = await escola();
+    const ator = await atorDePlataforma();
+    const card = await criarCard(cardValido(e.id, { empresaId: null }), ator);
+
+    // Ser plataforma dá autoridade sobre o escopo, não licença pra publicar
+    // sem revisão. O lifecycle vale para todo mundo.
+    await expect(transicionarCard(card.id, 'publicar', ator)).rejects.toMatchObject({ status: 409 });
+    await expect(transicionarCard(card.id, 'aprovar', ator)).rejects.toMatchObject({ status: 409 });
+    expect((await prisma.knowledgeCard.findUniqueOrThrow({ where: { id: card.id } })).status).toBe('DRAFT');
+  });
+
+  it('o mecanismo não está exposto por HTTP', async () => {
+    const { readFileSync, readdirSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const dir = join(__dirname, '../routes');
+
+    // Autoridade de plataforma exige acesso ao servidor — que é outro nível de
+    // controle, não uma permissão de aplicação. Se um dia isto virar rota, o
+    // ADMIN de uma empresa passa a poder invocá-la.
+    for (const arquivo of readdirSync(dir).filter((f) => f.endsWith('.ts') && !f.includes('.test.'))) {
+      const conteudo = readFileSync(join(dir, arquivo), 'utf8');
+      expect(conteudo, `${arquivo} expõe ator de plataforma por HTTP`).not.toMatch(/platformActor|AtorDePlataforma|platformAuditEvent/i);
+    }
+  });
+});
+
+describe('APÓS A PUBLICAÇÃO — leitura compartilhada, governança não (Etapa 2C.3C)', () => {
+  it('duas empresas leem o mesmo conhecimento global; nenhuma consegue reescrevê-lo', async () => {
+    const a = await criarFixtureEmpresa();
+    const b = await criarFixtureEmpresa();
+    const e = await escola();
+    const ator = { platformActorId: (await prisma.platformActor.create({ data: { nome: `Plataforma ${randomUUID().slice(0, 6)}` } })).id, nome: 'Plataforma' };
+
+    const card = await criarCard(cardValido(e.id, { empresaId: null }), ator);
+    await transicionarCard(card.id, 'submeter', ator);
+    await transicionarCard(card.id, 'aprovar', ator);
+    await transicionarCard(card.id, 'publicar', ator);
+
+    for (const empresa of [a, b]) {
+      const r = await recuperarConhecimento({ empresaId: empresa.empresa.id, escolaId: e.id, audience: 'SELLER' });
+      expect(r.tipo === 'FOUND' && r.card.id).toBe(card.id);
+      expect(r.tipo === 'FOUND' && r.card.escopo).toBe('GLOBAL');
+      // Usar não dá direito de alterar — é a regra que sustenta o produto
+      // quando existirem dezenas de empresas.
+      await expect(atualizarCard(card.id, { titulo: 'x' }, comoPapel(empresa, 'ADMIN'))).rejects.toMatchObject({ status: 403 });
+    }
+  });
+
+  it('com os seis do piloto publicados, a recuperação continua devolvendo UM', async () => {
+    const f = await criarFixtureEmpresa();
+    const e = await escola();
+    const ator = { platformActorId: (await prisma.platformActor.create({ data: { nome: `Plataforma ${randomUUID().slice(0, 6)}` } })).id, nome: 'Plataforma' };
+
+    for (const card of PILOTO_HABITOS) {
+      const criado = await criarCard(
+        {
+          ...cardValido(e.id, { empresaId: null }),
+          chave: `${card.chave}-${randomUUID().slice(0, 6)}`,
+          principio: card.principio,
+          quandoUsar: card.quandoUsar,
+          quandoNaoUsar: card.quandoNaoUsar,
+          tipoFonte: card.tipoFonte,
+          fonte: card.fonte,
+          autor: card.autor,
+          audience: 'BOTH',
+        },
+        ator
+      );
+      await transicionarCard(criado.id, 'submeter', ator);
+      await transicionarCard(criado.id, 'aprovar', ator);
+      await transicionarCard(criado.id, 'publicar', ator);
+    }
+
+    const r = await recuperarConhecimento({ empresaId: f.empresa.id, escolaId: e.id, audience: 'SELLER' });
+    expect(r.tipo).toBe('FOUND');
+    // O contrato da 2C.2 não muda por haver mais conteúdo publicado.
+    expect(r.tipo === 'FOUND' && typeof r.card.id).toBe('string');
+  });
+});

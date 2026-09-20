@@ -152,8 +152,76 @@ export interface AtorAdministrativo {
  * E o inverso também vale, por menor privilégio: `PLATFORM_ADMIN` **não** ganha
  * poder sobre o conteúdo das empresas. Se um dia precisar, decide-se então.
  */
-function podeGovernar(escopoDoCard: string | null, ator: AtorAdministrativo): boolean {
-  return escopoDoCard === null ? ator.papel === 'PLATFORM_ADMIN' : ator.papel === 'ADMIN' && escopoDoCard === ator.empresaId;
+/**
+ * Autoridade de PLATAFORMA exercida por operação administrativa server-side.
+ *
+ * Não é conta, não tem login, não tem JWT, não pertence a empresa nem a loja —
+ * é a pessoa real que autoriza um ato de plataforma, identificada por um id
+ * opaco e estável (`PlatformActor`). Existe porque encaixar isso em `Vendedor`
+ * exigiria tornar empresa/loja opcionais, o que foi medido em 246 erros de
+ * tipo em 26 arquivos: adaptar o domínio operacional pra caber uma exceção de
+ * plataforma é arquitetura errada.
+ */
+export interface AtorDePlataforma {
+  platformActorId: string;
+  nome: string;
+}
+
+export type Ator = AtorAdministrativo | AtorDePlataforma;
+
+/** Discriminação estrutural — nenhum chamador de empresa precisou mudar. */
+export function ehAtorDePlataforma(ator: Ator): ator is AtorDePlataforma {
+  return 'platformActorId' in ator;
+}
+
+/** O id que vai para `createdBy`/`approvedBy` — campos scalares, sem FK. */
+function identidadeDe(ator: Ator): string {
+  return ehAtorDePlataforma(ator) ? ator.platformActorId : ator.vendedorId;
+}
+
+function podeGovernar(escopoDoCard: string | null, ator: Ator): boolean {
+  // Conhecimento de plataforma: só autoridade de plataforma.
+  if (escopoDoCard === null) return ehAtorDePlataforma(ator) || ator.papel === 'PLATFORM_ADMIN';
+  // Conteúdo de empresa: só o ADMIN dela. A plataforma NÃO herda (menor
+  // privilégio nos dois sentidos, Decisão 248).
+  return !ehAtorDePlataforma(ator) && ator.papel === 'ADMIN' && escopoDoCard === ator.empresaId;
+}
+
+/**
+ * Registra o ato no log certo.
+ *
+ * Operação de empresa vai para `AuditEvent`, como sempre. Operação de
+ * plataforma vai para `PlatformAuditEvent`, porque `AuditEvent.actorId` é FK
+ * para `Vendedor` e `empresaId` é obrigatório: pôr Franklin ali exigiria
+ * falsificar a FK ou dizer que o ato aconteceu dentro de uma empresa que não
+ * tem nada a ver com ele.
+ */
+async function registrarAto(
+  ator: Ator,
+  acao: 'CONTENT_CREATED' | 'CONTENT_UPDATED' | 'CONTENT_SUBMITTED_FOR_REVIEW' | 'CONTENT_APPROVED' | 'CONTENT_PUBLISHED' | 'CONTENT_ARCHIVED',
+  cardId: string,
+  metadata: Record<string, unknown>
+) {
+  if (ehAtorDePlataforma(ator)) {
+    await prisma.platformAuditEvent.create({
+      data: {
+        actorId: ator.platformActorId,
+        // Nome no momento do ato: auditoria não muda retroativamente.
+        actorName: ator.nome,
+        acao,
+        recursoTipo: 'knowledge_card',
+        recursoId: cardId,
+        metadata: { ...metadata, escopo: 'GLOBAL', origem: 'operacao-administrativa-cli' } as Prisma.InputJsonValue,
+      },
+    });
+    return;
+  }
+  await registrarEventoAuditoria({
+    empresaId: ator.empresaId,
+    acao,
+    actorId: ator.vendedorId,
+    metadata: { tipo: 'knowledge_card', id: cardId, ...metadata },
+  });
 }
 
 /**
@@ -166,16 +234,19 @@ function podeGovernar(escopoDoCard: string | null, ator: AtorAdministrativo): bo
  * Devolve `null` para conhecimento de plataforma e o id da empresa para
  * conhecimento dela.
  */
-function assegurarEscopo(input: CriarKnowledgeCardInput, ator: AtorAdministrativo): string | null {
+function assegurarEscopo(input: CriarKnowledgeCardInput, ator: Ator): string | null {
   // Pedido explícito de conhecimento de plataforma.
   if (input.empresaId === null) {
-    if (ator.papel !== 'PLATFORM_ADMIN') {
+    if (!podeGovernar(null, ator)) {
       throw new IdentidadeError(403, 'escopo_negado', 'conhecimento GLOBAL é autoridade de plataforma');
     }
     return null;
   }
 
   // Conhecimento de empresa: só o ADMIN dela, e só da dele.
+  if (ehAtorDePlataforma(ator)) {
+    throw new IdentidadeError(403, 'escopo_negado', 'autoridade de plataforma não governa o conteúdo das empresas');
+  }
   if (input.empresaId !== undefined && input.empresaId !== ator.empresaId) {
     throw new IdentidadeError(403, 'escopo_negado', 'não é possível criar conhecimento para outra empresa');
   }
@@ -203,7 +274,7 @@ function validarTags(tags: string[] | undefined): string[] {
  */
 export async function criarCard(
   input: CriarKnowledgeCardInput,
-  ator: AtorAdministrativo,
+  ator: Ator,
   /**
    * Só a Training Intelligence Platform passa isto, quando um agente rascunhar
    * um card — mesmo padrão de `criarTrilha`. Marca a procedência editorial e
@@ -256,19 +327,14 @@ export async function criarCard(
         origemEditorial: origemInterna?.origemEditorial ?? 'ADMIN_CURATED',
         tags: tags as Prisma.InputJsonValue,
         status: 'DRAFT',
-        createdBy: ator.vendedorId,
+        createdBy: identidadeDe(ator),
       },
     });
 
-    await registrarEventoAuditoria({
-      empresaId: ator.empresaId,
-      acao: 'CONTENT_CREATED',
-      actorId: ator.vendedorId,
-      // O id vai no metadata, nunca em `targetId` — `AuditEvent.targetId` é FK
-      // pra `Vendedor.id` (bug já cometido e corrigido na Fatia 7.5D). E nunca
-      // o conteúdo completo: o log de auditoria registra o ato, não o texto.
-      metadata: { tipo: 'knowledge_card', id: card.id, chave: card.chave },
-    });
+    // O id do card vai no metadata, nunca em `targetId` — `AuditEvent.targetId`
+    // é FK pra `Vendedor.id` (bug já cometido e corrigido na Fatia 7.5D). E
+    // nunca o conteúdo: o log registra o ato, não o texto.
+    await registrarAto(ator, 'CONTENT_CREATED', card.id, { chave: card.chave });
     return card;
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
@@ -285,10 +351,11 @@ export async function criarCard(
  * Card global (`empresaId: null`) é legível por qualquer empresa: é
  * conhecimento de plataforma. Card de empresa, só pela dona.
  */
-async function buscarNoEscopo(id: string, ator: AtorAdministrativo) {
-  const card = await prisma.knowledgeCard.findFirst({
-    where: { id, OR: [{ empresaId: ator.empresaId }, { empresaId: null }] },
-  });
+async function buscarNoEscopo(id: string, ator: Ator) {
+  // Autoridade de plataforma enxerga o conhecimento GLOBAL — e só ele. Não
+  // ganha acesso ao conteúdo das empresas nem pra leitura.
+  const escopoVisivel = ehAtorDePlataforma(ator) ? [{ empresaId: null }] : [{ empresaId: ator.empresaId }, { empresaId: null }];
+  const card = await prisma.knowledgeCard.findFirst({ where: { id, OR: escopoVisivel } });
   // Mesma mensagem pra "não existe" e "não é seu" — não confirmar existência de
   // recurso alheio é o padrão já usado nas conversas do Conselheiro.
   if (!card) throw new IdentidadeError(404, 'card_nao_encontrado', 'card de conhecimento não encontrado');
@@ -296,7 +363,7 @@ async function buscarNoEscopo(id: string, ator: AtorAdministrativo) {
 }
 
 /** Escrever e transicionar exigem autoridade sobre o ESCOPO do card. */
-function assegurarPodeEscrever(card: { empresaId: string | null }, ator: AtorAdministrativo) {
+function assegurarPodeEscrever(card: { empresaId: string | null }, ator: Ator) {
   if (!podeGovernar(card.empresaId, ator)) {
     throw new IdentidadeError(
       403,
@@ -326,7 +393,7 @@ export type AtualizarKnowledgeCardInput = Partial<
  * **não são atualizáveis por aqui** — estado editorial muda só por transição, e
  * escopo não muda nunca.
  */
-export async function atualizarCard(id: string, dados: AtualizarKnowledgeCardInput, ator: AtorAdministrativo) {
+export async function atualizarCard(id: string, dados: AtualizarKnowledgeCardInput, ator: Ator) {
   const atual = await buscarNoEscopo(id, ator);
   assegurarPodeEscrever(atual, ator);
 
@@ -386,12 +453,7 @@ export async function atualizarCard(id: string, dados: AtualizarKnowledgeCardInp
 
   const card = await prisma.knowledgeCard.update({ where: { id }, data: permitidos });
 
-  await registrarEventoAuditoria({
-    empresaId: ator.empresaId,
-    acao: 'CONTENT_UPDATED',
-    actorId: ator.vendedorId,
-    metadata: { tipo: 'knowledge_card', id, novaVersao: precisaNovaVersao, substantivo: mudouSubstantivo },
-  });
+  await registrarAto(ator, 'CONTENT_UPDATED', id, { novaVersao: precisaNovaVersao, substantivo: mudouSubstantivo });
   return card;
 }
 
@@ -405,7 +467,7 @@ export async function atualizarCard(id: string, dados: AtualizarKnowledgeCardInp
  * `approvedBy` sai do ator autenticado no momento da publicação. **Não existe
  * parâmetro para informá-lo** — um aprovador forjado não tem por onde entrar.
  */
-export async function transicionarCard(id: string, transicao: TransicaoCard, ator: AtorAdministrativo) {
+export async function transicionarCard(id: string, transicao: TransicaoCard, ator: Ator) {
   const atual = await buscarNoEscopo(id, ator);
   assegurarPodeEscrever(atual, ator);
 
@@ -417,7 +479,10 @@ export async function transicionarCard(id: string, transicao: TransicaoCard, ato
     where: { id, empresaId: atual.empresaId, status: { in: regra.de } },
     data: {
       status: regra.para,
-      ...(regra.para === 'PUBLISHED' ? { publishedAt: new Date(), approvedBy: ator.vendedorId } : {}),
+      // `approvedBy` guarda a identidade de quem aprovou — vendedor ou ator de
+      // plataforma. O campo é scalar solto (sem FK), então comporta os dois
+      // honestamente, sem apontar para um `Vendedor` que não existe.
+      ...(regra.para === 'PUBLISHED' ? { publishedAt: new Date(), approvedBy: identidadeDe(ator) } : {}),
     },
   });
 
@@ -425,12 +490,7 @@ export async function transicionarCard(id: string, transicao: TransicaoCard, ato
     throw new IdentidadeError(409, 'transicao_invalida', `card não está em um estado válido para "${transicao}" (estado atual: ${atual.status})`);
   }
 
-  await registrarEventoAuditoria({
-    empresaId: ator.empresaId,
-    acao: ACAO_POR_TRANSICAO[transicao],
-    actorId: ator.vendedorId,
-    metadata: { tipo: 'knowledge_card', id, de: atual.status, para: regra.para },
-  });
+  await registrarAto(ator, ACAO_POR_TRANSICAO[transicao], id, { de: atual.status, para: regra.para });
   return prisma.knowledgeCard.findUniqueOrThrow({ where: { id } });
 }
 
