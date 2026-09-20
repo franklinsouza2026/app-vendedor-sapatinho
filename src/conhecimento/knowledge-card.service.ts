@@ -418,14 +418,35 @@ export { buscarNoEscopo as buscarCard };
  * O escopo é o mesmo da leitura administrativa: o conhecimento da empresa mais
  * o global. Conteúdo arquivado ou em rascunho nunca entra.
  */
-export async function listarElegiveis(empresaId: string, filtros: { escolaId?: string; audience?: PublicoConteudo } = {}) {
+export async function listarElegiveis(
+  empresaId: string,
+  filtros: { escolaId?: string; audience?: PublicoConteudo; tipoFonte?: TipoFonteConhecimento[] } = {}
+) {
   return prisma.knowledgeCard.findMany({
     where: {
       status: 'PUBLISHED',
       OR: [{ empresaId }, { empresaId: null }],
       ...(filtros.escolaId ? { escolaId: filtros.escolaId } : {}),
       ...(filtros.audience ? { audience: { in: [filtros.audience, 'BOTH'] } } : {}),
+      ...(filtros.tipoFonte?.length ? { tipoFonte: { in: filtros.tipoFonte } } : {}),
     },
-    orderBy: { chave: 'asc' },
+    // `chave` NÃO é ordem total aqui: ela é única por escopo, então um card
+    // global e um da empresa podem compartilhar a mesma chave — que é
+    // exatamente o caso de override. `id` fecha a ordem.
+    orderBy: [{ chave: 'asc' }, { id: 'asc' }],
+    // BOUNDED (Etapa 2C.2): sem teto, uma escola com muito conteúdo carregaria
+    // o catálogo inteiro pra devolver um card só. O teto é de segurança, não de
+    // produto — quem consome escolhe UM, e uma escola que encoste nele é sinal
+    // de que o filtro precisa ser mais estreito, não de que falta espaço.
+    take: MAX_CANDIDATOS,
   });
 }
+
+/**
+ * Teto de candidatos carregados numa recuperação.
+ *
+ * Calibrado pelo tamanho real do corpus medido na 2C.0 (37 unidades de texto
+ * no produto inteiro): 50 é uma ordem de grandeza acima do que uma escola
+ * deve ter, e mesmo assim a consulta continua trivial.
+ */
+export const MAX_CANDIDATOS = 50;
