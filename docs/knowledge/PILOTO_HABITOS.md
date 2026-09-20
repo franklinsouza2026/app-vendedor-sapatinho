@@ -1,11 +1,15 @@
 # Piloto de Hábitos — 6 Knowledge Cards para homologação
 
-> **STATUS: RASCUNHO. AGUARDANDO HOMOLOGAÇÃO HUMANA.**
+> **STATUS: HOMOLOGADOS PELO USUÁRIO (2C.3B) — AINDA EM `DRAFT`, NÃO PUBLICADOS.**
 >
-> Nenhum destes cards foi aprovado ou publicado. Enquanto estiverem em `DRAFT`,
-> o Retriever devolve `NO_KNOWLEDGE` para Hábitos — e isso está correto.
+> Os seis textos foram aprovados; os Cards 1 e 4 receberam ajuste de linguagem.
+> **A publicação não aconteceu** porque ainda não existe uma pessoa com
+> autoridade de plataforma no sistema — ver §"O que falta" no fim.
 >
-> Etapa 2C.3 · 2026-09-20 · Escola: **Organização e Produtividade** · Escopo: **GLOBAL**
+> Enquanto estiverem em `DRAFT`, o Retriever devolve `NO_KNOWLEDGE` para
+> Hábitos, e isso está correto.
+>
+> Etapas 2C.3 / 2C.3B · 2026-09-20 · Escola: **Organização e Produtividade** · Escopo: **GLOBAL**
 
 Este documento existe para você homologar **sem precisar abrir o banco**. Cada
 card aparece integralmente, com a origem e o motivo de existir.
@@ -66,16 +70,20 @@ Se os seis fossem `CIENTIFICO`, a etiqueta seria decorativa.
 **Chave:** `habito-comecar-pequeno`
 **Escola:** Organização e Produtividade
 **Tipo de fonte:** METODOLOGIA
-**Status:** DRAFT
+**Status:** DRAFT (homologado, não publicado)
 **Licença:** PROPRIO (texto próprio)
 
 ### PRINCÍPIO
 
-Quando uma rotina nova não se sustenta, muitas vezes o problema não é falta de
-vontade: é que a ação combinada é grande demais para um dia comum. Reduzir a ação
-até um tamanho que caberia até num dia ruim torna a repetição possível. O tamanho
-pequeno é porta de entrada, não teto — depois que a repetição se firma, dá pra
-crescer.
+Quando uma rotina nova não se sustenta, uma possibilidade é que a ação combinada
+esteja grande demais para a rotina atual. Reduzir a ação até um tamanho que caiba
+até num dia ruim pode tornar a repetição mais possível. O tamanho pequeno é porta
+de entrada, não teto — depois que a repetição se firma, dá pra crescer.
+
+> **Ajustado na homologação (2C.3B):** a versão anterior dizia *"muitas vezes o
+> problema não é falta de vontade: é que a ação é grande demais"*, o que
+> transformava qualquer abandono em diagnóstico de causa. Agora é possibilidade,
+> não veredito.
 
 ### QUANDO USAR
 
@@ -122,7 +130,7 @@ explicitamente na situação do outro.
 **Chave:** `habito-ambiente-facilita`
 **Escola:** Organização e Produtividade
 **Tipo de fonte:** CIENTIFICO
-**Status:** DRAFT
+**Status:** DRAFT (homologado, não publicado)
 **Licença:** PROPRIO (texto próprio)
 
 ### PRINCÍPIO
@@ -179,7 +187,7 @@ resolve "eu esqueci".
 **Chave:** `habito-gatilho-claro`
 **Escola:** Organização e Produtividade
 **Tipo de fonte:** CIENTIFICO
-**Status:** DRAFT
+**Status:** DRAFT (homologado, não publicado)
 **Licença:** PROPRIO (texto próprio)
 
 ### PRINCÍPIO
@@ -238,15 +246,20 @@ fácil de fazer).
 **Chave:** `habito-consistencia-antes-de-intensidade`
 **Escola:** Organização e Produtividade
 **Tipo de fonte:** CIENTIFICO
-**Status:** DRAFT
+**Status:** DRAFT (homologado, não publicado)
 **Licença:** PROPRIO (texto próprio)
 
 ### PRINCÍPIO
 
-O que firma uma rotina é repetir na mesma situação, mais do que caprichar em cada
-vez. No começo vale proteger a frequência e deixar o volume em segundo plano;
-depois que a ação já acontece quase sem pensar, aumentar faz sentido. Quanto
-tempo isso leva varia bastante de pessoa pra pessoa e de ação pra ação.
+Repetir uma ação em um contexto consistente ajuda essa ação a se tornar mais
+automática. No começo, pode fazer sentido proteger a frequência e deixar o volume
+em segundo plano; depois que a ação começa a acontecer com mais naturalidade,
+aumentar pode fazer sentido. O tempo para isso varia bastante entre pessoas e
+entre ações.
+
+> **Ajustado na homologação (2C.3B):** a versão anterior abria com *"o que firma
+> uma rotina é repetir na mesma situação"* — afirmação de mecanismo onde a
+> evidência descreve tendência.
 
 ### QUANDO USAR
 
@@ -294,7 +307,7 @@ foi interrompida**.
 **Chave:** `habito-retomar-sem-abandonar`
 **Escola:** Organização e Produtividade
 **Tipo de fonte:** CIENTIFICO
-**Status:** DRAFT
+**Status:** DRAFT (homologado, não publicado)
 **Licença:** PROPRIO (texto próprio)
 
 ### PRINCÍPIO
@@ -352,7 +365,7 @@ este trata de não desmontar.
 **Chave:** `habito-uma-mudanca-por-vez`
 **Escola:** Organização e Produtividade
 **Tipo de fonte:** DESENVOLVIMENTO_PESSOAL
-**Status:** DRAFT
+**Status:** DRAFT (homologado, não publicado)
 **Licença:** PROPRIO (texto próprio)
 
 ### PRINCÍPIO
@@ -486,39 +499,48 @@ existente medida na 2C.0: 451).
 
 ---
 
-## O que falta — e é decisão sua
+## O que falta
 
-### 1. Homologar os seis textos
+### 1. Homologação editorial — ✅ FEITA
 
-Aprovar, ajustar, trocar fonte ou rejeitar. Nada avança sem isso.
+Os seis foram aprovados; Cards 1 e 4 ajustados e re-seedados. Os textos acima são
+os finais, e há teste automatizado impedindo que as duas formulações antigas
+voltem.
 
-### 2. Um problema arquitetural que só apareceu agora
+### 2. Autoridade de plataforma — ✅ CONSTRUÍDA
 
-Os cards são **GLOBAL**, porque é o que eles são. Mas a 2C.1 deliberadamente não
-criou autoridade de plataforma, e o resultado, medido:
+O impasse levantado na 2C.3 foi resolvido na 2C.3B:
 
+- **`PLATFORM_ADMIN`** governa conhecimento GLOBAL.
+- **`ADMIN`** governa o conhecimento da própria empresa — e **não** o global.
+- **`GERENTE`/`VENDEDOR`** não governam conteúdo nenhum.
+- **`PLATFORM_ADMIN` não herda o conteúdo das empresas** (menor privilégio, nos
+  dois sentidos), e **não alcança conversa, check-in ou memória do Conselheiro**.
+- **Leitura não é autoridade:** qualquer empresa usa o conhecimento global sem
+  poder reescrevê-lo.
+
+Nenhum ADMIN foi promovido. A promoção não é permissão de aplicação — é operação
+de servidor, auditada.
+
+### 3. Publicação — ⛔ PARADA, e é a sua vez
+
+**Não existe ninguém com `PLATFORM_ADMIN` no sistema.** O único ADMIN é um
+usuário de demonstração (Helena Costa / ADM001), e assinar a aprovação em nome
+dele seria inventar um aprovador.
+
+Para publicar, alguém precisa primeiro receber a autoridade:
+
+```bash
+npm run promover:platform-admin -- --loja LOJA001 --matricula <SUA_MATRICULA>
 ```
-transicionar(submeter) → 403 escopo_negado
-transicionar(aprovar)  → 403 escopo_negado
-transicionar(publicar) → 403 escopo_negado
-```
 
-**Nenhum ator existente consegue aprovar ou publicar um card global.** O produto
-tem `VENDEDOR | GERENTE | ADMIN` e nada acima da empresa.
+O comando promove **uma pessoa que já existe** — ele nunca cria conta nem escolhe
+ninguém sozinho. Para revogar: o mesmo comando com `--revogar`.
 
-Criar os rascunhos por script é legítimo — é o caminho que a 2C.1 registrou para
-conteúdo global, o mesmo do Playbook. Mas **avançar o ciclo não tem caminho**, e
-isso precisa ser resolvido antes de qualquer publicação. Três saídas possíveis:
+Depois disso, os seis cards seguem o ciclo real (`submeter → aprovar → publicar`)
+assinado por essa identidade, e o Retriever passa a devolver `FOUND`. O caminho
+inteiro já está provado por teste, ponta a ponta.
 
-- **(a)** criar um papel/mecanismo de plataforma para conteúdo global;
-- **(b)** permitir que um `ADMIN` transicione cards globais, aceitando que numa
-  instalação de uma empresa só isso é equivalente;
-- **(c)** manter a publicação de conteúdo global como operação de script,
-  registrando o aprovador humano de outra forma.
-
-**Não escolhi por você.** Inventar autoridade seria exatamente o que a 2C.1
-evitou de propósito.
-
-### 3. Depois disso
+### 4. Depois
 
 Router (2C.4) e integração com o Conselheiro (2C.5) — nenhum dos dois existe.

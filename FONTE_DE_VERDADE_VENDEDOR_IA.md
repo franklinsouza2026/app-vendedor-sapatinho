@@ -2137,6 +2137,58 @@ Criar rascunhos por script é legítimo — é o caminho que a 2C.1 registrou pa
 
 **896 backend + 173 frontend + 41 E2E.** Zero migration, dependência, chamada de IA, RAG, embeddings, vector DB, agente novo, UI e rota. Conselheiro, Treinador, Academia e Universidade intactos; Router (2C.4) e integração (2C.5) continuam inexistentes.
 
+### Etapa 2C.3B — Homologação + Autoridade de Plataforma — CONCLUÍDA (2026-09-20) — PUBLICAÇÃO PARADA NO GATE HUMANO
+
+Fecha o impasse que a 2C.3 levantou e deixa os seis cards prontos para publicar — **sem publicá-los**, porque ainda não existe uma pessoa com autoridade de plataforma no sistema.
+
+#### GLOBAL pertence à plataforma; COMPANY pertence à empresa
+
+O papel `PLATFORM_ADMIN` foi criado (migration **aditiva**, `ADD VALUE IF NOT EXISTS`, nenhuma linha alterada e **nenhum ADMIN promovido**). A divisão:
+
+| | governa GLOBAL | governa conteúdo da empresa |
+|---|---|---|
+| `PLATFORM_ADMIN` | ✅ | ❌ |
+| `ADMIN` | ❌ | ✅ (só a dele) |
+| `GERENTE` / `VENDEDOR` | ❌ | ❌ |
+
+**Menor privilégio nos DOIS sentidos.** A plataforma não herda o conteúdo das empresas — dar os dois ao mesmo papel criaria um superadmin sem necessidade. E **leitura não é autoridade**: qualquer empresa usa o conhecimento global pelo Retriever sem poder reescrevê-lo, o que é o ponto inteiro da fatia.
+
+**Por que agora, com uma empresa só.** É exatamente por ser uma empresa só que a distinção precisa existir antes: quando houver dezenas, um ADMIN de uma delas reescrevendo conhecimento global seria um problema sério, e nessa hora o custo de separar é muito maior.
+
+**A privacidade da 2B não se mexeu.** `PLATFORM_ADMIN` não alcança conversa, check-in, intervenção nem memória do Conselheiro; não entra em ranking (allowlist `papel: 'VENDEDOR'`) nem em meta comercial; e não aparece em nenhuma rota do Conselheiro. Tudo com teste.
+
+**A adição foi segura por construção:** `requireAuth` e todas as checagens de papel do projeto são **allowlists positivas**, e não existe nenhum `Record<Papel, …>` exaustivo — um papel novo nasce sem nada e não quebra nada. A única checagem negativa (`papel !== 'VENDEDOR'` em metas) rejeita, que é o lado seguro.
+
+#### Escalação de privilégio: fechada, e travada por teste
+
+Auditoria: **nenhuma rota HTTP altera o papel de um usuário existente**, e o único endpoint que o define (pré-autorização) usa `z.enum(['VENDEDOR', 'GERENTE', 'ADMIN'])` — lista literal, sem `PLATFORM_ADMIN`. Trocá-la por `z.nativeEnum(Papel)` pareceria uma limpeza e abriria escalação: o ADMIN passaria a criar autoridade de plataforma pela própria API. **Isso virou teste**, não comentário.
+
+Promover é operação de **servidor**, não permissão de aplicação: `npm run promover:platform-admin -- --loja X --matricula Y`, que promove uma pessoa **que já existe**, exige conta ativa, registra auditoria e tem `--revogar`. Sem esse recorte, o ADMIN se promoveria sozinho e a separação viraria decoração.
+
+#### Homologação editorial
+
+Os seis cards foram aprovados. **Cards 1 e 4 ajustados**, e os dois ajustes são sobre honestidade epistemológica:
+
+- **Card 1** dizia *"muitas vezes o problema não é falta de vontade: é que a ação é grande demais"* — transformava qualquer abandono em diagnóstico de causa. Agora: *"uma possibilidade é que a ação combinada esteja grande demais"*.
+- **Card 4** abria com *"o que firma uma rotina é repetir na mesma situação"* — afirmação de mecanismo onde a evidência descreve tendência. Agora: *"repetir uma ação em um contexto consistente ajuda essa ação a se tornar mais automática"*.
+
+As duas formulações antigas têm **teste impedindo que voltem**. A classificação de fonte foi preservada integralmente — metodologia não virou ciência, desenvolvimento pessoal não virou ciência.
+
+#### O ciclo real, provado ponta a ponta
+
+`DRAFT → REVIEW_PENDING → APPROVED → PUBLISHED` pelos services de verdade, nunca por `UPDATE` no banco. O Retriever devolve `NO_KNOWLEDGE` em **rascunho, em revisão e aprovado-mas-não-publicado** — aprovar não é publicar — e só devolve `FOUND` depois do último passo; arquivar tira na hora. Com os seis publicados numa escola só, a recuperação continua devolvendo **um** card.
+
+#### Publicação: parada, e é decisão humana
+
+**Não existe ninguém com `PLATFORM_ADMIN`.** O único ADMIN é um usuário de demonstração seedado, e assinar a aprovação em nome dele seria inventar um aprovador — o que a própria etapa proíbe. A infraestrutura está pronta e testada; falta o bootstrap, que é um comando e uma decisão de quem assume a autoridade.
+
+#### Achados de passagem
+
+- **`requireAuth` revalida o STATUS da conta a cada request, mas não o PAPEL.** Não é forja (o token é assinado pelo servidor), é *staleness*: revogar autoridade não tem efeito até o JWT expirar (12h). Hoje não concede nada — `PLATFORM_ADMIN` não tem rota HTTP alguma. A correção é de uma linha e **foi implementada e revertida**: exige que todo teste de rota administrativa alinhe o papel do banco com o do token, e **7 arquivos hoje assinam ADMIN sobre uma fixture VENDEDOR**. Fica registrado no código, para a fatia que criar a API de plataforma.
+- **`diasAtivosEmLote` (Fatia 8) estoura com muitos vendedores.** O banco de teste acumulara 43.625 linhas de `vendedor` e a consulta passou do limite de bind variables do Postgres (32.767). Pré-existente, sem relação com esta fatia, e **real em produção acima de ~32 mil vendedores**. O banco de teste foi recriado; a paginação do `groupBy` fica registrada como dívida.
+
+**922 backend + 173 frontend + 41 E2E.** Uma migration aditiva, zero dependência, zero chamada de IA, zero RAG/embeddings/vector DB/agente/CMS. Router (2C.4) e integração (2C.5) continuam inexistentes; Treinador, Academia e Universidade intactos; 13 Mandamentos seguem com 12 posições vazias.
+
 ### Fatia 10 — Linx real
 Executar assim que contrato/credenciais reais estiverem disponíveis, sem bloquear fatias independentes.
 
