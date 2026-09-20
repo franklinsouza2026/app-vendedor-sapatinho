@@ -2269,6 +2269,50 @@ Ser plataforma dá autoridade sobre o **escopo**, não licença para pular etapa
 
 **933 backend + 173 frontend + 41 E2E.** Uma migration aditiva, zero dependência, zero chamada de IA, zero RAG/embeddings/vector DB/agente/CMS. **Router (2C.4) e integração com o Conselheiro (2C.5) continuam inexistentes — o vendedor ainda não recebe estes cards.**
 
+### Etapa 2C.4 — Knowledge Router — CONCLUIDA (2026-09-20) — ZERO MIGRATION
+
+Ate aqui o sistema aprendeu a GUARDAR conhecimento. Esta fatia ensina a **nao usar conhecimento so porque ele existe**.
+
+#### A pergunta, e o vies
+
+O Router responde uma coisa so: *dado o momento e a intencao ja compreendidos, existe um dominio de conhecimento claramente pertinente?* Resposta: pedido estruturado, ou `NO_KNOWLEDGE`.
+
+**`NO_KNOWLEDGE` e sucesso.** Nao e erro, nao e fallback ruim, nao e coisa a evitar — na maior parte das conversas e a resposta certa.
+
+**Metrica declarada: falso positivo e mais grave que falso negativo.** E melhor deixar de trazer uma ideia util uma vez do que empurrar conselho para quem queria ser ouvido. O corpus reflete isso: **58 cenarios, 20 positivos e 38 negativos/ambiguos** — mais negativos que qualquer card individual.
+
+#### O achado que mudou o desenho
+
+Rotear so pela Escola **erraria 5 de 6 vezes**. Os quatro cards `CIENTIFICO` empatam na precedencia de tipo, e o desempate por `chave asc` devolveria sempre "ambiente" — independente da necessidade da pessoa. Por isso o Router emite um **topico** (`START_SMALL`, `ENVIRONMENT`, `TRIGGER`, `CONSISTENCY`, `RESUME`, `MULTIPLE_CHANGES`) e o Retriever ganhou filtro por tag.
+
+Topico **nao e o card**: e a forma da necessidade. Quem escolhe o card continua sendo o Retriever, pelas regras da 2C.2. O Router nunca soube o que e um card; o Retriever nunca soube o que e um topico.
+
+#### A distincao mais importante do arquivo
+
+**Ter tema nao e ter pedido.** *"Comeco e largo depois de tres dias"* relata um problema que se repete — conhecimento pode ajudar. *"Segunda vou acordar 5h, correr e estudar"* e declaracao de intencao: ninguem pediu nada, e responder com tecnica e palestra nao solicitada. O Router so roteia com **dificuldade relatada** ou **pedido explicito de ajuda**.
+
+#### Ordem das barreiras — e ela e regra de produto
+
+Recusa e pedido de escuta primeiro; fronteiras clinicas antes do tema; acolhimento antes do tema; celebracao nao vira aula; comercial nao e biblioteca; dominio sem biblioteca governada cala.
+
+**Saude vem antes da deteccao de tema de proposito:** *"nao consigo dormir e por isso nao mantenho rotina"* fala de rotina e **nao e sobre rotina**. Transformar isso num card de habito seria responder a coisa errada com confianca.
+
+E **dominio nao governado cala**: hoje so Habitos tem biblioteca. Objecao de preco, espiritualidade, linguagem "quantica", financas e lideranca todos devolvem `DOMAIN_NOT_GOVERNED` — o Treinador saber responder objecao **nao autoriza o Conselheiro a atravessar subsistema**.
+
+#### Achado HIGH de vazamento entre empresas, no proprio codigo desta fatia
+
+O filtro de tags entrou como um `OR` ao lado do `OR` de tenant. **Em um objeto `where`, duas chaves `OR` nao coexistem — a segunda sobrescreve a primeira**, e o escopo de empresa foi apagado. **Medido**: o teste de isolamento pegou "Card da empresa B" chegando na empresa A. Corrigido combinando os dois dentro de um `AND`: *(e minha OU e global) E (tem alguma destas tags)*. O teste que pegou virou regressao permanente.
+
+#### Separacao mantida
+
+O Router e **funcao pura**: sem banco, sem IA, sem relogio, sem rede — e ha teste inspecionando os imports para garantir. Ele **nao recebe empresa**: pertinencia e sobre a pessoa e o momento; a empresa entra depois, no Retriever, onde a pergunta e outra (*o que esta empresa pode ver?*). Separar pertinencia de autorizacao e o que impede uma decidir pela outra.
+
+Quando o Router cala, **nenhuma consulta acontece**. E rota nao e promessa de conteudo: se a necessidade existe mas a biblioteca nao tem nada elegivel, o resultado continua `NO_KNOWLEDGE`.
+
+**Texto do vendedor nao controla infraestrutura:** pedir um card pela chave nao entrega o card, e instrucao de injecao nao roteia.
+
+**1008 backend + 173 frontend + 41 E2E.** Zero migration, dependencia, chamada de IA, RAG, embeddings, vector DB, agente, endpoint e UI. **O Conselheiro continua sem saber que o Router existe** — a integracao e a 2C.5, e ha teste de inspecao provando.
+
 ### Fatia 10 — Linx real
 Executar assim que contrato/credenciais reais estiverem disponíveis, sem bloquear fatias independentes.
 
