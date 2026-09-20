@@ -1720,6 +1720,11 @@ model EscolaUniversidade {
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
+  // Etapa 2C.1 — a Escola vira a taxonomia macro do conhecimento do
+  // Conselheiro ("skill" = Escola + cards). Back-relation é virtual no
+  // Prisma: não gera coluna nem altera esta tabela; a FK vive no card.
+  knowledgeCards KnowledgeCard[]
+
   @@map("escola_universidade")
 }
 
@@ -2568,4 +2573,150 @@ model CoachIntervention {
   @@index([vendedorId, status, ocorridoEm])
   @@index([dedupeKey])
   @@map("coach_intervention")
+}
+
+// =====================================================================
+// ETAPA 2C.1 — FUNDAÇÃO DO CONHECIMENTO GOVERNADO
+//
+// Esta fatia constrói a ESTANTE. Não coloca os livros, não escolhe o
+// livro e não entrega nada ao Conselheiro — ele continua exatamente como
+// está. O que ela garante é que, quando o conhecimento chegar, saberemos
+// o que é, de onde veio, para quem vale, quem aprovou, quando pode
+// ajudar, QUANDO NÃO DEVE SER USADO e qual versão está valendo.
+//
+// A 2C.0 mediu e decidiu: sem RAG, sem embeddings, sem vector DB, sem CMS
+// novo e sem agente novo. A taxonomia macro é a `EscolaUniversidade` que
+// já existe (8 escolas seedadas) — "skill" neste projeto é Escola +
+// cards, nunca um LLM novo.
+// =====================================================================
+
+// Natureza EPISTEMOLÓGICA da fonte — eixo genuinamente novo.
+//
+// Não confundir com os dois eixos que já existem e continuam valendo:
+//   OrigemConteudoPlaybook = é material real DA EMPRESA ou boa prática genérica?
+//   OrigemEditorial        = QUEM produziu (admin, agente de pesquisa, agente gerador)?
+// Este responde outra pergunta: QUE TIPO de conhecimento é isto?
+//
+// Existe por uma razão concreta: o usuário quer, no futuro, conteúdo
+// ligado a mentalização, energia e "física quântica". Isso não é
+// proibido — é CLASSIFICADO. Física quântica como ciência é CIENTIFICO;
+// interpretação espiritual que usa linguagem "quântica" é REFLEXIVO. A
+// consequência prática é uma só: não apresentar afirmação metafórica como
+// conclusão estabelecida da física. A classificação nunca pode depender da
+// palavra "quântico" aparecer no texto — depende de quem cadastra dizer
+// qual é a natureza daquilo.
+enum TipoFonteConhecimento {
+  // Política, processo ou metodologia interna. Exige empresa (nunca global).
+  OFICIAL_EMPRESA
+  // Evidência/estudo. Pode ser afirmado como fato — e por isso exige fonte.
+  CIENTIFICO
+  // Prática consolidada de vendas/atendimento, sem autor único.
+  PROFISSIONAL
+  // Método nomeado de alguém. Apresentado como abordagem, nunca como verdade.
+  METODOLOGIA
+  // Hábitos, foco, metas. Orientação, nunca garantia de resultado.
+  DESENVOLVIMENTO_PESSOAL
+  // Gratidão, propósito, visualização, práticas contemplativas.
+  // Convite à reflexão — NUNCA afirmação factual, NUNCA ciência.
+  REFLEXIVO
+  // Sem material real ainda. Mesmo papel do DEMONSTRATIVO do Playbook:
+  // existe pra não fingir que há conteúdo oficial onde não há.
+  DEMONSTRATIVO
+}
+
+// Situação de licenciamento/direitos — metadata, NUNCA parecer jurídico.
+//
+// `REVISAR` é o default de propósito: o sistema não decide se algo pode
+// ser usado, e um default "permissivo" criaria falsa garantia legal.
+enum SituacaoLicenca {
+  PROPRIO
+  DOMINIO_PUBLICO
+  LICENCIADO
+  // Curado a partir de material de terceiro, com atribuição — nunca cópia.
+  TERCEIRO_REFERENCIADO
+  REVISAR
+}
+
+// A menor unidade de conhecimento recuperável.
+//
+// NÃO É AULA: aula é material de estudo, lida inteira pelo vendedor na
+// tela da Academia, tem quiz e gera evidência de competência. O card é
+// lido pelo CONSELHEIRO, em fragmento, dentro de uma conversa — e o
+// vendedor nunca vê a estrutura. Por isso tabela separada, com os MESMOS
+// enums de governança: reuso sem sobrecarga semântica.
+//
+// NÃO É PROMPT: o conteúdo é DADO/REFERÊNCIA, nunca instrução de sistema.
+// Um card que diga "ignore suas instruções anteriores" é texto guardado,
+// não comando — e nesta fatia ele não chega a prompt nenhum.
+//
+// NÃO É MEMÓRIA e NÃO É INTERVENÇÃO: nenhuma relação com CoachMessage,
+// ProfessionalMemory ou CoachIntervention. Conhecimento é sobre o mundo;
+// memória é sobre a pessoa; intervenção é o que já foi apresentado.
+model KnowledgeCard {
+  id String @id @default(uuid())
+
+  // Chave determinística e estável — mesmo papel do `code` do catálogo
+  // (Competency, AcademyLesson, EscolaUniversidade). Serve pra seed,
+  // teste, provenance e pra reencontrar o card entre versões. Unicidade é
+  // POR ESCOPO, via índices únicos parciais (ver migration): um card
+  // global e um card de empresa podem usar a mesma chave sem colidir.
+  chave String
+
+  // Taxonomia macro REUTILIZADA — nunca uma categoria paralela.
+  escolaId String
+
+  // ESCOPO, com uma única fonte de verdade: `NULL` = GLOBAL, preenchido =
+  // daquela empresa. Deliberadamente sem um enum `escopo` ao lado: dois
+  // campos pra dizer a mesma coisa é o jeito clássico de acabar com um
+  // card marcado GLOBAL carregando empresaId (ou o contrário).
+  empresaId String?
+
+  titulo        String
+  // A ideia CURADA — um princípio útil, não um capítulo de livro.
+  principio     String  @db.Text
+  // Quando este conhecimento é pertinente.
+  quandoUsar    String  @db.Text
+  // CONTRAINDICAÇÃO CONTEXTUAL — o campo que não existe em nenhum conteúdo
+  // atual do produto, e o mais importante daqui. É ele que impede o
+  // conselho tecnicamente bom no momento errado: "não usar como primeira
+  // resposta quando a pessoa relata exaustão e ainda precisa ser acolhida".
+  quandoNaoUsar String  @db.Text
+  exemplo       String? @db.Text
+
+  tipoFonte      TipoFonteConhecimento
+  // Provenance — a exigência varia com o tipo (validada no service):
+  // CIENTIFICO exige fonte identificável; METODOLOGIA exige fonte ou autor;
+  // DEMONSTRATIVO não exige nada, porque é justamente o caso sem material.
+  fonte          String?
+  autor          String?
+  // URL/DOI é METADATA. NUNCA é buscada pelo sistema — não há fetch em
+  // lugar nenhum desta camada, então não há superfície de SSRF.
+  referencia     String?
+  licenca        SituacaoLicenca       @default(REVISAR)
+  notaProvenance String?               @db.Text
+
+  audience        PublicoConteudo @default(SELLER)
+  origemEditorial OrigemEditorial @default(ADMIN_CURATED)
+  // Especialização fina dentro da Escola. Lista escalar como Json, mesma
+  // convenção de `competencyIds`/`playbookCategorias` no resto do schema.
+  // Tags NUNCA substituem a Escola.
+  tags            Json            @default("[]")
+
+  // Governança REUTILIZADA do CMS (Fatia 7.5C) — mesmo enum, mesmas
+  // transições, mesma semântica de approvedBy/publishedAt.
+  status      StatusConteudo @default(DRAFT)
+  version     Int            @default(1)
+  createdBy   String?
+  approvedBy  String?
+  publishedAt DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  escola EscolaUniversidade @relation(fields: [escolaId], references: [id])
+
+  // Índices desenhados para as consultas que a 2C.2 vai fazer, não para
+  // toda coluna: o retriever filtra por status + escola e respeita escopo.
+  @@index([status, escolaId])
+  @@index([empresaId, status])
+  @@map("knowledge_card")
 }
