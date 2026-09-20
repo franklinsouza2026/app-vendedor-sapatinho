@@ -2237,6 +2237,38 @@ O desenho e de **autoridade**, nunca de heranca de dados: Master nao le conversa
 
 **925 backend + 173 frontend + 41 E2E.** Zero migration, zero dependencia, zero chamada de IA, zero RAG/embeddings/vector DB/agente/CMS. Router (2C.4) e integracao (2C.5) continuam inexistentes.
 
+### Etapa 2C.3C (continuação) — Publicação por Operação de Plataforma — **2C.3 FECHADA** (2026-09-20)
+
+Os seis cards de Hábitos estão **PUBLICADOS**, e a 2C.3 está fechada.
+
+#### A decisão: autoridade de plataforma como operação de servidor
+
+Escolhida a opção **(C)**: a autoridade Master é exercida por **operação administrativa server-side auditada**, sem identidade logável por enquanto. Não construir um stack de autenticação para uma autoridade que ainda não tem nenhuma superfície onde ser usada — e, ao mesmo tempo, não mentir para o banco dizendo que o Master é um vendedor.
+
+#### Duas tabelas novas, zero impacto no resto
+
+`PlatformActor` (quem exerce autoridade de plataforma) e `PlatformAuditEvent` (auditoria de escopo plataforma). Migration **puramente aditiva**, e o número que justifica o desenho: **zero erros de tipo** no código existente — contra os **246 em 26 arquivos** que a alternativa (encaixar a autoridade dentro de `Vendedor`) tinha produzido.
+
+**Por que `AuditEvent` não servia:** `actorId` é FK para `Vendedor` e `empresaId` é obrigatório. Registrar Franklin ali exigiria falsificar a FK ou dizer que o ato aconteceu dentro de uma empresa que não tem nada a ver com ele. As duas são mentira de auditoria, que é o oposto do que auditoria serve. **A exceção foi para a camada à qual pertence**, em vez de o domínio operacional aceitar uma exceção de plataforma.
+
+**Por que `approvedBy` serviu:** é scalar solto, sem FK. Comporta a identidade de plataforma honestamente — e está provado que o id gravado **não existe** como `Vendedor`.
+
+#### O que NÃO foi feito
+
+Nenhum tenant falso, loja falsa, CPF falso, vendedor falso, matrícula inventada. Nenhum uso de ADM001 ou de conta demo. Nenhum JWT forjado. Nenhum `Vendedor` temporário criado e apagado. Nenhum `UPDATE` direto de status. O banco depois da operação: **8 vendedores, 3 lojas, 1 empresa, 0 vendedores `PLATFORM_ADMIN`** — exatamente como antes.
+
+#### A publicação
+
+`DRAFT → REVIEW_PENDING → APPROVED → PUBLISHED` pelos services reais, autorizada por **Franklin Souza**. O CLI **falha fechado** (se não achar exatamente os seis, não publica nenhum), **simula por padrão** (só age com `--confirmar`), **recusa nomes de ferramenta** (`system`, `cli`, `claude`…) porque o ponto é existir um humano responsável, e é **idempotente** — rodar de novo não republica nada nem duplica o ator.
+
+**Prova medida:** Retriever **`NO_KNOWLEDGE` antes → `FOUND` depois**. 18 eventos em `platform_audit_event` (6 × 3 transições), zero no log de empresa.
+
+#### O que continua valendo
+
+Ser plataforma dá autoridade sobre o **escopo**, não licença para pular etapa: o ator de plataforma também é barrado se tentar `publicar` direto de `DRAFT`. E a separação segue nos dois sentidos — a plataforma **não governa nem lê** o conteúdo das empresas, e o ADMIN de empresa continua sem alcançar o global. Leitura compartilhada, governança não.
+
+**933 backend + 173 frontend + 41 E2E.** Uma migration aditiva, zero dependência, zero chamada de IA, zero RAG/embeddings/vector DB/agente/CMS. **Router (2C.4) e integração com o Conselheiro (2C.5) continuam inexistentes — o vendedor ainda não recebe estes cards.**
+
 ### Fatia 10 — Linx real
 Executar assim que contrato/credenciais reais estiverem disponíveis, sem bloquear fatias independentes.
 

@@ -1,15 +1,14 @@
 # Piloto de Hábitos — 6 Knowledge Cards para homologação
 
-> **STATUS: HOMOLOGADOS PELO USUÁRIO (2C.3B) — AINDA EM `DRAFT`, NÃO PUBLICADOS.**
+> **STATUS: PUBLICADOS (2026-09-20).**
 >
-> Os seis textos foram aprovados; os Cards 1 e 4 receberam ajuste de linguagem.
-> **A publicação não aconteceu** porque ainda não existe uma pessoa com
-> autoridade de plataforma no sistema — ver §"O que falta" no fim.
+> Os seis foram homologados, ajustados (Cards 1 e 4) e **publicados pelo ciclo
+> editorial real**, autorizados por **Franklin Souza** como autoridade de
+> plataforma, em operação administrativa server-side auditada.
 >
-> Enquanto estiverem em `DRAFT`, o Retriever devolve `NO_KNOWLEDGE` para
-> Hábitos, e isso está correto.
+> O Retriever passou de `NO_KNOWLEDGE` para `FOUND`.
 >
-> Etapas 2C.3 / 2C.3B · 2026-09-20 · Escola: **Organização e Produtividade** · Escopo: **GLOBAL**
+> Etapas 2C.3 / 2C.3B / 2C.3C · Escola: **Organização e Produtividade** · Escopo: **GLOBAL**
 
 Este documento existe para você homologar **sem precisar abrir o banco**. Cada
 card aparece integralmente, com a origem e o motivo de existir.
@@ -70,7 +69,7 @@ Se os seis fossem `CIENTIFICO`, a etiqueta seria decorativa.
 **Chave:** `habito-comecar-pequeno`
 **Escola:** Organização e Produtividade
 **Tipo de fonte:** METODOLOGIA
-**Status:** DRAFT (homologado, não publicado)
+**Status:** PUBLISHED
 **Licença:** PROPRIO (texto próprio)
 
 ### PRINCÍPIO
@@ -130,7 +129,7 @@ explicitamente na situação do outro.
 **Chave:** `habito-ambiente-facilita`
 **Escola:** Organização e Produtividade
 **Tipo de fonte:** CIENTIFICO
-**Status:** DRAFT (homologado, não publicado)
+**Status:** PUBLISHED
 **Licença:** PROPRIO (texto próprio)
 
 ### PRINCÍPIO
@@ -187,7 +186,7 @@ resolve "eu esqueci".
 **Chave:** `habito-gatilho-claro`
 **Escola:** Organização e Produtividade
 **Tipo de fonte:** CIENTIFICO
-**Status:** DRAFT (homologado, não publicado)
+**Status:** PUBLISHED
 **Licença:** PROPRIO (texto próprio)
 
 ### PRINCÍPIO
@@ -246,7 +245,7 @@ fácil de fazer).
 **Chave:** `habito-consistencia-antes-de-intensidade`
 **Escola:** Organização e Produtividade
 **Tipo de fonte:** CIENTIFICO
-**Status:** DRAFT (homologado, não publicado)
+**Status:** PUBLISHED
 **Licença:** PROPRIO (texto próprio)
 
 ### PRINCÍPIO
@@ -307,7 +306,7 @@ foi interrompida**.
 **Chave:** `habito-retomar-sem-abandonar`
 **Escola:** Organização e Produtividade
 **Tipo de fonte:** CIENTIFICO
-**Status:** DRAFT (homologado, não publicado)
+**Status:** PUBLISHED
 **Licença:** PROPRIO (texto próprio)
 
 ### PRINCÍPIO
@@ -365,7 +364,7 @@ este trata de não desmontar.
 **Chave:** `habito-uma-mudanca-por-vez`
 **Escola:** Organização e Produtividade
 **Tipo de fonte:** DESENVOLVIMENTO_PESSOAL
-**Status:** DRAFT (homologado, não publicado)
+**Status:** PUBLISHED
 **Licença:** PROPRIO (texto próprio)
 
 ### PRINCÍPIO
@@ -499,48 +498,33 @@ existente medida na 2C.0: 451).
 
 ---
 
-## O que falta
+## Como foram publicados
 
-### 1. Homologação editorial — ✅ FEITA
+`DRAFT → REVIEW_PENDING → APPROVED → PUBLISHED`, pelos services reais — nenhum
+`UPDATE` de status direto no banco.
 
-Os seis foram aprovados; Cards 1 e 4 ajustados e re-seedados. Os textos acima são
-os finais, e há teste automatizado impedindo que as duas formulações antigas
-voltem.
+**Quem autorizou:** Franklin Souza, registrado como `PlatformActor`. Não é conta
+de vendedor, não tem login, não tem JWT, não pertence a empresa nem a loja, e
+não entrou na hierarquia operacional. `approvedBy` guarda o id dessa autoridade
+— o campo é scalar solto, então comporta um ator que não é vendedor sem apontar
+para uma FK que seria mentira.
 
-### 2. Autoridade de plataforma — ✅ CONSTRUÍDA
+**Onde está a prova:** `platform_audit_event` tem 18 eventos (6 cards × 3
+transições), cada um com quem, o quê, qual ação, quando e o escopo `GLOBAL`.
+Nada foi parar no log de auditoria de empresa, porque o ato não foi de empresa.
 
-O impasse levantado na 2C.3 foi resolvido na 2C.3B:
-
-- **`PLATFORM_ADMIN`** governa conhecimento GLOBAL.
-- **`ADMIN`** governa o conhecimento da própria empresa — e **não** o global.
-- **`GERENTE`/`VENDEDOR`** não governam conteúdo nenhum.
-- **`PLATFORM_ADMIN` não herda o conteúdo das empresas** (menor privilégio, nos
-  dois sentidos), e **não alcança conversa, check-in ou memória do Conselheiro**.
-- **Leitura não é autoridade:** qualquer empresa usa o conhecimento global sem
-  poder reescrevê-lo.
-
-Nenhum ADMIN foi promovido. A promoção não é permissão de aplicação — é operação
-de servidor, auditada.
-
-### 3. Publicação — ⛔ PARADA, e é a sua vez
-
-**Não existe ninguém com `PLATFORM_ADMIN` no sistema.** O único ADMIN é um
-usuário de demonstração (Helena Costa / ADM001), e assinar a aprovação em nome
-dele seria inventar um aprovador.
-
-Para publicar, alguém precisa primeiro receber a autoridade:
+**Comando** (idempotente — rodar de novo não republica nada):
 
 ```bash
-npm run promover:platform-admin -- --loja LOJA001 --matricula <SUA_MATRICULA>
+npm run publicar:piloto-habitos -- --ator "Nome Completo" --confirmar
 ```
 
-O comando promove **uma pessoa que já existe** — ele nunca cria conta nem escolhe
-ninguém sozinho. Para revogar: o mesmo comando com `--revogar`.
+## O que ainda não existe
 
-Depois disso, os seis cards seguem o ciclo real (`submeter → aprovar → publicar`)
-assinado por essa identidade, e o Retriever passa a devolver `FOUND`. O caminho
-inteiro já está provado por teste, ponta a ponta.
-
-### 4. Depois
-
-Router (2C.4) e integração com o Conselheiro (2C.5) — nenhum dos dois existe.
+- **Router** (2C.4): ninguém traduz *"não consigo manter uma rotina"* em
+  "escola de hábitos" ainda.
+- **Integração com o Conselheiro** (2C.5): o vendedor ainda **não** recebe estes
+  cards numa conversa. Eles estão publicados e recuperáveis; falta quem peça.
+- **Identidade de plataforma logável**: quando a plataforma ganhar interface,
+  aí se avalia um `PlatformUser` com autenticação própria. Hoje seria login sem
+  lugar nenhum onde ser usado.
