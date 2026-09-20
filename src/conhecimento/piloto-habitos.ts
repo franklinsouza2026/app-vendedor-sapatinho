@@ -1,6 +1,14 @@
-// Piloto editorial de HÁBITOS (Etapa 2C.3) — os seis primeiros cards reais.
+// Piloto editorial de HÁBITOS (Etapas 2C.3 / 2C.3B) — os seis primeiros cards reais.
 //
-// ESTES CARDS SÃO CANDIDATOS. Nascem e permanecem em `DRAFT` até homologação
+// HOMOLOGADOS pelo usuário na 2C.3B: os seis foram aprovados, e os cards 1 e 4
+// receberam ajuste de linguagem pra reduzir causalidade e universalidade — "uma
+// possibilidade é que" no lugar de "muitas vezes o problema é", e "ajuda a se
+// tornar mais automática" no lugar de "o que firma uma rotina é". A diferença
+// parece pequena e não é: a primeira formulação transformava abandono em
+// diagnóstico de "ação grande demais", e a segunda afirmava mecanismo onde a
+// evidência descreve tendência.
+//
+// ESTES CARDS AINDA SÃO CANDIDATOS. Nascem e permanecem em `DRAFT` até homologação
 // humana: nada aqui aprova, publica ou preenche `approvedBy`. Enquanto forem
 // rascunho, o Retriever da 2C.2 devolve `NO_KNOWLEDGE` para Hábitos — e isso é
 // o comportamento CORRETO, provado por teste.
@@ -44,7 +52,7 @@ export const PILOTO_HABITOS: CardDoPiloto[] = [
     chave: 'habito-comecar-pequeno',
     titulo: 'Começar pequeno o bastante para caber num dia ruim',
     principio:
-      'Quando uma rotina nova não se sustenta, muitas vezes o problema não é falta de vontade: é que a ação combinada é grande demais para um dia comum. Reduzir a ação até um tamanho que caberia até num dia ruim torna a repetição possível. O tamanho pequeno é porta de entrada, não teto — depois que a repetição se firma, dá pra crescer.',
+      'Quando uma rotina nova não se sustenta, uma possibilidade é que a ação combinada esteja grande demais para a rotina atual. Reduzir a ação até um tamanho que caiba até num dia ruim pode tornar a repetição mais possível. O tamanho pequeno é porta de entrada, não teto — depois que a repetição se firma, dá pra crescer.',
     quandoUsar:
       'A pessoa quer criar uma rotina, começa animada e larga em poucos dias; ou descreve um plano cujo primeiro passo já é grande. O sinal típico é "eu começo empolgado e depois largo".',
     quandoNaoUsar:
@@ -105,7 +113,7 @@ export const PILOTO_HABITOS: CardDoPiloto[] = [
     chave: 'habito-consistencia-antes-de-intensidade',
     titulo: 'Firmar a repetição antes de aumentar o volume',
     principio:
-      'O que firma uma rotina é repetir na mesma situação, mais do que caprichar em cada vez. No começo vale proteger a frequência e deixar o volume em segundo plano; depois que a ação já acontece quase sem pensar, aumentar faz sentido. Quanto tempo isso leva varia bastante de pessoa pra pessoa e de ação pra ação.',
+      'Repetir uma ação em um contexto consistente ajuda essa ação a se tornar mais automática. No começo, pode fazer sentido proteger a frequência e deixar o volume em segundo plano; depois que a ação começa a acontecer com mais naturalidade, aumentar pode fazer sentido. O tempo para isso varia bastante entre pessoas e entre ações.',
     quandoUsar:
       'A pessoa já começou, mas faz de forma irregular — muito num dia, nada por uma semana — e quer que aquilo pegue. Ou quer subir o volume antes de a repetição estar firme. Sinal típico: "quando eu faço, faço bastante, mas não é sempre".',
     quandoNaoUsar:

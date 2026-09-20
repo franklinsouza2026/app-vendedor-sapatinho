@@ -39,6 +39,11 @@ export function Home() {
   // ADMIN chegando em "/" por deep-link ou refresh (Fatia 9.7): a Home de
   // vendedor não é a experiência dele — meta, missão e ranking não são dele.
   if (sessao!.vendedor.papel === 'ADMIN') return <Navigate to={rotaInicialPara('ADMIN')} replace />;
+  // PLATFORM_ADMIN (2C.3B) idem: meta, missão e ranking não são dele, e cair
+  // na Home de vendedor por deep-link seria mostrar uma experiência que não é
+  // a sua. Sem `<Navigate>` aqui, um papel novo herdaria a tela do vendedor
+  // por omissão — que é exatamente o tipo de fallback que se quer evitar.
+  if (sessao!.vendedor.papel === 'PLATFORM_ADMIN') return <Navigate to={rotaInicialPara('PLATFORM_ADMIN')} replace />;
   return <HomeVendedor />;
 }
 

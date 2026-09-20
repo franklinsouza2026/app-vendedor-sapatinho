@@ -24,12 +24,19 @@ async function escolaDoPiloto() {
   });
 }
 
-/** Insere os seis rascunhos, exatamente como o script de plataforma faz. */
+/**
+ * Insere os seis rascunhos, exatamente como o script de plataforma faz.
+ *
+ * Devolve os ids criados: varrer o banco de teste por prefixo de chave é
+ * frágil — outro arquivo que publique um card de nome parecido faria este
+ * passar a medir conteúdo alheio. Cada teste afirma sobre o que ele criou.
+ */
 async function semearRascunhos() {
   const escola = await escolaDoPiloto();
+  const ids: string[] = [];
   for (const card of PILOTO_HABITOS) {
     const chave = `${card.chave}-${Math.random().toString(36).slice(2, 8)}`;
-    await prisma.knowledgeCard.create({
+    const criado = await prisma.knowledgeCard.create({
       data: {
         chave,
         escolaId: escola.id,
@@ -50,14 +57,15 @@ async function semearRascunhos() {
         status: 'DRAFT',
       },
     });
+    ids.push(criado.id);
   }
-  return escola;
+  return { escola, ids };
 }
 
 describe('GATE HUMANO — rascunho não aprovado não entra na experiência', () => {
   it('com os seis rascunhos no banco, o Retriever devolve NO_KNOWLEDGE para Hábitos', async () => {
     const f = await criarFixtureEmpresa();
-    const escola = await semearRascunhos();
+    const { escola } = await semearRascunhos();
 
     // ESTE É O TESTE FUNDAMENTAL DA FATIA. Conteúdo editorial que ninguém
     // homologou não pode escorregar para dentro do produto — e o fato de a
@@ -67,9 +75,9 @@ describe('GATE HUMANO — rascunho não aprovado não entra na experiência', ()
   });
 
   it('nenhum card do piloto nasce aprovado ou publicado', async () => {
-    await semearRascunhos();
-    const cards = await prisma.knowledgeCard.findMany({ where: { empresaId: null, chave: { startsWith: 'habito-' } } });
-    expect(cards.length).toBeGreaterThanOrEqual(PILOTO_HABITOS.length);
+    const { ids } = await semearRascunhos();
+    const cards = await prisma.knowledgeCard.findMany({ where: { id: { in: ids } } });
+    expect(cards).toHaveLength(PILOTO_HABITOS.length);
 
     for (const card of cards) {
       expect(card.status, `${card.chave} não está em DRAFT`).toBe('DRAFT');
@@ -82,8 +90,8 @@ describe('GATE HUMANO — rascunho não aprovado não entra na experiência', ()
   });
 
   it('o escopo declarado é GLOBAL — conhecimento geral não vira conteúdo de empresa', async () => {
-    await semearRascunhos();
-    const cards = await prisma.knowledgeCard.findMany({ where: { chave: { startsWith: 'habito-' } } });
+    const { ids } = await semearRascunhos();
+    const cards = await prisma.knowledgeCard.findMany({ where: { id: { in: ids } } });
     // Cadastrar como conteúdo de uma empresa só porque o escopo global não tem
     // editor seria mentir para o schema.
     for (const card of cards) expect(card.empresaId, `${card.chave} foi cadastrado sob uma empresa`).toBeNull();

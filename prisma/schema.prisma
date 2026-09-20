@@ -54,7 +54,29 @@ model Loja {
 enum Papel {
   VENDEDOR
   GERENTE
+  // Autoridade da EMPRESA: governa usuários, metas, conteúdo e configuração
+  // daquela empresa. NÃO é autoridade de plataforma — ver abaixo.
   ADMIN
+  // Autoridade da PLATAFORMA (Etapa 2C.3B) — existe por uma razão só:
+  // conhecimento GLOBAL pertence à plataforma, conteúdo de empresa pertence à
+  // empresa, e ninguém deve ganhar poder sobre o primeiro só porque a
+  // instalação de hoje tem uma empresa só. Quando o produto tiver dezenas de
+  // empresas, um ADMIN de uma delas reescrevendo conhecimento global seria um
+  // problema sério — e a hora de fechar isso é antes, não depois.
+  //
+  // MENOR PRIVILÉGIO, e isso é o desenho, não um detalhe: este papel governa
+  // `KnowledgeCard` global e NADA MAIS. Não herda nenhuma rota de ADMIN, não
+  // administra usuários, não vê metas, não entra em ranking nem em
+  // gamificação, e **não alcança conversa, check-in ou memória do
+  // Conselheiro** — a privacidade da 2B continua valendo igual.
+  //
+  // LIMITAÇÃO CONHECIDA: `Vendedor` exige `empresaId` e `lojaId`, então a
+  // conta de uma autoridade de plataforma vive dentro de uma empresa real. A
+  // autoridade vem do PAPEL, nunca desse vínculo — e nenhum código deriva
+  // poder global de `empresaId`. Tornar esses campos opcionais mexeria num
+  // invariante de que o produto inteiro depende; fica registrado para quando
+  // houver multi-tenant de verdade.
+  PLATFORM_ADMIN
 }
 
 // Ciclo de vida da conta (Fatia 7.5A, seção 12) — substitui o antigo campo

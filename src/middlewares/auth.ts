@@ -1,13 +1,17 @@
 import { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { env } from '../config';
+import { Papel } from '@prisma/client';
 import { prisma } from '../db';
 
 export interface AuthClaims {
   vendedorId: string;
   empresaId: string;
   lojaId: string;
-  papel: 'VENDEDOR' | 'GERENTE' | 'ADMIN';
+  // Derivado do enum do Prisma, nunca reescrito à mão: uma união literal
+  // duplicada aqui silenciosamente deixaria de aceitar um papel novo, e o
+  // erro apareceria como "papel sem permissão" em vez de erro de tipo.
+  papel: Papel;
 }
 
 declare global {
@@ -50,6 +54,21 @@ export function requireAuth(...papeisPermitidos: AuthClaims['papel'][]) {
       if (!vendedor || vendedor.status !== 'ACTIVE') {
         return res.status(401).json({ error: 'sessão inválida' });
       }
+
+      // LIMITAÇÃO CONHECIDA (levantada na Etapa 2C.3B): só o STATUS é
+      // revalidado a cada request, não o PAPEL. Um JWT emitido antes de uma
+      // mudança de papel continua valendo com o papel antigo até expirar (12h).
+      //
+      // Não é forja — o token é assinado pelo servidor, e o papel dentro dele
+      // saiu do login. É staleness: revogar autoridade não tem efeito imediato.
+      //
+      // Hoje isso não concede nada: `PLATFORM_ADMIN` não tem nenhuma rota HTTP,
+      // e a revogação é feita por script no servidor. A correção é de uma linha
+      // (trazer `papel` neste mesmo `select` e comparar), mas exige que todo
+      // teste de rota administrativa passe a alinhar o papel do banco com o do
+      // token — 7 arquivos hoje assinam ADMIN sobre uma fixture VENDEDOR. Fica
+      // para a fatia que criar a API de plataforma, onde a janela passa a
+      // importar de verdade.
 
       req.auth = claims;
       next();

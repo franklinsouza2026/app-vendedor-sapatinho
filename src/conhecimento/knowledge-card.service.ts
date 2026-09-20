@@ -14,7 +14,7 @@
 //      humano, e `approvedBy` vem sempre do ator autenticado.
 //   2. CONTEÚDO É DADO. Um card que diga "ignore suas instruções anteriores" é
 //      texto guardado, não comando — e nesta fatia ele não chega a prompt algum.
-import { OrigemEditorial, Prisma, PublicoConteudo, SituacaoLicenca, StatusConteudo, TipoFonteConhecimento } from '@prisma/client';
+import { OrigemEditorial, Papel, Prisma, PublicoConteudo, SituacaoLicenca, StatusConteudo, TipoFonteConhecimento } from '@prisma/client';
 import { prisma } from '../db';
 import { IdentidadeError } from '../identidade/erros';
 import { registrarEventoAuditoria } from '../identidade/auditoria.service';
@@ -119,35 +119,70 @@ function validarProvenance(input: { tipoFonte: TipoFonteConhecimento; fonte?: st
 }
 
 /**
- * Resolve o escopo **server-side**, a partir do ator — nunca do payload.
- *
- * `empresaId` vindo do cliente é exatamente o vetor de tenant escape: bastaria
- * trocar um campo do JSON pra gravar (ou ler) conteúdo de outra empresa. Aqui o
- * escopo é decidido por quem está autenticado.
- *
- * GLOBAL é suportado pelo schema mas **não é criável por este caminho**: o
- * produto tem `Papel = VENDEDOR | GERENTE | ADMIN` e nenhum papel de plataforma
- * acima da empresa. Inventar um "admin mágico" pra liberar isso seria criar
- * autoridade que o produto não tem. Conhecimento global entra por seed/script
- * de plataforma — mesmo caminho do Playbook, que também só é populado assim.
- */
-function assegurarEscopo(input: CriarKnowledgeCardInput, ator: AtorAdministrativo): string {
-  if (input.empresaId !== undefined && input.empresaId !== null && input.empresaId !== ator.empresaId) {
-    throw new IdentidadeError(403, 'escopo_negado', 'não é possível criar conhecimento para outra empresa');
-  }
-  if (input.empresaId === null) {
-    throw new IdentidadeError(403, 'escopo_negado', 'conhecimento GLOBAL é autoridade de plataforma — não existe papel capaz de criá-lo por esta via');
-  }
-  return ator.empresaId;
-}
-
-/**
  * Quem está agindo. Vem do JWT, resolvido pelo chamador — nunca do corpo da
  * requisição, e é daqui que saem `createdBy` e `approvedBy`.
+ *
+ * `papel` entra no contrato porque autoridade editorial depende dele: a
+ * plataforma governa o conhecimento GLOBAL, a empresa governa o dela.
  */
 export interface AtorAdministrativo {
   vendedorId: string;
   empresaId: string;
+  papel: Papel;
+}
+
+/**
+ * QUEM GOVERNA O QUÊ (Etapa 2C.3B).
+ *
+ *   GLOBAL   → PLATFORM_ADMIN. Conhecimento global pertence à plataforma.
+ *   EMPRESA  → ADMIN daquela empresa.
+ *   GERENTE  → nada.
+ *   VENDEDOR → nada.
+ *
+ * Duas regras que parecem detalhe e não são:
+ *
+ * 1. **Autoridade de plataforma não deriva de ADMIN.** Hoje a instalação tem
+ *    uma empresa só, e é exatamente por isso que a distinção precisa existir
+ *    agora: quando houver dezenas, um ADMIN de uma delas reescrevendo
+ *    conhecimento global seria um problema sério.
+ *
+ * 2. **Leitura não é autoridade.** Qualquer empresa LÊ o conhecimento global —
+ *    é para isso que ele é global. Nenhuma delas pode reescrevê-lo.
+ *
+ * E o inverso também vale, por menor privilégio: `PLATFORM_ADMIN` **não** ganha
+ * poder sobre o conteúdo das empresas. Se um dia precisar, decide-se então.
+ */
+function podeGovernar(escopoDoCard: string | null, ator: AtorAdministrativo): boolean {
+  return escopoDoCard === null ? ator.papel === 'PLATFORM_ADMIN' : ator.papel === 'ADMIN' && escopoDoCard === ator.empresaId;
+}
+
+/**
+ * Resolve o escopo **server-side**, a partir do ator — nunca do payload.
+ *
+ * `empresaId` vindo do cliente é exatamente o vetor de tenant escape: bastaria
+ * trocar um campo do JSON pra gravar conteúdo de outra empresa. Aqui o escopo é
+ * decidido por quem está autenticado e pelo papel dele.
+ *
+ * Devolve `null` para conhecimento de plataforma e o id da empresa para
+ * conhecimento dela.
+ */
+function assegurarEscopo(input: CriarKnowledgeCardInput, ator: AtorAdministrativo): string | null {
+  // Pedido explícito de conhecimento de plataforma.
+  if (input.empresaId === null) {
+    if (ator.papel !== 'PLATFORM_ADMIN') {
+      throw new IdentidadeError(403, 'escopo_negado', 'conhecimento GLOBAL é autoridade de plataforma');
+    }
+    return null;
+  }
+
+  // Conhecimento de empresa: só o ADMIN dela, e só da dele.
+  if (input.empresaId !== undefined && input.empresaId !== ator.empresaId) {
+    throw new IdentidadeError(403, 'escopo_negado', 'não é possível criar conhecimento para outra empresa');
+  }
+  if (ator.papel !== 'ADMIN') {
+    throw new IdentidadeError(403, 'escopo_negado', 'apenas o ADMIN da empresa governa o conhecimento dela');
+  }
+  return ator.empresaId;
 }
 
 function validarTags(tags: string[] | undefined): string[] {
@@ -260,10 +295,14 @@ async function buscarNoEscopo(id: string, ator: AtorAdministrativo) {
   return card;
 }
 
-/** Card de outra empresa nunca é editável; global não é editável por empresa. */
+/** Escrever e transicionar exigem autoridade sobre o ESCOPO do card. */
 function assegurarPodeEscrever(card: { empresaId: string | null }, ator: AtorAdministrativo) {
-  if (card.empresaId !== ator.empresaId) {
-    throw new IdentidadeError(403, 'escopo_negado', 'este card não pertence à sua empresa');
+  if (!podeGovernar(card.empresaId, ator)) {
+    throw new IdentidadeError(
+      403,
+      'escopo_negado',
+      card.empresaId === null ? 'conhecimento GLOBAL é autoridade de plataforma' : 'este card não pertence à sua empresa'
+    );
   }
 }
 
@@ -371,8 +410,11 @@ export async function transicionarCard(id: string, transicao: TransicaoCard, ato
   assegurarPodeEscrever(atual, ator);
 
   const regra = TRANSICOES[transicao];
+  // O WHERE repete o escopo do card (defesa em profundidade): mesmo que a
+  // checagem de autoridade acima mudasse, a transição só alcança a linha cujo
+  // escopo é o mesmo que foi autorizado.
   const resultado = await prisma.knowledgeCard.updateMany({
-    where: { id, empresaId: ator.empresaId, status: { in: regra.de } },
+    where: { id, empresaId: atual.empresaId, status: { in: regra.de } },
     data: {
       status: regra.para,
       ...(regra.para === 'PUBLISHED' ? { publishedAt: new Date(), approvedBy: ator.vendedorId } : {}),

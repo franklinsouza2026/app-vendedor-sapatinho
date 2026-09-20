@@ -1,4 +1,6 @@
-export type Papel = 'VENDEDOR' | 'GERENTE' | 'ADMIN';
+// PLATFORM_ADMIN (Etapa 2C.3B) governa conhecimento GLOBAL pelo backend e
+// ainda não tem tela — ver `rotaInicialPara`.
+export type Papel = 'VENDEDOR' | 'GERENTE' | 'ADMIN' | 'PLATFORM_ADMIN';
 
 export interface Loja {
   id: string;

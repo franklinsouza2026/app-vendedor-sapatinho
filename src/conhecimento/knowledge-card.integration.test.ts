@@ -25,7 +25,11 @@ import {
 
 type Fixture = Awaited<ReturnType<typeof criarFixtureEmpresa>>;
 
-const ator = (f: Fixture): AtorAdministrativo => ({ vendedorId: f.vendedor.id, empresaId: f.empresa.id });
+/** ADMIN da empresa — autoridade sobre o conhecimento DELA. */
+const ator = (f: Fixture): AtorAdministrativo => ({ vendedorId: f.vendedor.id, empresaId: f.empresa.id, papel: 'ADMIN' });
+
+/** Autoridade de PLATAFORMA — governa o conhecimento GLOBAL (Etapa 2C.3B). */
+const plataforma = (f: Fixture): AtorAdministrativo => ({ vendedorId: f.vendedor.id, empresaId: f.empresa.id, papel: 'PLATFORM_ADMIN' });
 
 async function escola() {
   return prisma.escolaUniversidade.create({
@@ -91,16 +95,51 @@ describe('ESCOPO — uma empresa não alcança o conhecimento da outra', () => {
   });
 });
 
-describe('GLOBAL — suportado no schema, sem autoridade improvisada', () => {
-  it('nenhum papel existente consegue criar conhecimento global por esta via', async () => {
+describe('GLOBAL — pertence à plataforma (Etapa 2C.3B)', () => {
+  it('ADMIN de empresa NÃO cria conhecimento global', async () => {
     const f = await criarFixtureEmpresa();
-    // O produto tem VENDEDOR | GERENTE | ADMIN e nenhum papel de plataforma
-    // acima da empresa. Inventar um "admin mágico" seria criar autoridade que
-    // o produto não tem.
+    // Autoridade de plataforma não deriva de ADMIN. Hoje a instalação tem uma
+    // empresa só, e é justamente por isso que a distinção precisa existir
+    // agora: com dezenas, um ADMIN reescrevendo conhecimento global seria
+    // problema sério.
     await expect(criarCard(cardValido((await escola()).id, { empresaId: null }), ator(f))).rejects.toMatchObject({ status: 403 });
   });
 
-  it('card global é LEGÍVEL por qualquer empresa, mas não editável por nenhuma', async () => {
+  it('PLATFORM_ADMIN cria conhecimento global — e ele nasce DRAFT como qualquer outro', async () => {
+    const f = await criarFixtureEmpresa();
+    const card = await criarCard(cardValido((await escola()).id, { empresaId: null }), plataforma(f));
+    expect(card.empresaId).toBeNull();
+    expect(card.status).toBe('DRAFT');
+    expect(card.approvedBy).toBeNull();
+  });
+
+  it('PLATFORM_ADMIN NÃO governa o conteúdo das empresas — menor privilégio', async () => {
+    const f = await criarFixtureEmpresa();
+    const e = await escola();
+    // O inverso da regra: a plataforma cuida do global, a empresa cuida do
+    // dela. Dar os dois ao mesmo papel seria criar um superadmin sem
+    // necessidade.
+    await expect(criarCard(cardValido(e.id), plataforma(f))).rejects.toMatchObject({ status: 403 });
+
+    const daEmpresa = await criarCard(cardValido(e.id), ator(f));
+    await expect(atualizarCard(daEmpresa.id, { titulo: 'x' }, plataforma(f))).rejects.toMatchObject({ status: 403 });
+    await expect(transicionarCard(daEmpresa.id, 'submeter', plataforma(f))).rejects.toMatchObject({ status: 403 });
+  });
+
+  it.each<[string]>([['GERENTE'], ['VENDEDOR']])('%s não governa KnowledgeCard nenhum', async (papel) => {
+    const f = await criarFixtureEmpresa();
+    const e = await escola();
+    const semPoder: AtorAdministrativo = { vendedorId: f.vendedor.id, empresaId: f.empresa.id, papel: papel as AtorAdministrativo['papel'] };
+
+    await expect(criarCard(cardValido(e.id), semPoder)).rejects.toMatchObject({ status: 403 });
+    await expect(criarCard(cardValido(e.id, { empresaId: null }), semPoder)).rejects.toMatchObject({ status: 403 });
+
+    const existente = await criarCard(cardValido(e.id), ator(f));
+    await expect(atualizarCard(existente.id, { titulo: 'x' }, semPoder)).rejects.toMatchObject({ status: 403 });
+    await expect(transicionarCard(existente.id, 'submeter', semPoder)).rejects.toMatchObject({ status: 403 });
+  });
+
+  it('card global é LEGÍVEL por qualquer empresa, mas não editável pelos ADMINs delas', async () => {
     const a = await criarFixtureEmpresa();
     const b = await criarFixtureEmpresa();
     const e = await escola();

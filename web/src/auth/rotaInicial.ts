@@ -12,6 +12,11 @@ import { Papel } from '../types';
 export function rotaInicialPara(papel: Papel): string {
   // ADMIN tem shell próprio (desktop-first, fora do Layout mobile do vendedor).
   if (papel === 'ADMIN') return '/admin/usuarios';
+  // PLATFORM_ADMIN governa conhecimento GLOBAL pelo backend e ainda não tem
+  // tela (2C.3B). Mandá-lo pra "/" o colocaria na Home de VENDEDOR, com meta,
+  // missões e ranking que não são dele — então vai pro perfil, que é neutro e
+  // existe pra todo mundo. Quando houver painel de plataforma, muda aqui.
+  if (papel === 'PLATFORM_ADMIN') return '/perfil';
   // GERENTE e VENDEDOR compartilham "/", que já resolve a Home certa por papel.
   return '/';
 }
