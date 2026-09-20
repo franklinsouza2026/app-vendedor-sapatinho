@@ -2313,6 +2313,54 @@ Quando o Router cala, **nenhuma consulta acontece**. E rota nao e promessa de co
 
 **1008 backend + 173 frontend + 41 E2E.** Zero migration, dependencia, chamada de IA, RAG, embeddings, vector DB, agente, endpoint e UI. **O Conselheiro continua sem saber que o Router existe** — a integracao e a 2C.5, e ha teste de inspecao provando.
 
+### Etapa 2C.5 — Conselheiro + Conhecimento Governado — CONCLUIDA (2026-09-20) — ZERO MIGRATION
+
+O conhecimento chegou ao Conselheiro. As tres regras que governam a integracao:
+
+> **CARD RECUPERADO != CARD RECITADO.**
+> **CONHECIMENTO E CONTEXTO, NAO RESPOSTA.**
+> **CONHECIMENTO NAO AMPLIA NENHUMA AUTORIZACAO DA 2B.**
+
+#### Onde exatamente ele entra
+
+Dentro do bloco de desenvolvimento do context builder, **depois** da selecao de intervencao e **por ultimo** no prompt. A posicao e a regra: o card entra abaixo das regras de seguranca, pessoa, silencio e autorizacao — nunca acima. Conhecimento e subordinado.
+
+**Um assunto por vez continua soberano.** Se ja existe intervencao estruturada no turno, **o conhecimento espera** — dar duas coisas a pessoa ao mesmo tempo e sobrecarga, e falso negativo aqui e aceitavel. Isso apareceu ao vivo no smoke: havia uma conquista pendente, a celebracao ocupou o turno e o card so entrou depois.
+
+**Quando o Router cala, nenhuma consulta acontece.** O silencio e mais barato que a busca, e e o caso comum.
+
+#### O card entra como referencia, nunca como resposta
+
+Vao ao prompt: principio, quando usar, **quando NAO usar**, exemplo, a natureza da fonte e a origem (so pra responder se perguntarem). E vai junto a instrucao que fecha o ponto: *"so use se ajudar NESTE turno; se nao couber, ignore por completo — ter a referencia nao obriga a usa-la"*, mais *"nunca transforme a resposta em aula"* e *"pergunta curta, resposta curta"*.
+
+**Recuperado nao e falado.** O Retriever autoriza conhecimento; nao obriga fala.
+
+**Epistemologia preservada por `Record` exaustivo:** um tipo de fonte novo nao compila ate alguem decidir o que se pode afirmar com ele. Metodologia nunca vira "a ciencia prova"; desenvolvimento pessoal nunca vira "cientificamente comprovado"; reflexivo nunca vira demonstracao.
+
+**Conteudo e DADO, nunca instrucao.** O texto do card e colapsado em uma linha antes de entrar — conteudo editorial pode vir de uma empresa no futuro, e um card multi-linha conseguiria forjar um bloco que parece instrucao de sistema. E o mesmo achado que a Fatia 5 corrigiu no Playbook do Treinador: instrucao semantica nao e defesa estrutural. Testado com card malicioso `OFICIAL_EMPRESA` (que vence a precedencia), provando que o texto entra achatado e abaixo das REGRAS INEGOCIAVEIS.
+
+#### O que NAO dispara conhecimento
+
+KPI, check-in, `ProfessionalMemory`, gap de competencia e conquista pendente. **Nenhum deles seleciona card** — a pessoa precisa trazer a necessidade. Performance nao autoriza desenvolvimento pessoal, e "ele costuma procrastinar" nao e autorizacao eterna pra ensinar habito.
+
+E o card **nao vira memoria nem intervencao**: usar conhecimento nao cria `CoachIntervention`, nao grava nada em `ProfessionalMemory`, nao da XP, moeda nem badge.
+
+#### Autorizacao e por turno, tambem para conhecimento
+
+Provado em quatro conversas multiturno: pede ajuda → card entra; depois so quer desabafar → card sai. Desabafo → nada; depois pede caminho → card entra. Card usado → pergunta de meta no turno seguinte nao reintroduz conhecimento (a 2B.4 continua governando o passado). Card usado → celebrar progresso nao vira outra aula.
+
+#### Contexto bounded, medido
+
+Bloco de conhecimento por card: **1224 a 1333 caracteres** (media 1277) — no maximo UM por turno, sobre um prompt que custava ~1220 tokens. Nenhuma biblioteca inteira, nenhum "carrega seis e deixa o modelo escolher": Router e Retriever ja fizeram esse trabalho. **Zero chamada de IA nova.**
+
+#### Smoke real
+
+Login → acolhimento (zero card) → pedido explicito de habito (card entra, e a resposta **pergunta antes de ensinar**) → pergunta de meta (card some, comercial entra) → celebracao (card nao reaparece) → transcript preservado.
+
+O Mock ganhou um ramo minimo pra a integracao ser observavel ponta a ponta — e ele **nao recita o card**, porque o ponto da fatia e justamente esse.
+
+**1039 backend + 173 frontend + 41 E2E.** Zero migration, dependencia, chamada de IA, RAG, embeddings, vector DB, agente, endpoint e UI. Treinador, Academia e Universidade intactos; os seis cards e o `PlatformActor` nao foram tocados.
+
 ### Fatia 10 — Linx real
 Executar assim que contrato/credenciais reais estiverem disponíveis, sem bloquear fatias independentes.
 
