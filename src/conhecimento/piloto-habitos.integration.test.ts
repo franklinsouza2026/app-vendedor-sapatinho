@@ -15,12 +15,22 @@ import { LIMITES } from './knowledge-card.service';
 import { recuperarConhecimento } from './knowledge-retriever.service';
 import { ESCOLA_DO_PILOTO, PILOTO_HABITOS } from './piloto-habitos';
 
-/** Cria a Escola do piloto no banco de teste, sem depender do seed do catálogo. */
+/**
+ * Escola ISOLADA por execução.
+ *
+ * Usar a escola real do piloto acoplaria este arquivo ao estado que qualquer
+ * outro teste deixasse nela — o teste do orquestrador, por exemplo, publica os
+ * seis cards ali de propósito. O que se prova aqui é "rascunho não é
+ * recuperável", e isso independe de qual escola é.
+ */
 async function escolaDoPiloto() {
-  const existente = await prisma.escolaUniversidade.findUnique({ where: { code: ESCOLA_DO_PILOTO } });
-  if (existente) return existente;
   return prisma.escolaUniversidade.create({
-    data: { code: ESCOLA_DO_PILOTO, name: 'Escola de Organização e Produtividade', description: 'Rotina, prioridades e produtividade pessoal.', audience: 'BOTH' },
+    data: {
+      code: `${ESCOLA_DO_PILOTO}-teste-${Math.random().toString(36).slice(2, 10)}`,
+      name: 'Escola de Organização e Produtividade (fixture)',
+      description: 'Rotina, prioridades e produtividade pessoal.',
+      audience: 'BOTH',
+    },
   });
 }
 

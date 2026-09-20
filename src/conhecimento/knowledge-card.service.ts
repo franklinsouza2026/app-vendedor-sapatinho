@@ -522,15 +522,32 @@ export { buscarNoEscopo as buscarCard };
  */
 export async function listarElegiveis(
   empresaId: string,
-  filtros: { escolaId?: string; audience?: PublicoConteudo; tipoFonte?: TipoFonteConhecimento[] } = {}
+  filtros: { escolaId?: string; audience?: PublicoConteudo; tipoFonte?: TipoFonteConhecimento[]; tags?: string[] } = {}
 ) {
   return prisma.knowledgeCard.findMany({
     where: {
       status: 'PUBLISHED',
-      OR: [{ empresaId }, { empresaId: null }],
       ...(filtros.escolaId ? { escolaId: filtros.escolaId } : {}),
       ...(filtros.audience ? { audience: { in: [filtros.audience, 'BOTH'] } } : {}),
       ...(filtros.tipoFonte?.length ? { tipoFonte: { in: filtros.tipoFonte } } : {}),
+      // DOIS `OR` COMBINADOS POR `AND`, e isso não é estilo — é correção.
+      //
+      // `where` é um objeto: duas chaves `OR` não coexistem, a segunda
+      // SOBRESCREVE a primeira. Escrever o filtro de tags como um `OR` solto
+      // ao lado do `OR` de tenant apagava o escopo de empresa — e um card de
+      // outra empresa passava a ser recuperável. MEDIDO: o teste de isolamento
+      // pegou "Card da empresa B" chegando na empresa A.
+      //
+      // Dentro do `AND`: (é minha OU é global) E (tem alguma destas tags).
+      AND: [
+        { OR: [{ empresaId }, { empresaId: null }] },
+        // Tags especializam DENTRO da escola (2C.4): sem elas, uma escola com
+        // seis cards devolveria sempre o mesmo, porque os quatro CIENTIFICO
+        // empatam na precedência e `chave asc` decide por ordem alfabética —
+        // o que não tem nada a ver com a necessidade da pessoa. Tags NUNCA
+        // substituem a Escola.
+        ...(filtros.tags?.length ? [{ OR: filtros.tags.map((tag) => ({ tags: { array_contains: [tag] } })) }] : []),
+      ],
     },
     // `chave` NÃO é ordem total aqui: ela é única por escopo, então um card
     // global e um da empresa podem compartilhar a mesma chave — que é

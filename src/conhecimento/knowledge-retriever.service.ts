@@ -42,6 +42,11 @@ export interface PedidoDeConhecimento {
    * partir do texto; ele obedece ao que foi pedido e ao que está cadastrado.
    */
   tipoFonte?: TipoFonteConhecimento[];
+  /**
+   * Especialização dentro da escola — vem do TÓPICO que o Router decidiu
+   * (Etapa 2C.4), nunca do texto do vendedor e nunca de um id de card.
+   */
+  tags?: string[];
 }
 
 /** O card entregue — só o que a camada de contexto (2C.5) vai precisar. */
@@ -179,6 +184,7 @@ export async function recuperarConhecimento(pedido: PedidoDeConhecimento): Promi
     escolaId: pedido.escolaId,
     audience: pedido.audience,
     tipoFonte: pedido.tipoFonte,
+    tags: pedido.tags,
   });
 
   const escolhido = selecionarUm(candidatos);
