@@ -2077,6 +2077,38 @@ Decisões 219–226 no vault; seis decisões humanas registradas em aberto.
 
 **850 backend + 173 frontend + 41 E2E.** Zero regressões; Treinador e Conselheiro intactos.
 
+### Etapa 2C.2 — Knowledge Retriever + Escopo Multiempresa — CONCLUÍDA (2026-09-20) — ZERO MIGRATION
+
+Responde a **uma** pergunta: *dado um domínio já determinado e uma empresa, existe um card publicado e autorizado que eu possa oferecer?* Resposta: **um card, ou `NO_KNOWLEDGE`**.
+
+**A regra que governa a fatia inteira: NENHUM CONHECIMENTO É MELHOR QUE CONHECIMENTO ERRADO.** Por isso `NO_KNOWLEDGE` é resultado de primeira classe e caminho normal — não erro, não exceção, não 500. Nunca "alguma coisa parecida só pra não voltar vazio".
+
+**O que ele NÃO faz**, e a lista importa tanto quanto o que ele faz: não lê a mensagem do vendedor, não descobre intenção, não vê humor, não decide pertinência, não classifica ciência, não conversa, não gera texto, não reescreve o card e **não chama LLM nenhum**. Traduzir *"não consigo manter uma rotina"* em *"escola de hábitos"* é o Router — que é a 2C.4. E **o Conselheiro ainda não sabe que o Retriever existe.**
+
+**Tenant antes de relevância.** A ordem é quem-pode-ver → o-que-está-publicado → qual-escola → qual-precedência → qual-card. Empresa, status e escola são filtrados **no banco**; só o que sobra é ordenado. O caminho inverso — buscar tudo, escolher o melhor, depois conferir de quem é — é o mais curto pra vazar conteúdo entre empresas. **Uma única query por recuperação, medida.**
+
+**Sem "empresa solicitada" separada do escopo.** O contrato tem um `empresaId`, que **é** o escopo, resolvido pelo chamador a partir do sujeito autenticado. Sem dois valores pra divergirem, não existe tenant a forjar.
+
+**Override por IDENTIDADE, nunca pela escola inteira.** Quando a empresa tem um card com a **mesma chave** de um global, o dela prevalece — é a versão dela daquele conhecimento. Mas o global sobre outro assunto continua candidato: ter card próprio sobre rotina de abertura não pode apagar o global sobre formação de hábitos. A regra ingênua *"se existe qualquer card da empresa, ignore todos os globais"* destruiria a biblioteca compartilhada, e é precisamente o que o código evita.
+
+**Precedência por metadado, nunca por leitura semântica.** Ordem: override por identidade → hierarquia de `tipoFonte` (a aprovada na 2C.0: oficial da empresa > científico > profissional > desenvolvimento pessoal > metodologia > reflexivo > demonstrativo) → chave → id. O Retriever não compara ideias; compara classificações declaradas por quem cadastrou. **Toda ordenação termina em desempate determinístico** — a 2B.3 e a 2B.4 já mostraram que empate sem critério vira teste que passa por sorte e produção que erra de vez em quando.
+
+**Nada de fallback frouxo.** Escola errada, empresa errada, tipo de fonte diferente do pedido, rascunho, em revisão, aprovado-mas-não-publicado e arquivado: todos viram `NO_KNOWLEDGE`, cada um com teste próprio. Quem pede ciência recebe ciência ou nada — é a fundação da política aprovada na 2C.0.
+
+**A palavra não decide a classificação.** Dois cards com o mesmo texto mencionando "quântico" são separados pelo `tipoFonte` declarado: filtro `CIENTIFICO` traz só o científico, filtro `REFLEXIVO` só o reflexivo. A classificação é declarada por quem cadastra, **nunca inferida do texto** — testado.
+
+**Versão obsoleta não é um caso que possa existir.** O índice único por escopo da 2C.1 **não tem predicado de status**: há exatamente uma linha por (chave, escopo), em qualquer estado. Versão é contador na própria linha, não linha por versão — então "versão antiga competindo com a substituta" é impossível por construção, e isso virou teste em vez de virar máquina de seleção de versão.
+
+**Licença não bloqueia recuperação hoje — decisão explícita.** `REVISAR` é o default de todo card; filtrá-lo tornaria invisível todo conteúdo que passou pelo ciclo humano completo, um **no-op silencioso** — o tipo de bug que este projeto já pagou caro. A revisão de direitos acontece na aprovação humana, que é onde cabe; o campo viaja no resultado pra 2C.5 decidir apresentação. Um estado explicitamente bloqueante não existe no enum e **não foi inventado aqui** — se o negócio quiser um, é decisão humana.
+
+**O card viaja inteiro e não é interpretado.** `quandoUsar` e `quandoNaoUsar` são preservados palavra por palavra; interpretá-los é 2C.4/2C.5. Provenance (fonte, autor, referência, nota, licença) segue junto. Campos editoriais internos — status, `createdBy`, `approvedBy`, timestamps — ficam de fora: quem conversa não precisa saber quem aprovou. `referencia` é metadata e **nunca é buscada**: não há fetch em lugar nenhum desta camada, logo não há superfície de SSRF.
+
+**Consulta bounded.** A fundação `listarElegiveis` ganhou teto (`MAX_CANDIDATOS = 50`) e filtro de `tipoFonte`, permanecendo a **única** fonte de verdade de elegibilidade — nenhum segundo caminho de leitura que possa esquecer status ou tenant. Testado com 70 cards: a consulta devolve no máximo 50 e o resultado continua sendo um.
+
+**Achado corrigido na fundação:** `listarElegiveis` era **unbounded** e ordenava só por `chave` — que não é ordem total, porque chave é única *por escopo* e um card global pode compartilhá-la com um da empresa (exatamente o caso de override). Corrigidos os dois na própria fundação, sem duplicar regra.
+
+**883 backend + 173 frontend + 41 E2E.** Zero regressões. Zero migration, zero dependência, zero chamada de IA, zero RAG, zero embeddings, zero vector DB, zero agente, zero UI, zero rota HTTP. Conselheiro, Treinador, Academia e Universidade intactos — teste de inspeção varre `coach/`, `coach/prompts/`, `pertinencia/`, `ai-platform/`, `treinador/` e todas as rotas provando zero referência.
+
 ### Fatia 10 — Linx real
 Executar assim que contrato/credenciais reais estiverem disponíveis, sem bloquear fatias independentes.
 
