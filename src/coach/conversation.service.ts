@@ -212,7 +212,9 @@ export async function enviarMensagem(conversationId: string, vendedorId: string,
     // `respondeuSugestao` impede que o mesmo turno abra OUTRA sugestão: quem
     // acabou de dizer "não quero" não pode receber "então faz este outro" na
     // mesma frase.
-    const contexto = await buildCoachContext(vendedorId, pertinencia, new Date(), checkin?.mood ?? null, respondeuSugestao);
+    // A mensagem entra só para o Router de conhecimento (2C.4/2C.5) decidir
+    // pertinência — é o mínimo que ele precisa, e nada além disso viaja.
+    const contexto = await buildCoachContext(vendedorId, pertinencia, new Date(), checkin?.mood ?? null, respondeuSugestao, content);
     const systemPrompt = `${getSystemPrompt()}\n\n${formatarContextoParaPrompt(contexto)}`;
 
     const historico = await prisma.coachMessage.findMany({

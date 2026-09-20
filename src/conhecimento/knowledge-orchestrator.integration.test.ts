@@ -178,8 +178,8 @@ describe('PERTINÊNCIA E AUTORIZAÇÃO SÃO SEPARADAS', () => {
   });
 });
 
-describe('NÃO-INTEGRAÇÃO — o Conselheiro continua sem saber que isto existe', () => {
-  it('nenhum arquivo do fluxo de conversa referencia Router ou orquestrador', async () => {
+describe('UM ÚNICO PONTO DE INTEGRAÇÃO', () => {
+  it('só o context-builder do Conselheiro chama o orquestrador', async () => {
     const { readFileSync, readdirSync } = await import('node:fs');
     const { join } = await import('node:path');
 
@@ -194,20 +194,23 @@ describe('NÃO-INTEGRAÇÃO — o Conselheiro continua sem saber que isto existe
       ...readdirSync(join(raiz, 'routes')).map((f) => join(raiz, 'routes', f)),
     ].filter((f) => f.endsWith('.ts') && !f.includes('.test.'));
 
-    for (const arquivo of arquivos) {
-      const conteudo = readFileSync(arquivo, 'utf8');
-      expect(conteudo, `${arquivo} já usa o Router — isso é 2C.5`).not.toMatch(
-        /rotearConhecimento|conhecimentoParaOTurno|knowledge-router|knowledge-orchestrator/
-      );
-    }
+    // Uma porta só. Espalhar a decisão de buscar conhecimento por vários
+    // pontos do Coach é como se perde a garantia de "no máximo um card" e a
+    // precedência da intervenção estruturada.
+    const queChamam = arquivos.filter((f) => /conhecimentoParaOTurno|knowledge-orchestrator/.test(readFileSync(f, 'utf8')));
+    expect(queChamam.map((f) => f.split('/').pop())).toEqual(['context-builder.service.ts']);
   });
 
-  it('o Router não é exposto por HTTP', async () => {
+  it('o Router nunca é chamado direto pelo Conselheiro', async () => {
     const { readFileSync, readdirSync } = await import('node:fs');
     const { join } = await import('node:path');
-    const dir = join(__dirname, '../routes');
-    for (const arquivo of readdirSync(dir).filter((f) => f.endsWith('.ts') && !f.includes('.test.'))) {
-      expect(readFileSync(join(dir, arquivo), 'utf8')).not.toMatch(/KnowledgeRoute|TopicoConhecimento|rotearConhecimento/);
+    const raiz = join(__dirname, '..');
+    for (const dir of ['coach', 'coach/prompts', 'pertinencia', 'routes']) {
+      for (const arquivo of readdirSync(join(raiz, dir)).filter((f) => f.endsWith('.ts') && !f.includes('.test.'))) {
+        // Roteamento é do orquestrador. Chamar o Router direto abriria caminho
+        // pra alguém usar a rota sem passar pelo Retriever e seus gates.
+        expect(readFileSync(join(raiz, dir, arquivo), 'utf8'), `${dir}/${arquivo}`).not.toMatch(/rotearConhecimento|knowledge-router/);
+      }
     }
   });
 });

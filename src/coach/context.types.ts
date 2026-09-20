@@ -15,6 +15,7 @@
 // inteiro, hash, token, ID desnecessário ou dado de outro vendedor/tenant.
 import { MoodCheckIn, StatusIntervencaoCoach } from '@prisma/client';
 import { IntervencaoDoTurno } from './selecao-intervencao.service';
+import { ConhecimentoRecuperado } from '../conhecimento/knowledge-retriever.service';
 import { DecisaoPertinencia } from '../pertinencia/tipos';
 
 export type BaselineStatus = 'disponivel' | 'em_formacao';
@@ -73,6 +74,17 @@ export interface ContextoDesenvolvimento {
    * entra no contexto e continua elegível.
    */
   intervencaoDoTurno: IntervencaoDoTurno | null;
+  /**
+   * NO MÁXIMO UM card de conhecimento governado (Etapa 2C.5) — ou `null`.
+   *
+   * É **contexto, não resposta**: referência interna que o Conselheiro pode
+   * usar se ajudar neste turno. Recuperado não significa falado.
+   *
+   * Fica abaixo de tudo na hierarquia: só é buscado quando o Router julga
+   * pertinente, e nunca quando já existe intervenção estruturada no turno —
+   * "um assunto por vez" continua soberano.
+   */
+  conhecimento: ConhecimentoRecuperado | null;
   /** Missão de aprendizagem do dia — só as de desenvolvimento entram aqui. */
   currentMission: string | null;
 }

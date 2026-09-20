@@ -155,6 +155,7 @@ const DIFICULDADE = [
   /\bn[ãa]o\s+(consigo|estou\s+conseguindo)\s+(manter|seguir|continuar|sustentar)\b/i,
   /\b(esque[çc]o|esqueci|esquecer|acabo\s+esquecendo|n[ãa]o\s+lembro)\b/i,
   /\bacabo\s+(fazendo|pegando|indo)\b/i,
+  /\b(me\s+distrai|acabo\s+me\s+distraindo)\b/i,
   /\b(n[ãa]o\s+[ée]\s+sempre|n[ãa]o\s+consigo\s+ser\s+constante|fica\s+irregular)\b/i,
   /\b(estraguei|perdi\s+tudo|j[áa]\s+era|acabei\s+com)\b/i,
   /\bmas\s+(n[ãa]o|acabo|esque[çc]o|paro|largo)\b/i,
@@ -190,6 +191,10 @@ const POR_TOPICO: { topico: TopicoConhecimento; padroes: RegExp[] }[] = [
     topico: 'ENVIRONMENT',
     padroes: [
       /\bacabo\s+(pegando|fazendo|indo)\b.*\b(celular|outra\s+coisa|televis|tv|sof[áa])/i,
+      // Distração é o miolo do card de ambiente, e "acabo me distraindo" é
+      // como a pessoa realmente escreve — sem isto, o cenário mais óbvio do
+      // tópico caía em silêncio.
+      /\b(me\s+distrai|acabo\s+me\s+distraindo|fico\s+no\s+celular|vou\s+pro\s+celular)\b/i,
       /\b(chego\s+em\s+casa|quando\s+chego)\b.*\b(acabo|fa[çc]o\s+outra)/i,
       /\b(t[áa]|est[áa])\s+(longe|guardado|dif[íi]cil\s+de\s+pegar)\b/i,
     ],

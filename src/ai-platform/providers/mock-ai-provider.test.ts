@@ -11,7 +11,7 @@ const CONTEXTO_COACH: CoachContext = {
   store: { name: 'Loja Piloto' },
   pertinencia: { intencao: 'DUVIDA_COMERCIAL', estado: 'REFLETIR', dominios: ['HUMANO', 'DESENVOLVIMENTO', 'COMERCIAL'], origem: 'DETERMINISTICO' },
   humano: { checkinHoje: null, continuidade: [] },
-  desenvolvimento: { competencyGaps: [], recentTrainings: [], intervencaoDoTurno: null, currentMission: null },
+  desenvolvimento: { competencyGaps: [], recentTrainings: [], intervencaoDoTurno: null, conhecimento: null, currentMission: null },
   comercial: {
     goal: { todayGoal: 1000, realized: 700, goalPercent: 70, amountRemaining: 300, estimatedSalesRemaining: 3 },
     performance: { ticket: 100, pa: 2, salesCount: 7 },

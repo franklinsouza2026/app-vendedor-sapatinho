@@ -20,6 +20,7 @@ import { getCheckinHoje } from './checkin.service';
 import { listarAtividadesRecentes } from './atividades.service';
 import { listarSinaisPositivosDoVendedor } from './celebracao.service';
 import { selecionarIntervencaoDoTurno } from './selecao-intervencao.service';
+import { conhecimentoParaOTurno } from '../conhecimento/knowledge-orchestrator.service';
 import { listarContinuidadeRelevante } from './intervencao.service';
 import { reconciliarConclusoes } from './conclusao.service';
 
@@ -67,7 +68,12 @@ export async function buildCoachContext(
   /** Check-in já lido pelo chamador — evita reler o mesmo registro na mesma requisição. */
   checkinJaLido?: MoodCheckIn | null,
   /** Esta mensagem foi a resposta a uma sugestão? Então o turno não abre outra. */
-  respondeuSugestao = false
+  respondeuSugestao = false,
+  /**
+   * As palavras da própria pessoa — só isto, e só para o Router de conhecimento
+   * (2C.4) decidir pertinência. Nunca sai daqui para outro lugar.
+   */
+  mensagem?: string
 ): Promise<CoachContext> {
   const vendedor = await prisma.vendedor.findUniqueOrThrow({
     where: { id: vendedorId },
@@ -128,10 +134,29 @@ export async function buildCoachContext(
           respondeuSugestao
         );
 
+        // CONHECIMENTO ENTRA POR ÚLTIMO, E SÓ SE O TURNO ESTIVER LIVRE
+        // (Etapa 2C.5).
+        //
+        // Se já existe intervenção estruturada, o turno tem assunto: trazer
+        // um card em cima disso daria duas coisas pra pessoa ao mesmo tempo,
+        // e "um assunto por vez" (2B.3) continua soberano. Conhecimento pode
+        // esperar — falso negativo aqui é aceitável, sobrecarga não.
+        //
+        // E o Router decide sozinho se é pertinente: ele nem recebe empresa,
+        // KPI, humor ou memória. Quando ele cala, NENHUMA consulta acontece.
+        const conhecimento =
+          intervencao === null && mensagem
+            ? await conhecimentoParaOTurno(
+                { estado: pertinencia.estado, intencao: pertinencia.intencao, mensagem },
+                { empresaId: vendedor.empresaId, audience: 'SELLER' }
+              ).then((r) => (r.conhecimento.tipo === 'FOUND' ? r.conhecimento.card : null))
+            : null;
+
         return {
           competencyGaps: gapsParaContexto,
           recentTrainings,
           intervencaoDoTurno: intervencao,
+          conhecimento,
           currentMission: missaoEhComercial ? null : textoMissao,
         };
       })()

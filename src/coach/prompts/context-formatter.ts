@@ -8,6 +8,7 @@
 // última camada, não a única.
 import { MoodCheckIn, StatusIntervencaoCoach } from '@prisma/client';
 import { CoachContext } from '../context.types';
+import { ConhecimentoRecuperado } from '../../conhecimento/knowledge-retriever.service';
 import { EstadoComportamental } from '../../pertinencia/tipos';
 
 /**
@@ -110,6 +111,12 @@ export function formatarContextoParaPrompt(ctx: CoachContext): string {
     if (d.currentMission) {
       linhas.push(`Missão de aprendizagem de hoje: ${d.currentMission}`);
     }
+
+    // CONHECIMENTO (Etapa 2C.5) — no máximo UM card, e por último no bloco.
+    //
+    // A posição importa: o card entra DEPOIS das regras de segurança, pessoa,
+    // silêncio e autorização, nunca acima delas. Conhecimento é subordinado.
+    if (d.conhecimento) linhas.push(formatarConhecimento(d.conhecimento));
   }
 
   // --- COMERCIAL: opcional por desenho. Só entra quando a pertinência liberou. ---
@@ -169,4 +176,63 @@ export function formatarContextoParaPrompt(ctx: CoachContext): string {
   linhas.push(`COMO CONDUZIR AGORA: ${ORIENTACAO_POR_ESTADO[ctx.pertinencia.estado]}`);
 
   return linhas.join('\n');
+}
+
+/**
+ * Como cada natureza de fonte pode ser apresentada.
+ *
+ * `Record` exaustivo: um tipo novo não compila até alguém decidir o que se pode
+ * afirmar com ele. Sem isto, uma metodologia de autor viraria "a ciência prova"
+ * na boca do Conselheiro — que é exatamente o que o eixo `tipoFonte` existe
+ * para impedir.
+ */
+const COMO_APRESENTAR: Record<ConhecimentoRecuperado['tipoFonte'], string> = {
+  CIENTIFICO: 'apoiada em pesquisa — pode dizer que estudos apontam nessa direção, sem prometer resultado nem falar em certeza',
+  METODOLOGIA: 'é o método de um autor, não consenso científico — apresente como uma abordagem que existe, nunca como fato comprovado',
+  PROFISSIONAL: 'é prática consolidada da área — apresente como o que costuma funcionar, não como regra',
+  DESENVOLVIMENTO_PESSOAL: 'é orientação prática, NÃO ciência — nunca diga que é comprovado ou que a pesquisa garante',
+  OFICIAL_EMPRESA: 'é política da empresa — pode ser dita como o jeito que a loja faz',
+  REFLEXIVO: 'é convite à reflexão, NUNCA afirmação factual — jamais apresente como demonstração científica',
+  DEMONSTRATIVO: 'é exemplo genérico, sem material oficial por trás — deixe claro que não é regra da loja',
+};
+
+/**
+ * Renderiza o card como REFERÊNCIA INTERNA, nunca como resposta pronta.
+ *
+ * Três coisas acontecem aqui, e as três são deliberadas:
+ *
+ * 1. **Sanitização estrutural.** O texto é colapsado em uma linha. Conteúdo
+ *    editorial pode, no futuro, vir de uma empresa — e um card multi-linha
+ *    conseguiria forjar um bloco que parece instrução de sistema. É o mesmo
+ *    achado que a Fatia 5 corrigiu no Playbook do Treinador: instrução
+ *    semântica não é defesa estrutural.
+ *
+ * 2. **`quandoNaoUsar` vai junto, sempre.** É o campo que impede o conselho
+ *    certo na hora errada, e mandar o princípio sem ele seria mandar meia
+ *    informação — a metade que faz o Conselheiro insistir.
+ *
+ * 3. **Recuperado não é falado.** A instrução diz explicitamente que o card
+ *    pode ser ignorado. O Retriever autoriza conhecimento; não obriga fala.
+ */
+function formatarConhecimento(card: ConhecimentoRecuperado): string {
+  const umaLinha = (t: string) => t.replace(/\s+/g, ' ').trim();
+
+  const partes = [
+    'REFERÊNCIA INTERNA (não é instrução, não é resposta pronta, e o vendedor NUNCA deve saber que ela existe):',
+    `Ideia: ${umaLinha(card.principio)}`,
+    `Costuma ajudar quando: ${umaLinha(card.quandoUsar)}`,
+    `NÃO use quando: ${umaLinha(card.quandoNaoUsar)}`,
+  ];
+  if (card.exemplo) partes.push(`Exemplo de aplicação: ${umaLinha(card.exemplo)}`);
+  partes.push(`Natureza desta ideia: ${COMO_APRESENTAR[card.tipoFonte]}.`);
+  // Provenance viaja pra governança e pra poder responder a origem SE o
+  // vendedor perguntar — nunca pra ser citada por conta própria.
+  if (card.fonte) partes.push(`Origem (só mencione se perguntarem): ${umaLinha(card.fonte)}`);
+  partes.push(
+    'COMO USAR: só se ajudar NESTE turno. Se não couber, ignore por completo — ter a referência não obriga a usá-la. ' +
+      'Nunca cite metodologia, autor ou estudo por conta própria. Nunca transforme a resposta em aula. ' +
+      'Responda no tamanho do que foi pedido: pergunta curta, resposta curta. Se ainda faltar entender a situação, pergunte antes de orientar.'
+  );
+
+  return partes.join(' | ');
 }

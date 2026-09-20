@@ -53,6 +53,11 @@ interface ContextoCoachMinimo {
     // gerar. O mock tem que respeitar isso, senão volta a ser um segundo motor
     // comportamental e a suíte fica verde sobre o produto errado.
     intervencaoDoTurno: { tipo: string; titulo: string } | null;
+    // Etapa 2C.5: no máximo UM card de conhecimento, e só quando o turno está
+    // livre. O mock precisa saber que ele existe pra a integração ser
+    // observável ponta a ponta — mas NUNCA recita o conteúdo, porque card
+    // recuperado não é card falado.
+    conhecimento: { titulo: string } | null;
   } | null;
   comercial?: {
     goal: { todayGoal: number | null; amountRemaining: number | null; estimatedSalesRemaining: number | null };
@@ -468,6 +473,15 @@ function gerarRespostaCoach(mensagemUsuario: string, contexto?: ContextoCoachMin
     }
     if (texto.includes('foco') || texto.includes('organizar')) {
       return `Vamos organizar seu foco, ${nome}. O que você quer que saia do dia de hoje?`;
+    }
+    // CONHECIMENTO DISPONÍVEL — e o mock responde como gente, sem recitar.
+    //
+    // Nenhum trecho do card sai daqui: o ponto da fatia é que conhecimento é
+    // contexto, não resposta. O mock só prova que o card chegou e que dá pra
+    // conversar a partir dele; o provider real recebe o mesmo prompt e decide
+    // se usa ou não — inclusive ignorar é resposta válida.
+    if (desenvolvimento?.conhecimento) {
+      return `Faz sentido, ${nome}. Tem um jeito de encarar isso que costuma ajudar — mas antes: o que costuma atrapalhar mais no seu dia?`;
     }
     if (desenvolvimento && desenvolvimento.recentTrainings.length > 0) {
       return `Vi que você concluiu "${desenvolvimento.recentTrainings[0].titulo}". Deu pra aplicar em algum atendimento?`;

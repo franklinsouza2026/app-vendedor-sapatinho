@@ -472,8 +472,8 @@ describe('CONSULTA BOUNDED — o corpus inteiro nunca é carregado', () => {
   });
 });
 
-describe('NÃO-INTEGRAÇÃO — o Conselheiro ainda não sabe que o Retriever existe', () => {
-  it('nenhum arquivo do fluxo de conversa referencia o Retriever', async () => {
+describe('UM ÚNICO CAMINHO — o Conselheiro só alcança o Retriever pelo orquestrador', () => {
+  it('nenhum arquivo do Conselheiro chama o Retriever direto', async () => {
     const { readFileSync, readdirSync } = await import('node:fs');
     const { join } = await import('node:path');
 
@@ -488,33 +488,31 @@ describe('NÃO-INTEGRAÇÃO — o Conselheiro ainda não sabe que o Retriever ex
       ...readdirSync(join(raiz, 'routes')).map((f) => join(raiz, 'routes', f)),
     ].filter((f) => f.endsWith('.ts') && !f.includes('.test.'));
 
+    // A partir da 2C.5 o Conselheiro USA conhecimento — mas por UMA porta só.
+    // Uma consulta paralela dentro do Coach seria uma segunda fonte de verdade,
+    // capaz de esquecer escopo, estado editorial ou o teto de um card.
     for (const arquivo of arquivos) {
       const conteudo = readFileSync(arquivo, 'utf8');
-      expect(conteudo, `${arquivo} já integra conhecimento — isso é 2C.5, não 2C.2`).not.toMatch(
-        /recuperarConhecimento|knowledge-retriever|KnowledgeCard|listarElegiveis/
-      );
+      expect(conteudo, `${arquivo} chama o Retriever direto — deve passar pelo orquestrador`).not.toMatch(/recuperarConhecimento|listarElegiveis/);
     }
   });
 
-  it('o Retriever não lê mensagem de vendedor nem chama IA — o Router é 2C.4', async () => {
-    const { readFileSync } = await import('node:fs');
+  it('o Treinador continua com o Playbook dele, sem tocar em KnowledgeCard', async () => {
+    const { readFileSync, readdirSync } = await import('node:fs');
     const { join } = await import('node:path');
-    const bruto = readFileSync(join(__dirname, 'knowledge-retriever.service.ts'), 'utf8');
-
-    // Só o CÓDIGO, sem comentários: a prosa do arquivo explica justamente o que
-    // ele não faz, e casar com a explicação em vez da dependência seria um
-    // teste que falha por falar do assunto.
-    const codigo = bruto.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-
-    // As dependências reais: nenhum gateway, provider, classificador de
-    // intenção ou leitura de conversa. A recuperação é determinística de ponta
-    // a ponta.
-    const importes = codigo.match(/^import .*$/gm) ?? [];
-    for (const proibido of [/ai-platform/, /pertinencia/, /coach/]) {
-      expect(importes.join('\n'), `o Retriever não pode importar de ${proibido}`).not.toMatch(proibido);
+    const dir = join(__dirname, '../treinador');
+    for (const arquivo of readdirSync(dir).filter((f) => f.endsWith('.ts') && !f.includes('.test.'))) {
+      expect(readFileSync(join(dir, arquivo), 'utf8')).not.toMatch(/KnowledgeCard|knowledge-/);
     }
-    for (const proibido of [/gerarViaGateway/, /aiProvider/, /classificarIntencao/, /coachMessage/]) {
-      expect(codigo, `o Retriever não pode chamar ${proibido}`).not.toMatch(proibido);
+  });
+
+  it('nenhuma rota HTTP expõe conhecimento', async () => {
+    const { readFileSync, readdirSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const dir = join(__dirname, '../routes');
+    for (const arquivo of readdirSync(dir).filter((f) => f.endsWith('.ts') && !f.includes('.test.'))) {
+      expect(readFileSync(join(dir, arquivo), 'utf8')).not.toMatch(/knowledge|Knowledge/);
     }
   });
 });
+
