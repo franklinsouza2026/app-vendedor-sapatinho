@@ -2037,6 +2037,46 @@ Auditoria + desenho. **Nenhum comportamento de produção alterado, zero migrati
 
 Decisões 219–226 no vault; seis decisões humanas registradas em aberto.
 
+### Etapa 2C.1 — KnowledgeCard + Governança — CONCLUÍDA (2026-09-20)
+
+**Esta fatia constrói a ESTANTE.** Não coloca os livros, não escolhe o livro e não entrega nada ao Conselheiro — ele continua exatamente como está. **Zero mudança em resposta de produção.**
+
+**Uma entidade nova, uma migration aditiva.** `KnowledgeCard` + dois enums. Nenhuma tabela existente foi alterada: a back-relation em `EscolaUniversidade` é virtual no Prisma e não gera coluna.
+
+**Reuso, não duplicação.** O ciclo editorial é o MESMO do CMS de treinamento (Fatia 7.5C) — `StatusConteudo`, as mesmas quatro transições, a mesma semântica de `approvedBy`/`publishedAt`/`version`, o mesmo `AuditEvent` com as ações `CONTENT_*` que já existiam. Reusados também `PublicoConteudo` e `OrigemEditorial`. **Nenhum enum foi duplicado** e nenhum CMS paralelo foi criado.
+
+**Taxonomia reutilizada:** o card aponta para `EscolaUniversidade` por FK real (`ON DELETE RESTRICT`), nunca por nome textual. Nenhuma categoria paralela foi criada — "skill" continua sendo **Escola + cards**.
+
+**Dois enums novos, e só porque são eixos genuinamente novos.** `TipoFonteConhecimento` responde *que tipo de conhecimento é isto?* — pergunta que nem `OrigemConteudoPlaybook` (é material da empresa?) nem `OrigemEditorial` (quem produziu?) respondem. É ele que permite **física quântica como ciência ser `CIENTIFICO` e interpretação espiritual com linguagem "quântica" ser `REFLEXIVO`** — classificação declarada por quem cadastra, **nunca inferida da presença da palavra "quântico"**. `SituacaoLicenca` nasce em `REVISAR`: o sistema guarda metadata de direitos, **nunca emite parecer jurídico**, e um default permissivo criaria falsa garantia legal.
+
+**`quandoNaoUsar` é obrigatório** — o campo que não existia em nenhum conteúdo do produto e o mais importante daqui. É ele que impede o conselho tecnicamente bom no momento errado: *"não usar como primeira resposta quando a pessoa relata exaustão e ainda precisa ser acolhida"*.
+
+**Escopo com uma única fonte de verdade.** `empresaId NULL` = global, preenchido = daquela empresa — deliberadamente **sem** um enum `escopo` ao lado, porque dois campos dizendo a mesma coisa é como se acaba com um card marcado GLOBAL carregando empresa. O escopo é resolvido **server-side a partir do ator**, nunca do payload.
+
+**GLOBAL é suportado no schema e não é criável.** O produto tem `VENDEDOR | GERENTE | ADMIN` e **nenhum papel de plataforma acima da empresa**; inventar um "admin mágico" seria criar autoridade que o produto não tem. Conhecimento global é legível por qualquer empresa, editável por nenhuma, e entraria por seed/script de plataforma — mesmo caminho do Playbook, que também só é populado assim.
+
+**Invariantes com defesa em profundidade.** Além da validação de service: índices únicos parciais para a chave por escopo (dois, porque em Postgres `NULL` nunca colide com `NULL` — um UNIQUE composto comum deixaria passar duas linhas globais iguais), um CHECK impedindo `OFICIAL_EMPRESA` global (política interna de uma empresa virando conhecimento de plataforma) e um CHECK de versão positiva.
+
+**Provenance exigida conforme a natureza.** `CIENTIFICO` exige fonte identificável — é o único tipo que a política aprovada autoriza o Conselheiro a afirmar como fato, e sem origem seria autoridade inventada. `METODOLOGIA` exige autor ou fonte. `DEMONSTRATIVO` não exige nada: ele existe justamente para representar honestamente a **ausência** de material. A revalidação roda sobre o estado **resultante** da edição — limpar a fonte de um card científico é a mesma falha vista do outro lado.
+
+**IA nunca publica.** `status` não é parâmetro de criação: todo card nasce `DRAFT`, inclusive o rascunhado por agente (`origemEditorial = AI_*`), que percorre exatamente as mesmas transições. Não existe atalho `DRAFT → PUBLISHED`. `approvedBy` sai do ator autenticado — **não existe parâmetro para informá-lo**.
+
+**Conteúdo publicado não muda em silêncio:** mudança substantiva (princípio, quando usar, quando não usar, exemplo, tipo de fonte, escola) num card `PUBLISHED` incrementa a versão — mesma regra que o CMS aplica a uma aula publicada. Ajustar tag ou grafia não versiona.
+
+#### Achado HIGH de segurança, no meu próprio código, corrigido antes do commit
+
+`atualizarCard` espalhava o objeto recebido (`...dados`) no `update` do Prisma. O tipo de entrada só existe em tempo de compilação — **medido**: um payload com `{ status: 'PUBLISHED', approvedBy: 'forjado', version: 99 }` publicava o card, forjava o aprovador e fixava a versão, pulando o ciclo editorial inteiro. Hoje não há rota HTTP, mas a 2C.2/2C.5 vai criar uma e o buraco estaria esperando. Corrigido com **allowlist explícita campo a campo**, nunca spread, e a sonda virou teste permanente.
+
+**Sem API e sem UI, por decisão.** Segue o precedente do Playbook, registrado no próprio código desde a Fatia 5: *"gestão administrativa fica só como funções de serviço nesta fatia — hoje o único jeito de popular/publicar um playbook é via seed/script"*. Governança é testável pelo service; nenhuma superfície HTTP nova foi aberta, e nenhum card é exposto ao vendedor.
+
+**O que NÃO existe ainda:** Retriever (2C.2), Router (2C.4), integração com o Conselheiro (2C.5). Teste de inspeção varre `coach/`, `coach/prompts/`, `pertinencia/`, `ai-platform/`, `treinador/` e todas as rotas provando **zero referência** a `KnowledgeCard`. `listarElegiveis` existe como fundação e não é chamada por nenhum caminho de conversa — ela prova agora a invariante "só o publicado é elegível", porque foi exatamente um gate de publicação esquecido num segundo ponto de leitura que produziu o achado HIGH da Fatia 7.5C.
+
+**ZERO conteúdo inventado.** Nenhum card de Hábitos foi criado (é 2C.3), os 13 Mandamentos continuam com 12 posições vazias aguardando material real, e nenhuma fixture de teste sai do ambiente de teste. Zero RAG, zero embeddings, zero vector DB, zero agente novo, zero CMS novo, zero chamada de IA, zero dependência.
+
+**Migration validada nos três bancos** — limpo (todas do zero), teste e dev — com os 5 índices e os 2 CHECKs idênticos nos três, e dados existentes preservados (8 escolas, 10 aulas, 14 seções de playbook, 13 mandamentos).
+
+**850 backend + 173 frontend + 41 E2E.** Zero regressões; Treinador e Conselheiro intactos.
+
 ### Fatia 10 — Linx real
 Executar assim que contrato/credenciais reais estiverem disponíveis, sem bloquear fatias independentes.
 
