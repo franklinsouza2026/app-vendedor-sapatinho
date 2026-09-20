@@ -3,14 +3,13 @@
 import { describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { app } from '../app';
-import { assinarToken } from '../middlewares/auth';
 import { prisma } from '../db';
-import { criarFixtureEmpresa } from '../gamificacao/test-helpers';
+import { criarFixtureEmpresa, tokenPara } from '../gamificacao/test-helpers';
 
 describe('POST/DELETE /admin/vendedores/:id/identidade-externa', () => {
   it('ADMIN vincula uma identidade LINX manual (fica VERIFIED de imediato) e gera auditoria', async () => {
     const { empresa, loja, vendedor } = await criarFixtureEmpresa();
-    const tokenAdmin = assinarToken({ vendedorId: vendedor.id, empresaId: empresa.id, lojaId: loja.id, papel: 'ADMIN' });
+    const tokenAdmin = await tokenPara({ vendedorId: vendedor.id, empresaId: empresa.id, lojaId: loja.id, papel: 'ADMIN' });
 
     const res = await request(app)
       .post(`/admin/vendedores/${vendedor.id}/identidade-externa`)
@@ -29,7 +28,7 @@ describe('POST/DELETE /admin/vendedores/:id/identidade-externa', () => {
 
   it('vínculo por CPF/EXTERNAL_ID/SELLER_CODE fica PENDING (verificação automática é Fatia 10)', async () => {
     const { empresa, loja, vendedor } = await criarFixtureEmpresa();
-    const tokenAdmin = assinarToken({ vendedorId: vendedor.id, empresaId: empresa.id, lojaId: loja.id, papel: 'ADMIN' });
+    const tokenAdmin = await tokenPara({ vendedorId: vendedor.id, empresaId: empresa.id, lojaId: loja.id, papel: 'ADMIN' });
 
     const res = await request(app)
       .post(`/admin/vendedores/${vendedor.id}/identidade-externa`)
@@ -41,7 +40,7 @@ describe('POST/DELETE /admin/vendedores/:id/identidade-externa', () => {
 
   it('não permite 2 vínculos LINX pro mesmo vendedor sem desvincular antes', async () => {
     const { empresa, loja, vendedor } = await criarFixtureEmpresa();
-    const tokenAdmin = assinarToken({ vendedorId: vendedor.id, empresaId: empresa.id, lojaId: loja.id, papel: 'ADMIN' });
+    const tokenAdmin = await tokenPara({ vendedorId: vendedor.id, empresaId: empresa.id, lojaId: loja.id, papel: 'ADMIN' });
 
     await request(app)
       .post(`/admin/vendedores/${vendedor.id}/identidade-externa`)
@@ -58,7 +57,7 @@ describe('POST/DELETE /admin/vendedores/:id/identidade-externa', () => {
 
   it('desvincular remove o vínculo e gera auditoria ERP_IDENTITY_UNLINKED', async () => {
     const { empresa, loja, vendedor } = await criarFixtureEmpresa();
-    const tokenAdmin = assinarToken({ vendedorId: vendedor.id, empresaId: empresa.id, lojaId: loja.id, papel: 'ADMIN' });
+    const tokenAdmin = await tokenPara({ vendedorId: vendedor.id, empresaId: empresa.id, lojaId: loja.id, papel: 'ADMIN' });
 
     await request(app)
       .post(`/admin/vendedores/${vendedor.id}/identidade-externa`)
@@ -80,7 +79,7 @@ describe('POST/DELETE /admin/vendedores/:id/identidade-externa', () => {
   it('não vincula identidade externa de vendedor de OUTRA empresa (tenant isolation)', async () => {
     const { empresa: empresaA, loja: lojaA, vendedor: adminA } = await criarFixtureEmpresa();
     const { vendedor: vendedorB } = await criarFixtureEmpresa();
-    const tokenAdminA = assinarToken({ vendedorId: adminA.id, empresaId: empresaA.id, lojaId: lojaA.id, papel: 'ADMIN' });
+    const tokenAdminA = await tokenPara({ vendedorId: adminA.id, empresaId: empresaA.id, lojaId: lojaA.id, papel: 'ADMIN' });
 
     const res = await request(app)
       .post(`/admin/vendedores/${vendedorB.id}/identidade-externa`)
@@ -97,7 +96,7 @@ describe('GET /admin/auditoria', () => {
     const alvo = await prisma.vendedor.create({
       data: { empresaId: empresa.id, lojaId: loja.id, matriculaErp: `ALVO-${admin.id}`, nome: 'Alvo', senhaHash: 'x' },
     });
-    const tokenAdmin = assinarToken({ vendedorId: admin.id, empresaId: empresa.id, lojaId: loja.id, papel: 'ADMIN' });
+    const tokenAdmin = await tokenPara({ vendedorId: admin.id, empresaId: empresa.id, lojaId: loja.id, papel: 'ADMIN' });
 
     await request(app).post(`/admin/vendedores/${alvo.id}/bloquear`).set('Authorization', `Bearer ${tokenAdmin}`);
     await request(app).post(`/admin/vendedores/${alvo.id}/desbloquear`).set('Authorization', `Bearer ${tokenAdmin}`);
@@ -110,8 +109,8 @@ describe('GET /admin/auditoria', () => {
 
   it('GERENTE/VENDEDOR não acessam /admin/auditoria', async () => {
     const { empresa, loja, vendedor } = await criarFixtureEmpresa();
-    const tokenVendedor = assinarToken({ vendedorId: vendedor.id, empresaId: empresa.id, lojaId: loja.id, papel: 'VENDEDOR' });
-    const tokenGerente = assinarToken({ vendedorId: vendedor.id, empresaId: empresa.id, lojaId: loja.id, papel: 'GERENTE' });
+    const tokenVendedor = await tokenPara({ vendedorId: vendedor.id, empresaId: empresa.id, lojaId: loja.id, papel: 'VENDEDOR' });
+    const tokenGerente = await tokenPara({ vendedorId: vendedor.id, empresaId: empresa.id, lojaId: loja.id, papel: 'GERENTE' });
 
     expect((await request(app).get('/admin/auditoria').set('Authorization', `Bearer ${tokenVendedor}`)).status).toBe(403);
     expect((await request(app).get('/admin/auditoria').set('Authorization', `Bearer ${tokenGerente}`)).status).toBe(403);

@@ -5,17 +5,16 @@ import { describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { randomUUID } from 'node:crypto';
 import { app } from '../app';
-import { assinarToken } from '../middlewares/auth';
-import { criarFixtureEmpresa } from '../gamificacao/test-helpers';
+import { criarFixtureEmpresa, tokenPara } from '../gamificacao/test-helpers';
 
 async function tokenAdmin() {
   const { empresa, loja, vendedor } = await criarFixtureEmpresa();
-  return assinarToken({ vendedorId: vendedor.id, empresaId: empresa.id, lojaId: loja.id, papel: 'ADMIN' });
+  return await tokenPara({ vendedorId: vendedor.id, empresaId: empresa.id, lojaId: loja.id, papel: 'ADMIN' });
 }
 
 async function tokenVendedor() {
   const { empresa, loja, vendedor } = await criarFixtureEmpresa();
-  return assinarToken({ vendedorId: vendedor.id, empresaId: empresa.id, lojaId: loja.id, papel: 'VENDEDOR' });
+  return await tokenPara({ vendedorId: vendedor.id, empresaId: empresa.id, lojaId: loja.id, papel: 'VENDEDOR' });
 }
 
 describe('Admin competições — RBAC', () => {

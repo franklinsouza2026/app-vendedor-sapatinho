@@ -339,3 +339,48 @@ describe('TEXTO HOMOLOGADO — os ajustes dos Cards 1 e 4 não regridem', () => 
   });
 });
 
+
+describe('O BANCO É A AUTORIDADE ATUAL SOBRE O PAPEL (Etapa 2C.3C)', () => {
+  it('revogar a autoridade invalida o token antigo na hora, não em 12h', async () => {
+    const request = (await import('supertest')).default;
+    const { app } = await import('../app');
+    const { tokenPara } = await import('../gamificacao/test-helpers');
+
+    const f = await criarFixtureEmpresa();
+    const token = await tokenPara({ vendedorId: f.vendedor.id, empresaId: f.empresa.id, lojaId: f.loja.id, papel: 'PLATFORM_ADMIN' });
+
+    // Com o papel batendo com o banco, a sessão vale.
+    expect((await request(app).get('/auth/me').set('Authorization', `Bearer ${token}`)).status).toBe(200);
+
+    // Autoridade revogada no banco. O token ANTIGO continua assinado e dentro
+    // da validade — e mesmo assim para de valer. Sem isto, tirar a autoridade
+    // de alguém só teria efeito quando o JWT expirasse sozinho (até 12h).
+    await prisma.vendedor.update({ where: { id: f.vendedor.id }, data: { papel: 'VENDEDOR' } });
+    expect((await request(app).get('/auth/me').set('Authorization', `Bearer ${token}`)).status).toBe(401);
+  });
+
+  it('promover também invalida o token antigo — o papel do token nunca é opinião', async () => {
+    const request = (await import('supertest')).default;
+    const { app } = await import('../app');
+    const { tokenPara } = await import('../gamificacao/test-helpers');
+
+    const f = await criarFixtureEmpresa();
+    const token = await tokenPara({ vendedorId: f.vendedor.id, empresaId: f.empresa.id, lojaId: f.loja.id, papel: 'VENDEDOR' });
+    expect((await request(app).get('/auth/me').set('Authorization', `Bearer ${token}`)).status).toBe(200);
+
+    await prisma.vendedor.update({ where: { id: f.vendedor.id }, data: { papel: 'ADMIN' } });
+    // Vale nos dois sentidos: o token prova identidade e sessão, nunca poder.
+    expect((await request(app).get('/auth/me').set('Authorization', `Bearer ${token}`)).status).toBe(401);
+  });
+
+  it('conta bloqueada continua negada, como antes', async () => {
+    const request = (await import('supertest')).default;
+    const { app } = await import('../app');
+    const { tokenPara } = await import('../gamificacao/test-helpers');
+
+    const f = await criarFixtureEmpresa();
+    const token = await tokenPara({ vendedorId: f.vendedor.id, empresaId: f.empresa.id, lojaId: f.loja.id, papel: 'PLATFORM_ADMIN' });
+    await prisma.vendedor.update({ where: { id: f.vendedor.id }, data: { status: 'BLOCKED' } });
+    expect((await request(app).get('/auth/me').set('Authorization', `Bearer ${token}`)).status).toBe(401);
+  });
+});

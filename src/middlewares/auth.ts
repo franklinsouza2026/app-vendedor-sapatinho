@@ -50,25 +50,28 @@ export function requireAuth(...papeisPermitidos: AuthClaims['papel'][]) {
       // internos) uma consulta extra por request é um custo aceitável — a
       // alternativa (lista de revogação/JWT de vida curta) é over-engineering
       // pro tamanho atual do produto.
-      const vendedor = await prisma.vendedor.findUnique({ where: { id: claims.vendedorId }, select: { status: true } });
+      const vendedor = await prisma.vendedor.findUnique({ where: { id: claims.vendedorId }, select: { status: true, papel: true } });
       if (!vendedor || vendedor.status !== 'ACTIVE') {
         return res.status(401).json({ error: 'sessão inválida' });
       }
 
-      // LIMITAÇÃO CONHECIDA (levantada na Etapa 2C.3B): só o STATUS é
-      // revalidado a cada request, não o PAPEL. Um JWT emitido antes de uma
-      // mudança de papel continua valendo com o papel antigo até expirar (12h).
+      // O BANCO É A AUTORIDADE ATUAL SOBRE O PAPEL (Etapa 2C.3C).
       //
-      // Não é forja — o token é assinado pelo servidor, e o papel dentro dele
-      // saiu do login. É staleness: revogar autoridade não tem efeito imediato.
+      // Antes só o status era revalidado: um JWT emitido antes de uma mudança
+      // de papel continuava valendo com o papel ANTIGO até expirar (até 12h).
+      // Não é forja — o token é assinado pelo servidor — é *staleness*:
+      // revogar autoridade não tinha efeito imediato.
       //
-      // Hoje isso não concede nada: `PLATFORM_ADMIN` não tem nenhuma rota HTTP,
-      // e a revogação é feita por script no servidor. A correção é de uma linha
-      // (trazer `papel` neste mesmo `select` e comparar), mas exige que todo
-      // teste de rota administrativa passe a alinhar o papel do banco com o do
-      // token — 7 arquivos hoje assinam ADMIN sobre uma fixture VENDEDOR. Fica
-      // para a fatia que criar a API de plataforma, onde a janela passa a
-      // importar de verdade.
+      // Enquanto os papéis eram VENDEDOR/GERENTE/ADMIN isso era incômodo. Com
+      // uma autoridade de PLATAFORMA no enum, vira janela inaceitável: tirar a
+      // autoridade de alguém precisa valer agora, não daqui a meio dia.
+      //
+      // Custo zero: a consulta já acontecia por causa do status, só passou a
+      // trazer mais uma coluna. O token continua provando identidade e sessão;
+      // quem decide o que ele pode fazer é o estado atual.
+      if (vendedor.papel !== claims.papel) {
+        return res.status(401).json({ error: 'sessão inválida' });
+      }
 
       req.auth = claims;
       next();

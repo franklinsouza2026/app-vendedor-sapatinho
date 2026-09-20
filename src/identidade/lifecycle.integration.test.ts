@@ -5,23 +5,22 @@
 import { describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { app } from '../app';
-import { assinarToken } from '../middlewares/auth';
 import { prisma } from '../db';
-import { criarFixtureEmpresa, criarIndicador, criarMeta } from '../gamificacao/test-helpers';
+import { criarFixtureEmpresa, criarIndicador, criarMeta, tokenPara } from '../gamificacao/test-helpers';
 import { concederMoeda } from '../gamificacao/ledger.service';
 
 async function tokenAdminDe(empresaId: string, lojaId: string) {
   const admin = await prisma.vendedor.create({
     data: { empresaId, lojaId, matriculaErp: `ADM-${Math.random()}`, nome: 'Admin', senhaHash: 'x', papel: 'ADMIN' },
   });
-  return assinarToken({ vendedorId: admin.id, empresaId, lojaId, papel: 'ADMIN' });
+  return await tokenPara({ vendedorId: admin.id, empresaId, lojaId, papel: 'ADMIN' });
 }
 
 describe('Bloqueio/desbloqueio de conta', () => {
   it('JWT emitido ANTES do bloqueio deixa de funcionar imediatamente após bloquear', async () => {
     const { empresa, loja, vendedor } = await criarFixtureEmpresa();
     const tokenAdmin = await tokenAdminDe(empresa.id, loja.id);
-    const tokenVendedor = assinarToken({ vendedorId: vendedor.id, empresaId: empresa.id, lojaId: loja.id, papel: 'VENDEDOR' });
+    const tokenVendedor = await tokenPara({ vendedorId: vendedor.id, empresaId: empresa.id, lojaId: loja.id, papel: 'VENDEDOR' });
 
     const antes = await request(app).get('/auth/me').set('Authorization', `Bearer ${tokenVendedor}`);
     expect(antes.status).toBe(200);
@@ -43,7 +42,7 @@ describe('Bloqueio/desbloqueio de conta', () => {
 
   it('ADMIN não pode bloquear/desligar a própria conta (evita autotravamento sem outro admin pra reverter)', async () => {
     const { empresa, loja, vendedor } = await criarFixtureEmpresa();
-    const tokenAdmin = assinarToken({ vendedorId: vendedor.id, empresaId: empresa.id, lojaId: loja.id, papel: 'ADMIN' });
+    const tokenAdmin = await tokenPara({ vendedorId: vendedor.id, empresaId: empresa.id, lojaId: loja.id, papel: 'ADMIN' });
 
     const bloquear = await request(app).post(`/admin/vendedores/${vendedor.id}/bloquear`).set('Authorization', `Bearer ${tokenAdmin}`);
     expect(bloquear.status).toBe(400);
@@ -91,7 +90,7 @@ describe('Desligamento/reativação preservam histórico', () => {
     expect(desligar.status).toBe(200);
     expect(desligar.body.statusNovo).toBe('OFFBOARDED');
 
-    const tokenVendedor = assinarToken({ vendedorId: vendedor.id, empresaId: empresa.id, lojaId: loja.id, papel: 'VENDEDOR' });
+    const tokenVendedor = await tokenPara({ vendedorId: vendedor.id, empresaId: empresa.id, lojaId: loja.id, papel: 'VENDEDOR' });
     const semAcesso = await request(app).get('/auth/me').set('Authorization', `Bearer ${tokenVendedor}`);
     expect(semAcesso.status).toBe(401);
 
@@ -108,7 +107,7 @@ describe('Desligamento/reativação preservam histórico', () => {
     expect(reativar.status).toBe(200);
     expect(reativar.body.statusNovo).toBe('ACTIVE');
 
-    const tokenNovo = assinarToken({ vendedorId: vendedor.id, empresaId: empresa.id, lojaId: loja.id, papel: 'VENDEDOR' });
+    const tokenNovo = await tokenPara({ vendedorId: vendedor.id, empresaId: empresa.id, lojaId: loja.id, papel: 'VENDEDOR' });
     const comAcesso = await request(app).get('/auth/me').set('Authorization', `Bearer ${tokenNovo}`);
     expect(comAcesso.status).toBe(200);
 
@@ -138,7 +137,7 @@ describe('Desligamento/reativação preservam histórico', () => {
 describe('RBAC/tenant isolation em /admin/vendedores', () => {
   it('VENDEDOR comum não acessa nenhuma rota /admin/*', async () => {
     const { vendedor } = await criarFixtureEmpresa();
-    const token = assinarToken({ vendedorId: vendedor.id, empresaId: vendedor.empresaId, lojaId: vendedor.lojaId, papel: 'VENDEDOR' });
+    const token = await tokenPara({ vendedorId: vendedor.id, empresaId: vendedor.empresaId, lojaId: vendedor.lojaId, papel: 'VENDEDOR' });
 
     const listar = await request(app).get('/admin/vendedores').set('Authorization', `Bearer ${token}`);
     expect(listar.status).toBe(403);
@@ -159,7 +158,7 @@ describe('RBAC/tenant isolation em /admin/vendedores', () => {
     const gerente = await prisma.vendedor.create({
       data: { empresaId: empresa.id, lojaId: loja.id, matriculaErp: `GER-${vendedor.id}`, nome: 'Gerente', senhaHash: 'x', papel: 'GERENTE' },
     });
-    const tokenGerente = assinarToken({ vendedorId: gerente.id, empresaId: empresa.id, lojaId: loja.id, papel: 'GERENTE' });
+    const tokenGerente = await tokenPara({ vendedorId: gerente.id, empresaId: empresa.id, lojaId: loja.id, papel: 'GERENTE' });
 
     const lista = await request(app).get('/admin/vendedores').set('Authorization', `Bearer ${tokenGerente}`);
     expect(lista.status).toBe(200);
@@ -175,7 +174,7 @@ describe('RBAC/tenant isolation em /admin/vendedores', () => {
     const gerente = await prisma.vendedor.create({
       data: { empresaId: empresa.id, lojaId: loja.id, matriculaErp: `GER2-${vendedor.id}`, nome: 'Gerente', senhaHash: 'x', papel: 'GERENTE' },
     });
-    const tokenGerente = assinarToken({ vendedorId: gerente.id, empresaId: empresa.id, lojaId: loja.id, papel: 'GERENTE' });
+    const tokenGerente = await tokenPara({ vendedorId: gerente.id, empresaId: empresa.id, lojaId: loja.id, papel: 'GERENTE' });
 
     const res = await request(app).post(`/admin/vendedores/${vendedor.id}/bloquear`).set('Authorization', `Bearer ${tokenGerente}`);
     expect(res.status).toBe(403);
@@ -198,7 +197,7 @@ describe('RBAC/tenant isolation em /admin/vendedores', () => {
 
   it('lista de vendedores nunca inclui CPF completo, só a máscara', async () => {
     const { empresa, loja, vendedor: ator } = await criarFixtureEmpresa();
-    const tokenAdmin = assinarToken({ vendedorId: ator.id, empresaId: empresa.id, lojaId: loja.id, papel: 'ADMIN' });
+    const tokenAdmin = await tokenPara({ vendedorId: ator.id, empresaId: empresa.id, lojaId: loja.id, papel: 'ADMIN' });
 
     await request(app)
       .post('/admin/vendedores')
@@ -271,7 +270,7 @@ describe('Realocação de loja (Fatia 9.6, seção 11) — prospectiva, nunca re
     const { empresa, loja, vendedor } = await criarFixtureEmpresa();
     const outraLoja = await prisma.loja.create({ data: { empresaId: empresa.id, nome: 'Segunda Loja', codigoErp: `L2-${Math.random()}` } });
     const gerente = await prisma.vendedor.create({ data: { empresaId: empresa.id, lojaId: loja.id, matriculaErp: `GER-${Math.random()}`, nome: 'G', senhaHash: 'x', papel: 'GERENTE' } });
-    const tokenGerente = assinarToken({ vendedorId: gerente.id, empresaId: empresa.id, lojaId: loja.id, papel: 'GERENTE' });
+    const tokenGerente = await tokenPara({ vendedorId: gerente.id, empresaId: empresa.id, lojaId: loja.id, papel: 'GERENTE' });
 
     const res = await request(app)
       .post(`/admin/vendedores/${vendedor.id}/realocar`)
@@ -302,7 +301,7 @@ describe('GET /admin/estrutura (Fatia 9.6, seção 10) — Loja -> Gerente(s) ->
 
   it('GERENTE nunca acessa a estrutura da empresa (só ADMIN)', async () => {
     const { empresa, loja, vendedor: gerente } = await criarFixtureEmpresa();
-    const tokenGerente = assinarToken({ vendedorId: gerente.id, empresaId: empresa.id, lojaId: loja.id, papel: 'GERENTE' });
+    const tokenGerente = await tokenPara({ vendedorId: gerente.id, empresaId: empresa.id, lojaId: loja.id, papel: 'GERENTE' });
 
     const res = await request(app).get('/admin/estrutura').set('Authorization', `Bearer ${tokenGerente}`);
     expect(res.status).toBe(403);

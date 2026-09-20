@@ -5,6 +5,8 @@ import { randomUUID } from 'node:crypto';
 import { prisma } from '../db';
 import { REGUA_V1 } from './regras.service';
 import { CATALOGO_BADGES_V1 } from './badges.service';
+import { Papel } from '@prisma/client';
+import { assinarToken } from '../middlewares/auth';
 
 /** Badge é catálogo global (não por empresa) — garante que existe antes de testes que concedem badge. */
 export async function garantirCatalogoBadges() {
@@ -85,4 +87,22 @@ export async function criarIndicador(
       numAtendimentos: dados.numAtendimentos ?? Math.max(1, Math.round(dados.faturamento / (dados.ticketMedio ?? 100))),
     },
   });
+}
+
+/**
+ * Token de teste com o papel ALINHADO ao banco (Etapa 2C.3C).
+ *
+ * `requireAuth` passou a revalidar o papel contra o banco a cada request: o
+ * token prova identidade e sessão, mas quem decide o que ele pode fazer é o
+ * estado atual. Isso expôs uma fragilidade dos testes — vários assinavam
+ * `ADMIN` sobre uma fixture que no banco era `VENDEDOR`, e passavam só porque
+ * ninguém conferia.
+ *
+ * Este helper promove a pessoa de verdade antes de assinar. Além de fazer os
+ * testes rodarem, faz com que eles reflitam uma situação possível: um ADMIN de
+ * teste agora é um ADMIN no banco.
+ */
+export async function tokenPara(claims: { vendedorId: string; empresaId: string; lojaId: string; papel: Papel }) {
+  await prisma.vendedor.update({ where: { id: claims.vendedorId }, data: { papel: claims.papel } });
+  return assinarToken(claims);
 }

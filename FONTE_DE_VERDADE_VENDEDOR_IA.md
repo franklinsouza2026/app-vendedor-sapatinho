@@ -2189,6 +2189,54 @@ As duas formulações antigas têm **teste impedindo que voltem**. A classifica�
 
 **922 backend + 173 frontend + 41 E2E.** Uma migration aditiva, zero dependência, zero chamada de IA, zero RAG/embeddings/vector DB/agente/CMS. Router (2C.4) e integração (2C.5) continuam inexistentes; Treinador, Academia e Universidade intactos; 13 Mandamentos seguem com 12 posições vazias.
 
+### Etapa 2C.3C — Revalidação de Papel — CONCLUÍDA (2026-09-20) · Identidade Master PARADA no gate estrutural
+
+Duas frentes: uma entregue por inteiro, outra parada com medição na mesa.
+
+#### ENTREGUE — o banco é a autoridade atual sobre o papel
+
+A 2C.3B tinha registrado como dívida aceitável: `requireAuth` revalidava o **status** da conta a cada request, mas não o **papel**. Um JWT emitido antes de uma mudança de papel continuava valendo com o papel antigo por até 12 horas.
+
+Não era forja — o token é assinado pelo servidor — era **staleness**: revogar autoridade não tinha efeito imediato. Com uma autoridade de PLATAFORMA no enum, isso deixou de ser aceitável, e a dívida foi paga.
+
+Agora **o token prova identidade e sessão; quem decide o que ele pode fazer é o estado atual**. Custo zero: a consulta já acontecia por causa do status, só passou a trazer mais uma coluna. Revogação e promoção passam a valer **na hora**, nos dois sentidos — testado com token válido e assinado que para de funcionar assim que o papel muda no banco.
+
+**As fixtures foram corrigidas, não a segurança revertida.** A mudança expôs que quatro arquivos de teste assinavam `ADMIN` sobre uma fixture que no banco era `VENDEDOR`, e passavam só porque ninguém conferia. Em vez de enfraquecer o middleware, entrou um helper único (`tokenPara`) que **promove a pessoa de verdade antes de assinar** — os testes agora refletem uma situação possível, em vez de uma que o produto nunca produziria.
+
+#### PARADO — a identidade do Usuário Master
+
+A decisão humana foi clara: a primeira autoridade da plataforma é uma **identidade própria** (Usuário Master, tecnicamente `PLATFORM_ADMIN`), que **não pode** ser um ADMIN de empresa promovido por conveniência nem ser vinculada artificialmente a empresa ou loja.
+
+O modelo atual não comporta isso, e a medição é o que decide:
+
+- `Vendedor.empresaId` e `Vendedor.lojaId` são **obrigatórios**, com FK real para `Loja`.
+- Torná-los opcionais foi **tentado e medido**: **246 erros de tipo em 26 arquivos de producao**. Nao sao os 4 acessos a relacao `loja` que eu havia estimado — sao as leituras **escalares** de `vendedor.empresaId`, espalhadas por todo service que escopa consulta por empresa.
+- Cada um desses 246 pontos exige decidir o que fazer quando um vendedor nao tem empresa — pergunta que nao faz sentido para vendedor e so existe por causa da identidade de plataforma. Silencia-los com `!` ou `?? ''` **apagaria o invariante em vez de codifica-lo**, que e exatamente o que a etapa proibe.
+
+As duas saidas restantes seriam vincular o Master a uma loja real (**proibido**: tenant falso) ou criar uma camada de identidade separada, com login e sessao proprios (**decisao arquitetural**, nao detalhe de implementacao). **Nenhuma foi tomada por conta propria.**
+
+E ha um segundo bloqueio, independente: criar a identidade exige **nome e matricula reais**, que sao dados humanos. Inventa-los e proibido.
+
+**Consequencia:** os seis cards de Habitos continuam em `DRAFT`, o Retriever continua devolvendo `NO_KNOWLEDGE` para Habitos, e **a 2C.3 nao esta fechada**.
+
+#### Hierarquia registrada
+
+```
+PLATAFORMA
+└── Usuario Master  (papel tecnico: PLATFORM_ADMIN)
+    └── governa os recursos GLOBAL da plataforma
+
+EMPRESA
+└── ADMIN
+    └── governa a propria empresa
+        └── GERENTE  → operacao autorizada
+            └── VENDEDOR
+```
+
+O desenho e de **autoridade**, nunca de heranca de dados: Master nao le conversa, check-in, intervencao nem memoria do Conselheiro; nao entra em ranking nem em gamificacao; e nao herda o conteudo das empresas.
+
+**925 backend + 173 frontend + 41 E2E.** Zero migration, zero dependencia, zero chamada de IA, zero RAG/embeddings/vector DB/agente/CMS. Router (2C.4) e integracao (2C.5) continuam inexistentes.
+
 ### Fatia 10 — Linx real
 Executar assim que contrato/credenciais reais estiverem disponíveis, sem bloquear fatias independentes.
 

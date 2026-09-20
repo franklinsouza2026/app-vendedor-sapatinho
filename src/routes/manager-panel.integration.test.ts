@@ -5,15 +5,14 @@ import { describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { prisma } from '../db';
 import { app } from '../app';
-import { assinarToken } from '../middlewares/auth';
-import { criarFixtureEmpresa, criarIndicador } from '../gamificacao/test-helpers';
+import { criarFixtureEmpresa, criarIndicador, tokenPara } from '../gamificacao/test-helpers';
 
 async function criarGerente(empresaId: string, lojaId: string) {
   return prisma.vendedor.create({ data: { empresaId, lojaId, matriculaErp: `GER-${Math.random()}`, nome: 'Gerente HTTP', papel: 'GERENTE' } });
 }
 
-function token(vendedorId: string, empresaId: string, lojaId: string, papel: 'VENDEDOR' | 'GERENTE' | 'ADMIN') {
-  return assinarToken({ vendedorId, empresaId, lojaId, papel });
+async function token(vendedorId: string, empresaId: string, lojaId: string, papel: 'VENDEDOR' | 'GERENTE' | 'ADMIN') {
+  return tokenPara({ vendedorId, empresaId, lojaId, papel });
 }
 
 describe('Auth/RBAC — rotas do gerente nunca respondem 200 sem GERENTE', () => {
@@ -24,7 +23,7 @@ describe('Auth/RBAC — rotas do gerente nunca respondem 200 sem GERENTE', () =>
 
   it('token de VENDEDOR -> 403', async () => {
     const { empresa, loja, vendedor } = await criarFixtureEmpresa();
-    const res = await request(app).get('/gerente/home').set('Authorization', `Bearer ${token(vendedor.id, empresa.id, loja.id, 'VENDEDOR')}`);
+    const res = await request(app).get('/gerente/home').set('Authorization', `Bearer ${await token(vendedor.id, empresa.id, loja.id, 'VENDEDOR')}`);
     expect(res.status).toBe(403);
   });
 
@@ -33,7 +32,7 @@ describe('Auth/RBAC — rotas do gerente nunca respondem 200 sem GERENTE', () =>
     const gerente = await criarGerente(empresa.id, loja.id);
     await criarIndicador(vendedor.id, new Date(), { faturamento: 200 });
 
-    const res = await request(app).get('/gerente/home').set('Authorization', `Bearer ${token(gerente.id, empresa.id, loja.id, 'GERENTE')}`);
+    const res = await request(app).get('/gerente/home').set('Authorization', `Bearer ${await token(gerente.id, empresa.id, loja.id, 'GERENTE')}`);
     expect(res.status).toBe(200);
     expect(res.body.storeSummary).toBeDefined();
     expect(Array.isArray(res.body.alertasPrioritarios)).toBe(true);
@@ -48,7 +47,7 @@ describe('Escopo por loja — anti-IDOR (seção 85-89)', () => {
 
     const res = await request(app)
       .get(`/gerente/equipe/${outraFixture.vendedor.id}/detalhe`)
-      .set('Authorization', `Bearer ${token(gerente.id, empresa.id, loja.id, 'GERENTE')}`);
+      .set('Authorization', `Bearer ${await token(gerente.id, empresa.id, loja.id, 'GERENTE')}`);
     expect(res.status).toBe(404);
   });
 
@@ -57,7 +56,7 @@ describe('Escopo por loja — anti-IDOR (seção 85-89)', () => {
     const gerente = await criarGerente(empresa.id, loja.id);
     const criado = await request(app)
       .post('/gerente/1a1')
-      .set('Authorization', `Bearer ${token(gerente.id, empresa.id, loja.id, 'GERENTE')}`)
+      .set('Authorization', `Bearer ${await token(gerente.id, empresa.id, loja.id, 'GERENTE')}`)
       .send({ sellerId: vendedor.id });
     expect(criado.status).toBe(201);
 
@@ -65,7 +64,7 @@ describe('Escopo por loja — anti-IDOR (seção 85-89)', () => {
     const outroGerente = await criarGerente(outraFixture.empresa.id, outraFixture.loja.id);
     const res = await request(app)
       .get(`/gerente/1a1/${criado.body.id}`)
-      .set('Authorization', `Bearer ${token(outroGerente.id, outraFixture.empresa.id, outraFixture.loja.id, 'GERENTE')}`);
+      .set('Authorization', `Bearer ${await token(outroGerente.id, outraFixture.empresa.id, outraFixture.loja.id, 'GERENTE')}`);
     expect(res.status).toBe(404);
   });
 });
@@ -77,7 +76,7 @@ describe('Mass-assignment — cliente nunca decide status/completed (seção 91)
 
     const res = await request(app)
       .post('/gerente/planos-de-acao')
-      .set('Authorization', `Bearer ${token(gerente.id, empresa.id, loja.id, 'GERENTE')}`)
+      .set('Authorization', `Bearer ${await token(gerente.id, empresa.id, loja.id, 'GERENTE')}`)
       .send({ subjectType: 'STORE', title: 'Foco da semana', status: 'COMPLETED', completedAt: new Date().toISOString() });
 
     expect(res.status).toBe(201);
@@ -92,7 +91,7 @@ describe('XSS — texto livre é sempre sanitizado end-to-end (seção 92)', () 
 
     const res = await request(app)
       .post('/gerente/planos-de-acao')
-      .set('Authorization', `Bearer ${token(gerente.id, empresa.id, loja.id, 'GERENTE')}`)
+      .set('Authorization', `Bearer ${await token(gerente.id, empresa.id, loja.id, 'GERENTE')}`)
       .send({ subjectType: 'STORE', title: '<script>alert(1)</script>Foco', itens: [{ tipo: 'CUSTOM_TEXT', descricao: '<img src=x onerror=alert(1)>texto' }] });
 
     expect(res.status).toBe(201);
@@ -105,7 +104,7 @@ describe('Smoke — rotas principais nunca 500 mesmo sem dado nenhum', () => {
   it('equipe/alertas/pendencias/reuniao-do-dia/roteiro-sugerido respondem 200', async () => {
     const { empresa, loja } = await criarFixtureEmpresa();
     const gerente = await criarGerente(empresa.id, loja.id);
-    const auth = `Bearer ${token(gerente.id, empresa.id, loja.id, 'GERENTE')}`;
+    const auth = `Bearer ${await token(gerente.id, empresa.id, loja.id, 'GERENTE')}`;
 
     for (const path of ['/gerente/equipe', '/gerente/alertas', '/gerente/pendencias', '/gerente/reuniao-do-dia', '/gerente/1a1/roteiro-sugerido', '/gerente/follow-ups', '/gerente/planos-de-acao']) {
       const res = await request(app).get(path).set('Authorization', auth);
@@ -117,7 +116,7 @@ describe('Smoke — rotas principais nunca 500 mesmo sem dado nenhum', () => {
 describe('Admin — configuração de alertas (seção 66-70)', () => {
   it('ADMIN lista e atualiza thresholds; parâmetro desconhecido é rejeitado (nunca vira fórmula livre)', async () => {
     const { empresa, loja, vendedor } = await criarFixtureEmpresa();
-    const admin = `Bearer ${token(vendedor.id, empresa.id, loja.id, 'ADMIN')}`;
+    const admin = `Bearer ${await token(vendedor.id, empresa.id, loja.id, 'ADMIN')}`;
 
     const listagem = await request(app).get('/admin/gerencial/alertas/config').set('Authorization', admin);
     expect(listagem.status).toBe(200);
@@ -140,7 +139,7 @@ describe('Admin — configuração de alertas (seção 66-70)', () => {
   it('GERENTE nunca acessa a configuração de alertas (só ADMIN)', async () => {
     const { empresa, loja } = await criarFixtureEmpresa();
     const gerente = await criarGerente(empresa.id, loja.id);
-    const res = await request(app).get('/admin/gerencial/alertas/config').set('Authorization', `Bearer ${token(gerente.id, empresa.id, loja.id, 'GERENTE')}`);
+    const res = await request(app).get('/admin/gerencial/alertas/config').set('Authorization', `Bearer ${await token(gerente.id, empresa.id, loja.id, 'GERENTE')}`);
     expect(res.status).toBe(403);
   });
 });
