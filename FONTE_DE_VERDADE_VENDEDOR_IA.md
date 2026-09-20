@@ -2109,6 +2109,34 @@ Responde a **uma** pergunta: *dado um domínio já determinado e uma empresa, ex
 
 **883 backend + 173 frontend + 41 E2E.** Zero regressões. Zero migration, zero dependência, zero chamada de IA, zero RAG, zero embeddings, zero vector DB, zero agente, zero UI, zero rota HTTP. Conselheiro, Treinador, Academia e Universidade intactos — teste de inspeção varre `coach/`, `coach/prompts/`, `pertinencia/`, `ai-platform/`, `treinador/` e todas as rotas provando zero referência.
 
+### Etapa 2C.3 — Conteúdo Piloto: Hábitos — RASCUNHOS PRONTOS, AGUARDANDO HOMOLOGAÇÃO HUMANA (2026-09-20)
+
+Seis Knowledge Cards reais, os primeiros do produto. **Nenhum aprovado, nenhum publicado.** Documento de homologação: `docs/knowledge/PILOTO_HABITOS.md` — feito pra o usuário ler os seis textos integralmente sem abrir o banco.
+
+**Escola reutilizada: Organização e Produtividade**, cuja descrição no catálogo é literalmente *"Rotina, prioridades e produtividade pessoal"*. Nenhuma taxonomia nova.
+
+**As seis ideias:** começar pequeno (tamanho do primeiro passo) · ajustar o cenário (atrito/contexto) · combinar o momento (iniciação) · firmar a repetição antes do volume (progressão) · um dia perdido não apaga o construído (depois da falha) · escolher por onde começar (carga de mudança simultânea). Cada uma se contraindica explicitamente na situação da vizinha — é assim que se prova que não são duplicatas.
+
+**A classificação de fonte é honesta nas duas direções, e esse é o achado editorial da fatia.** Três cards são `CIENTIFICO`, um é `METODOLOGIA` (modelo de autor, não consenso) e um é `DESENVOLVIMENTO_PESSOAL`: procurei evidência de que "uma mudança por vez" é superior e a revisão sistemática encontrada conclui o oposto do esperado — **as duas abordagens se mostraram igualmente eficazes, com evidência limitada**. O card existe como forma de reduzir sobrecarga, não como conclusão de pesquisa, e o próprio texto diz isso. Se os seis fossem `CIENTIFICO`, o eixo `tipoFonte` seria etiqueta decorativa.
+
+**Fontes verificadas, nenhuma inventada** — Lally e cols. (2010, *European Journal of Social Psychology*), Gollwitzer & Sheeran (2006, meta-análise de 94 estudos), Wood & Neal (2007, *Psychological Review*), James e cols. (2016, *Preventive Medicine*) e o modelo B=MAP de B. J. Fogg. Zero blog, zero conteúdo motivacional, zero citação literal: os textos são sínteses próprias em português, e a revisão de copyright confirmou que toda aspa no arquivo é fala hipotética de vendedor ou termo técnico na provenance.
+
+**Linguagem calibrada à evidência.** O card de gatilho diz *"aumenta a chance"*, nunca "garante". O de consistência **não cita prazo** — a mediana de 66 dias do estudo varia de 18 a 254, e um número único viraria meta e depois cobrança. O de retomada evita qualquer linguagem de sequência ou streak, coerente com a Constituição num produto que tem gamificação.
+
+**Tamanho:** princípios de 307 a 330 caracteres (limite 1200; média do conteúdo existente medida na 2C.0: 451).
+
+**O TESTE FUNDAMENTAL: com os seis rascunhos no banco, o Retriever devolve `NO_KNOWLEDGE` para Hábitos.** Conteúdo editorial que ninguém homologou não escorrega para dentro do produto — o gate humano está de pé, e isso é asserção, não promessa. Os critérios editoriais viraram teste automatizado: ausência de culpabilização, de diagnóstico, de promessa, de jargão na superfície, contraindicações distintas entre si e provenance real por tipo.
+
+**Persistência legítima, sem forjar ator.** Script de plataforma manual (`npm run seed:piloto-habitos`), fora do seed automático, com `createdBy = null` — ninguém escreveu isto como usuário do produto, e inventar um autor seria forjar ator. Escopo GLOBAL porque é o que o conteúdo é; cadastrá-lo sob uma empresa só porque o escopo global não tem editor seria mentir para o schema.
+
+#### Achado arquitetural que só apareceu agora
+
+**Nenhum ator existente consegue aprovar ou publicar um card global.** Medido: `submeter`, `aprovar` e `publicar` devolvem `403 escopo_negado`, porque `assegurarPodeEscrever` compara `card.empresaId` com o do ator e um card global tem `null`. O produto tem `VENDEDOR | GERENTE | ADMIN` e nada acima da empresa.
+
+Criar rascunhos por script é legítimo — é o caminho que a 2C.1 registrou para conteúdo global, o mesmo do Playbook. **Avançar o ciclo é que não tem caminho.** Três saídas possíveis estão documentadas (papel de plataforma; permitir `ADMIN` transicionar global numa instalação de empresa única; ou publicação de global como operação de script com o aprovador humano registrado de outra forma) e **nenhuma foi escolhida**: inventar autoridade é exatamente o que a 2C.1 evitou de propósito.
+
+**896 backend + 173 frontend + 41 E2E.** Zero migration, dependência, chamada de IA, RAG, embeddings, vector DB, agente novo, UI e rota. Conselheiro, Treinador, Academia e Universidade intactos; Router (2C.4) e integração (2C.5) continuam inexistentes.
+
 ### Fatia 10 — Linx real
 Executar assim que contrato/credenciais reais estiverem disponíveis, sem bloquear fatias independentes.
 
