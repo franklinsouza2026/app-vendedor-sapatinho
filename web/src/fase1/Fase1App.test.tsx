@@ -170,6 +170,16 @@ describe('Fase 1 — Admin configura, vendedora recebe', () => {
     expect(screen.getByLabelText('Início')).toBeDisabled();
   });
 
+  it('encerrar campanha congela o resultado e ela vai para o histórico da vendedora', async () => {
+    abrir('/fase1/admin/campanhas/outubro-campeao', 'B', 'ADMIN');
+    await userEvent.click(await screen.findByRole('button', { name: 'Encerrar' }));
+    await userEvent.click(screen.getAllByRole('button', { name: /Ver como vendedora/ })[0]);
+    await userEvent.click(within(await screen.findByRole('navigation', { name: 'Navegação principal' })).getByRole('link', { name: /Desafios/ }));
+    await userEvent.click(await screen.findByRole('tab', { name: 'Campanha' }));
+    expect(await screen.findByText('Nenhuma campanha ativa agora')).toBeInTheDocument();
+    expect(screen.getAllByText(/Vencedor:|Você venceu/).length).toBeGreaterThan(2);
+  });
+
   it('XP e VendaCoins são somente consulta (nenhum campo de saldo editável)', async () => {
     abrir('/fase1/admin/vendacoins', 'B', 'ADMIN');
     expect(await screen.findByText(/Somente consulta/)).toBeInTheDocument();

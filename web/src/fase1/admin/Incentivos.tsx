@@ -144,7 +144,7 @@ function campanhaVazia(): CampanhaCad {
 
 export function EditorCampanha() {
   const { id } = useParams();
-  const { estado, alterar, verComoVendedor } = useFase1();
+  const { estado, alterar, verComoVendedor, dados } = useFase1();
   const navegar = useNavigate();
   const existente = id ? estado.campanhas.find((c) => c.id === id) : undefined;
   const [c, setC] = useState<CampanhaCad>(() => (existente ? structuredClone(existente) : campanhaVazia()));
@@ -159,8 +159,18 @@ export function EditorCampanha() {
 
   if (id && !existente) return <TituloPagina titulo="Campanha não encontrada" voltar={{ para: '/fase1/admin/campanhas', texto: 'Campanhas' }} />;
 
+  /** Ao encerrar, congela o resultado com a classificação do momento (vencedor e posição da persona). */
+  function resultadoFinal(): CampanhaCad['resultado'] {
+    return c.frentes.map((f) => {
+      const comp = dados.competicoes.find((x) => x.id === f.refId);
+      const i = comp ? comp.participantes.findIndex((p) => p.id === comp.meuId) : -1;
+      const p = nomePremio(f.premioId);
+      return { frenteId: f.id, vencedor: f.mecanismo === 'META_MES' ? 'Todas que bateram 100% da meta do mês' : (comp?.participantes[0]?.nome ?? '—'), premio: p ? descreverPremio(p) : 'Sem prêmio', minhaPosicao: i === -1 ? null : i + 1 };
+    });
+  }
+
   function salvar(status: StatusCiclo, acao: string, motivo?: string) {
-    const final = { ...c, status };
+    const final = { ...c, status, resultado: status === 'ENCERRADA' && !c.resultado ? resultadoFinal() : c.resultado };
     alterar(
       (st) => {
         const i = st.campanhas.findIndex((x) => x.id === final.id);
