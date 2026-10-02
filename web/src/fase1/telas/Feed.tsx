@@ -45,6 +45,8 @@ export function Feed() {
   );
 }
 
+const ROTULO_MOTIVO: Record<string, string> = { RESULTADO: 'Resultado', EVOLUCAO: 'Evolução', INICIATIVA: 'Iniciativa', EQUIPE: 'Espírito de equipe', SUPERACAO: 'Superação', OUTRO: 'Reconhecimento' };
+
 export function Reconhecimentos() {
   const { dados } = useFase1();
   if (dados.reconhecimentos.length === 0) {
@@ -59,6 +61,7 @@ export function Reconhecimentos() {
               {r.autor} · {dataCurta(r.quando)}
             </p>
             <h2 className="mt-1 font-semibold text-white">💛 {r.titulo}</h2>
+            <p className="text-xs font-medium text-amber-200">{ROTULO_MOTIVO[r.motivo] ?? r.motivo}</p>
             <p className="mt-1 text-sm text-slate-300">{r.mensagem}</p>
           </Painel>
         </li>

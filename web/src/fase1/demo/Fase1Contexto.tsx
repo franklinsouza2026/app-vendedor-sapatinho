@@ -1,25 +1,44 @@
 /**
- * Estado da demonstração: perfil escolhido na entrada (vendedor/admin),
- * cenário ativo e fila de celebrações. Fica em sessionStorage — fecha a aba,
- * volta ao começo. Nada aqui conversa com a API nem com o AuthContext real.
+ * Estado da demonstração:
+ *  - perfil escolhido na entrada (vendedor/admin) e modo "pré-visualização do Admin";
+ *  - cenário ativo e fila de celebrações;
+ *  - ESTADO DO ADMIN (persistente): o que o Admin configura chega à vendedora.
+ *
+ * Nada aqui conversa com a API nem com o AuthContext real.
  */
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { Celebracao, Fase1Dados } from '../dominio/tipos';
 import { buscarCenario, CENARIO_PADRAO, type Cenario, montarCenario } from './cenarios';
+import { AGORA_DEMO, carregarEstado, type EstadoDemo, estadoInicial, limparEstadoSalvo, novoId, salvarEstado } from './estado';
 
 export type PerfilDemo = 'VENDEDOR' | 'ADMIN';
+
+export interface RegistroAuditoria {
+  acao: string;
+  entidade: string;
+  antes?: string | null;
+  depois?: string | null;
+  motivo?: string | null;
+}
 
 interface Fase1ContextoValor {
   perfil: PerfilDemo | null;
   entrar: (perfil: PerfilDemo) => void;
   sair: () => void;
+  /** Admin abrindo o app da vendedora para conferir o que configurou. */
+  previewAdmin: boolean;
+  verComoVendedor: () => void;
+  voltarAoAdmin: () => void;
   cenario: Cenario;
   trocarCenario: (id: string) => void;
   dados: Fase1Dados;
+  estado: EstadoDemo;
+  /** Toda alteração do Admin passa por aqui: aplica, registra na auditoria e persiste. */
+  alterar: (mutacao: (e: EstadoDemo) => void, registro: RegistroAuditoria | null) => void;
+  restaurarDemo: () => void;
   celebracaoAtual: Celebracao | null;
   celebrar: (c: Celebracao) => void;
   fecharCelebracao: () => void;
-  /** Incrementa a cada troca de cenário/tentativa — usado pelas telas para refazer a "carga". */
   versaoCarga: number;
   tentarDeNovo: () => void;
 }
@@ -27,6 +46,7 @@ interface Fase1ContextoValor {
 const Contexto = createContext<Fase1ContextoValor | null>(null);
 
 const CHAVE_PERFIL = 'vendedor-ia:fase1:perfil';
+const CHAVE_PREVIEW = 'vendedor-ia:fase1:preview';
 const CHAVE_CENARIO = 'vendedor-ia:fase1:cenario';
 const CHAVE_CELEBRADO = 'vendedor-ia:fase1:celebrado';
 
@@ -57,12 +77,14 @@ export function Fase1Provider({ children }: { children: ReactNode }) {
     const p = ler(CHAVE_PERFIL);
     return p === 'VENDEDOR' || p === 'ADMIN' ? p : null;
   });
+  const [previewAdmin, setPreviewAdmin] = useState(() => ler(CHAVE_PREVIEW) === '1');
   const [cenarioId, setCenarioId] = useState(cenarioInicial);
+  const [estado, setEstado] = useState<EstadoDemo>(carregarEstado);
   const [fila, setFila] = useState<Celebracao[]>([]);
   const [versaoCarga, setVersaoCarga] = useState(0);
 
   const cenario = buscarCenario(cenarioId);
-  const dados = useMemo(() => montarCenario(cenario.id), [cenario.id]);
+  const dados = useMemo(() => montarCenario(cenario.id, estado), [cenario.id, estado]);
 
   const trocarCenario = useCallback((id: string) => {
     gravar(CHAVE_CENARIO, id);
@@ -71,25 +93,59 @@ export function Fase1Provider({ children }: { children: ReactNode }) {
     setVersaoCarga((v) => v + 1);
   }, []);
 
-  // As celebrações do cenário entram na fila quando ele é aberto — uma vez por
-  // seleção: recarregar a página não repete a festa.
+  // Celebrações do cenário entram na fila uma vez por seleção — recarregar não repete.
   useEffect(() => {
-    setFila(ler(`${CHAVE_CELEBRADO}:${cenario.id}`) ? [] : dados.celebracoes);
-  }, [dados, cenario.id, versaoCarga]);
+    setFila(ler(`${CHAVE_CELEBRADO}:${cenario.id}`) ? [] : montarCenario(cenario.id).celebracoes);
+  }, [cenario.id, versaoCarga]);
+
+  const alterar = useCallback((mutacao: (e: EstadoDemo) => void, registro: RegistroAuditoria | null) => {
+    setEstado((atual) => {
+      const novo = structuredClone(atual);
+      mutacao(novo);
+      if (registro) {
+        novo.auditoria.unshift({ id: novoId('aud'), quando: AGORA_DEMO, usuario: 'admin@sapatinho', acao: registro.acao, entidade: registro.entidade, antes: registro.antes ?? null, depois: registro.depois ?? null, motivo: registro.motivo ?? null });
+      }
+      salvarEstado(novo);
+      return novo;
+    });
+  }, []);
 
   const valor: Fase1ContextoValor = {
     perfil,
     entrar: (p) => {
       gravar(CHAVE_PERFIL, p);
+      gravar(CHAVE_PREVIEW, null);
+      setPreviewAdmin(false);
       setPerfil(p);
     },
     sair: () => {
       gravar(CHAVE_PERFIL, null);
+      gravar(CHAVE_PREVIEW, null);
+      setPreviewAdmin(false);
       setPerfil(null);
+    },
+    previewAdmin,
+    verComoVendedor: () => {
+      gravar(CHAVE_PERFIL, 'VENDEDOR');
+      gravar(CHAVE_PREVIEW, '1');
+      setPreviewAdmin(true);
+      setPerfil('VENDEDOR');
+    },
+    voltarAoAdmin: () => {
+      gravar(CHAVE_PERFIL, 'ADMIN');
+      gravar(CHAVE_PREVIEW, null);
+      setPreviewAdmin(false);
+      setPerfil('ADMIN');
     },
     cenario,
     trocarCenario,
     dados,
+    estado,
+    alterar,
+    restaurarDemo: () => {
+      limparEstadoSalvo();
+      setEstado(estadoInicial());
+    },
     celebracaoAtual: fila[0] ?? null,
     celebrar: (c) => setFila((f) => [...f, c]),
     fecharCelebracao: () => {

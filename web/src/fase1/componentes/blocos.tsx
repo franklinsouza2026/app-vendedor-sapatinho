@@ -4,9 +4,9 @@
  */
 import { Link } from 'react-router-dom';
 import type { Alvo, Fase1Dados, Missao } from '../dominio/tipos';
-import { falta, paresEstimados, percentual, projecaoMes, proximoMarco, vendasEstimadas, vendasPorDia } from '../dominio/estimativas';
+import { UNIDADE_METRICA, falta, paresEstimados, percentual, projecaoMes, proximoMarco, vendasEstimadas, vendasPorDia } from '../dominio/estimativas';
 import { faltaMissao, minhaPosicao, textoUnidade } from '../dominio/alvos';
-import { plural, pct, reais } from '../formato';
+import { distanciaMetrica, plural, pct, reais } from '../formato';
 import { BarraMeta, BarraSimples, Painel, Pilula, SeloEstimativa, Variacao } from './ui';
 
 export function baseEstimativa(dados: Fase1Dados): string {
@@ -156,9 +156,9 @@ export function CorridaMes({ dados, detalhado = false }: { dados: Fase1Dados; de
             {diasTrabalhoRestantes !== null && <> em {plural(diasTrabalhoRestantes, 'dia')} de trabalho</>}.
           </p>
           {vendas !== null && (
-            <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
+            <dl className={`mt-3 grid ${dados.indicadores.PARES ? 'grid-cols-3' : 'grid-cols-2'} gap-2 text-center`}>
               <Numero rotulo="vendas" valor={`≈ ${vendas}`} />
-              <Numero rotulo="pares" valor={pares !== null ? `≈ ${pares}` : '—'} />
+              {dados.indicadores.PARES && <Numero rotulo="pares" valor={pares !== null ? `≈ ${pares}` : '—'} />}
               <Numero rotulo="vendas/dia" valor={porDia !== null ? `≈ ${porDia}` : '—'} />
             </dl>
           )}
@@ -199,25 +199,29 @@ export function MinhaCorrida({ dados }: { dados: Fase1Dados }) {
       </Painel>
     );
   }
-  if (dados.vendedor.novo) {
+  if (!dados.elegibilidade.elegivel) {
     return (
       <Painel rotulo="Sua posição">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Sua posição</h2>
         <p className="mt-2 text-sm text-slate-300">
-          Você está nos primeiros dias. Sua posição no ranking aparece depois do período de adaptação — até lá, a disputa é com você mesma.
+          {dados.vendedor.novo
+            ? 'Você está nos primeiros dias. Sua posição no ranking aparece depois do período de adaptação — até lá, a disputa é com você mesma.'
+            : `Você está fora do ranking neste período. ${dados.elegibilidade.motivo ?? ''}`}
         </p>
       </Painel>
     );
   }
-  const loja = minhaPosicao(dados, 'loja', 'VENDAS');
-  const geral = minhaPosicao(dados, 'geral', 'VENDAS');
+  const metrica = dados.metricaCorrida;
+  const emReais = metrica === 'VENDAS';
+  const loja = minhaPosicao(dados, 'loja', metrica);
+  const geral = minhaPosicao(dados, 'geral', metrica);
   if (!loja || !geral) return null;
-  const vendasAteAcima = loja.distanciaAcima !== null ? vendasEstimadas(loja.distanciaAcima, dados.referencia.ticketMedio) : null;
+  const vendasAteAcima = emReais && loja.distanciaAcima !== null ? vendasEstimadas(loja.distanciaAcima, dados.referencia.ticketMedio) : null;
 
   return (
     <Painel rotulo="Sua posição">
       <div className="mb-3 flex items-baseline justify-between">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Sua posição · vendas do mês</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Sua posição · {emReais ? 'vendas do mês' : UNIDADE_METRICA[metrica].curto}</h2>
         <Link to="/fase1/ranking" className="-my-3 inline-flex min-h-[44px] items-center text-sm font-medium text-accentSoft">
           Ranking →
         </Link>
@@ -239,7 +243,7 @@ export function MinhaCorrida({ dados }: { dados: Fase1Dados }) {
       ) : (
         loja.distanciaAcima !== null && (
           <p className="mt-3 text-sm text-slate-300">
-            Faltam <strong className="text-white">{reais(loja.distanciaAcima)}</strong> para alcançar o <strong className="text-white">#{loja.posicao - 1}</strong> da loja
+            Faltam <strong className="text-white">{emReais ? reais(loja.distanciaAcima) : distanciaMetrica(metrica, loja.distanciaAcima)}</strong> para alcançar o <strong className="text-white">#{loja.posicao - 1}</strong> da loja
             {vendasAteAcima !== null && <> — ≈ {plural(vendasAteAcima, 'venda')} no seu ticket médio</>}.
           </p>
         )
@@ -300,7 +304,7 @@ export const ROTULO_TIPO_MISSAO: Record<Missao['tipo'], string> = {
   PONTA_ESTOQUE: 'Desafio comercial',
 };
 
-export function CardMissao({ missao }: { missao: Missao }) {
+export function CardMissao({ missao, onSimular }: { missao: Missao; onSimular?: () => void }) {
   const concluida = Boolean(missao.concluidaEm);
   const f = faltaMissao(missao);
   return (
@@ -315,7 +319,7 @@ export function CardMissao({ missao }: { missao: Missao }) {
         <ul className="mt-2 flex flex-col gap-1">
           {missao.produtos.map((p) => (
             <li key={p.referencia} className="flex items-center gap-2 rounded-lg bg-slate-800/80 px-2 py-1.5 text-xs text-slate-300">
-              <span aria-hidden="true">👠</span>
+              <span aria-hidden="true">{p.foto ?? '👠'}</span>
               <span className="font-mono text-slate-400">Ref. {p.referencia}</span>
               <span className="truncate">{p.nome}</span>
             </li>
@@ -333,10 +337,16 @@ export function CardMissao({ missao }: { missao: Missao }) {
           {!concluida && f > 0 && <span className="text-slate-400">· falta {textoUnidade(missao.unidade, f)}</span>}
         </span>
         <span className="flex gap-1.5">
-          <Pilula tom="info">+{missao.recompensa.xp} XP</Pilula>
-          <Pilula tom="aviso">+{missao.recompensa.moedas} 🪙</Pilula>
+          {missao.recompensa.xp > 0 && <Pilula tom="info">+{missao.recompensa.xp} XP</Pilula>}
+          {missao.recompensa.moedas > 0 && <Pilula tom="aviso">+{missao.recompensa.moedas} 🪙</Pilula>}
         </span>
       </div>
+      {missao.premio && <p className="mt-2 text-xs text-slate-300">🎁 Prêmio: {missao.premio}</p>}
+      {onSimular && !concluida && (
+        <button onClick={onSimular} className="mt-3 min-h-[40px] w-full rounded-xl border border-dashed border-sky-400/50 text-xs font-semibold text-sky-200">
+          🧪 Simular {missao.unidade === 'par' ? 'um par vendido' : missao.unidade === 'dia' ? 'mais um dia cumprido' : 'uma venda'} (demo)
+        </button>
+      )}
     </Painel>
   );
 }

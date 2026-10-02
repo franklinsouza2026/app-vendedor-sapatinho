@@ -16,6 +16,7 @@ import { CardMissao } from '../componentes/blocos';
 import { Abas, AvisoProvisorio, Medalha, Painel, Pilula, Vazio } from '../componentes/ui';
 import { decimal, inteiro, periodo, plural, tempoRestante } from '../formato';
 import { Fase1Pagina } from './Fase1Pagina';
+import { useSimularMissao } from '../demo/simulacao';
 
 type Aba = 'missoes' | 'competicoes' | 'campanha';
 
@@ -57,6 +58,7 @@ export function Desafios() {
 
 function Missoes() {
   const { dados } = useFase1();
+  const simular = useSimularMissao();
   if (dados.missoes.length === 0) {
     return <Vazio icone="🎯" titulo="Nenhuma missão ativa agora" texto="Quando a loja lançar uma missão, ela aparece aqui com o objetivo e a recompensa." />;
   }
@@ -71,7 +73,7 @@ function Missoes() {
             Em andamento · {abertas.length}
           </h2>
           {abertas.map((m) => (
-            <CardMissao key={m.id} missao={m} />
+            <CardMissao key={m.id} missao={m} onSimular={() => simular(m)} />
           ))}
         </section>
       )}
@@ -214,35 +216,82 @@ function CardCompeticao({ c, dados }: { c: Competicao; dados: Fase1Dados }) {
 
 function CampanhaAba() {
   const { dados } = useFase1();
-  const camp = dados.campanha;
-  if (!camp) {
+  const ativas = dados.campanhas.filter((c) => c.status === 'ATIVA');
+  const encerradas = dados.campanhas.filter((c) => c.status === 'ENCERRADA');
+  if (dados.campanhas.length === 0) {
     return <Vazio icone="📣" titulo="Nenhuma campanha ativa" texto="Campanhas são programas de incentivo da empresa. Quando houver uma, ela aparece aqui." />;
   }
   return (
     <>
-      <Painel destaque rotulo={camp.nome}>
-        <p className="text-xs font-semibold uppercase tracking-wider text-accentSoft">Campanha · {periodo(camp.iniciaEm, camp.terminaEm)}</p>
-        <h2 className="mt-1 text-2xl font-extrabold text-white">{camp.nome}</h2>
-        <p className="mt-1 text-sm text-slate-300">{camp.descricao}</p>
-        <p className="mt-2 text-sm font-medium text-amber-200">⏱ {tempoRestante(camp.terminaEm, dados.agora)}</p>
-      </Painel>
-      <ul className="flex flex-col gap-3">
-        {camp.frentes.map((f) => (
-          <li key={f.id}>
-            <Painel as="article" className="flex gap-3">
-              <span aria-hidden="true" className="text-2xl">
-                {f.icone}
-              </span>
-              <div className="min-w-0 flex-1">
-                <h3 className="font-semibold text-white">{f.titulo}</h3>
-                <p className="text-sm text-slate-400">{f.descricao}</p>
-                <p className="mt-2 text-sm font-semibold text-white">{f.situacao}</p>
-                <p className="mt-1 text-xs text-slate-300">🎁 {f.premio}</p>
+      {ativas.length === 0 && <Vazio icone="📣" titulo="Nenhuma campanha ativa agora" texto="Veja abaixo o resultado das campanhas que já terminaram." />}
+      {ativas.map((camp) => (
+        <div key={camp.id} className="flex flex-col gap-3">
+          <Painel destaque rotulo={camp.nome}>
+            <p className="text-xs font-semibold uppercase tracking-wider text-accentSoft">Campanha · {periodo(camp.iniciaEm, camp.terminaEm)}</p>
+            <h2 className="mt-1 text-2xl font-extrabold text-white">{camp.nome}</h2>
+            <p className="mt-1 text-sm text-slate-300">{camp.descricao}</p>
+            <p className="mt-2 text-sm font-medium text-amber-200">⏱ {tempoRestante(camp.terminaEm, dados.agora)}</p>
+          </Painel>
+          <ul className="flex flex-col gap-3">
+            {camp.frentes.map((f) => (
+              <li key={f.id}>
+                <Painel as="article" className="flex gap-3">
+                  <span aria-hidden="true" className="text-2xl">
+                    {f.icone}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-semibold text-white">{f.titulo}</h3>
+                    <p className="text-sm text-slate-400">{f.descricao}</p>
+                    <p className="mt-2 text-sm font-semibold text-white">{f.situacao}</p>
+                    <p className="mt-1 text-xs text-slate-300">🎁 {f.premio}</p>
+                  </div>
+                </Painel>
+              </li>
+            ))}
+          </ul>
+          {camp.regras && (
+            <details className="rounded-2xl border border-slate-700/60 bg-surface p-4 text-sm text-slate-300">
+              <summary className="min-h-[24px] cursor-pointer font-medium text-white">Regras da campanha</summary>
+              <p className="mt-2">{camp.regras}</p>
+            </details>
+          )}
+        </div>
+      ))}
+      {encerradas.length > 0 && (
+        <section aria-labelledby="camp-hist" className="flex flex-col gap-3">
+          <h2 id="camp-hist" className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+            Encerradas
+          </h2>
+          {encerradas.map((c) => (
+            <Painel key={c.id} as="article" rotulo={c.nome}>
+              <div className="flex items-baseline justify-between gap-2">
+                <h3 className="font-semibold text-white">{c.nome}</h3>
+                <span className="text-xs text-slate-400">{periodo(c.iniciaEm, c.terminaEm)}</span>
               </div>
+              {c.meusGanhos && (
+                <p className="mt-2 rounded-xl bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
+                  Você ganhou +{c.meusGanhos.xp} XP e +{c.meusGanhos.moedas} VendaCoins.
+                </p>
+              )}
+              <ul className="mt-2 divide-y divide-slate-700/60 text-sm">
+                {(c.resultado ?? []).map((r) => (
+                  <li key={r.titulo} className="py-2">
+                    <p className="font-medium text-white">{r.titulo}</p>
+                    {r.minhaPosicao === 1 ? (
+                      <p className="text-xs font-semibold text-emerald-300">🏆 Você venceu esta frente · 🎁 {r.premio}</p>
+                    ) : (
+                      <p className="text-xs text-slate-400">
+                        Vencedor: {r.vencedor} · 🎁 {r.premio}
+                      </p>
+                    )}
+                    {r.minhaPosicao !== null && r.minhaPosicao > 1 && <p className="text-xs text-slate-300">Sua posição final: #{r.minhaPosicao}</p>}
+                  </li>
+                ))}
+              </ul>
             </Painel>
-          </li>
-        ))}
-      </ul>
+          ))}
+        </section>
+      )}
       <AvisoProvisorio>“Campanha” ainda não existe como entidade no backend (hoje há Temporada + Competições). Política de premiação a definir.</AvisoProvisorio>
     </>
   );

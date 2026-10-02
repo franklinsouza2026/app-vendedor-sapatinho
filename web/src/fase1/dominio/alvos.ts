@@ -6,10 +6,10 @@
  * que, ao trocar o mock pelo backend, a UX continue coerente sozinha.
  */
 import type { Alvo, Fase1Dados, Metrica, Missao } from './tipos';
-import { falta, ordenarRanking, ordenarRankingLojas, proximoMarco, vendasEstimadas, type PosicaoCalculada } from './estimativas';
+import { falta, ordenarRanking, ordenarRankingLojas, proximoMarco, UNIDADE_METRICA, vendasEstimadas, type PosicaoCalculada } from './estimativas';
 import type { LinhaRankingBruta, LinhaRankingLoja } from './tipos';
 import { calcularNivel } from './niveis';
-import { plural, reais } from '../formato';
+import { distanciaMetrica, plural, reais } from '../formato';
 
 export interface MinhaPosicao {
   posicao: number;
@@ -24,7 +24,7 @@ export function rankingCalculado(dados: Fase1Dados, escopo: 'loja' | 'geral', me
 }
 
 export function minhaPosicao(dados: Fase1Dados, escopo: 'loja' | 'geral', metrica: Metrica): MinhaPosicao | null {
-  if (!dados.status.rankingDisponivel) return null;
+  if (!dados.status.rankingDisponivel || !dados.elegibilidade.elegivel) return null;
   const linhas = rankingCalculado(dados, escopo, metrica);
   const i = linhas.findIndex((l) => l.linha.pessoaId === dados.vendedor.id);
   if (i === -1) return null;
@@ -84,11 +84,13 @@ export function derivarAlvos(dados: Fase1Dados): Alvo[] {
     }
   }
 
-  // Corrida da loja (Vendas do mês, em R$ — única métrica que converte em vendas).
-  const pos = minhaPosicao(dados, 'loja', 'VENDAS');
+  // Corrida da loja, na métrica que o Admin escolheu (só Vendas em R$ converte em vendas).
+  const metrica = dados.metricaCorrida;
+  const pos = minhaPosicao(dados, 'loja', metrica);
   if (pos && pos.distanciaAcima !== null && pos.posicao > 1) {
     const alvoPos = pos.posicao - 1;
-    alvos.push({ id: 'ranking-loja', tipo: 'RANKING', icone: '🏆', falta: reais(pos.distanciaAcima), objetivo: `para alcançar o #${alvoPos} da loja`, esforcoVendas: vendasEstimadas(pos.distanciaAcima, ticket), rota: '/fase1/ranking' });
+    const emReais = metrica === 'VENDAS';
+    alvos.push({ id: 'ranking-loja', tipo: 'RANKING', icone: '🏆', falta: emReais ? reais(pos.distanciaAcima) : distanciaMetrica(metrica, pos.distanciaAcima), objetivo: `para alcançar o #${alvoPos} da loja${emReais ? '' : ` em ${UNIDADE_METRICA[metrica].curto}`}`, esforcoVendas: emReais ? vendasEstimadas(pos.distanciaAcima, ticket) : null, rota: '/fase1/ranking' });
   }
 
   // Missões e desafios em andamento.

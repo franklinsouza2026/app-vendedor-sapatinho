@@ -52,7 +52,7 @@ export function Entrar() {
           </span>
           <span>
             <span className="block text-lg font-bold">Entrar como Admin</span>
-            <span className="block text-sm text-slate-400">Como a Fase 1 seria operada</span>
+            <span className="block text-sm text-slate-400">Central de comando: configure, publique e veja como a vendedora recebe</span>
           </span>
         </button>
       </div>

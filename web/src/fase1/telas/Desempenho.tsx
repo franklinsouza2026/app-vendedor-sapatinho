@@ -88,11 +88,11 @@ function PlanoHoje({ dados }: { dados: Fase1Dados }) {
       <dl className="mt-1 divide-y divide-slate-700/60">
         <Linha rotulo="Meta" valor={reais(meta)} />
         <Linha rotulo="Realizado" valor={`${reais(realizado.faturamento)} · ${pct(percentual(realizado.faturamento, meta)!)}`} />
-        <Linha rotulo="Vendas fechadas" valor={`${realizado.vendas} · ${realizado.pares} pares`} />
+        <Linha rotulo="Vendas fechadas" valor={dados.indicadores.PARES ? `${realizado.vendas} · ${realizado.pares} pares` : `${realizado.vendas}`} />
         <Linha rotulo="Falta" valor={f === 0 ? 'nada — meta batida' : reais(f)} destaque={f > 0} />
         {f > 0 && <Linha rotulo="Ticket médio usado" valor={t !== null ? reais(t) : 'sem base'} />}
         {f > 0 && <Linha rotulo="Vendas estimadas" valor={vendas !== null ? `≈ ${vendas}` : '—'} destaque />}
-        {f > 0 && <Linha rotulo="Pares estimados" valor={pares !== null ? `≈ ${pares}` : '—'} />}
+        {f > 0 && dados.indicadores.PARES && <Linha rotulo="Pares estimados" valor={pares !== null ? `≈ ${pares}` : '—'} />}
       </dl>
       {f > 0 && vendas !== null && <SeloEstimativa base={baseEstimativa(dados)} />}
     </Painel>
@@ -128,7 +128,7 @@ function PlanoMes({ dados }: { dados: Fase1Dados }) {
             : `Para bater a meta, o ritmo precisa subir de ${reais(mediaDiaria)} para ${reais(reaisPorDia)} por dia.`}
         </p>
       )}
-      {diasTrabalhoRestantes !== null && <AvisoProvisorio>Dias de trabalho vêm de escala simulada. O backend ainda não tem cadastro de escala — decisão pendente.</AvisoProvisorio>}
+      {diasTrabalhoRestantes !== null && <AvisoProvisorio>Dias de trabalho vêm do calendário operacional configurado pelo Admin (domingos e feriados). Escala individual ainda não existe — decisão pendente.</AvisoProvisorio>}
     </Painel>
   );
 }
@@ -153,7 +153,9 @@ function Indicadores() {
       />
       {periodo === 'historico' ? <Historico dados={dados} /> : <GradeIndicadores dados={dados} periodo={periodo} />}
       <p className="text-xs text-slate-400">
-        Conversão não aparece: ainda não registramos atendimentos sem venda, então qualquer taxa seria inventada.
+        {dados.indicadores.CONVERSAO
+          ? 'Conversão liberada pelo Admin.'
+          : 'Conversão não aparece: ainda não registramos atendimentos sem venda, então qualquer taxa seria inventada.'}
       </p>
     </>
   );
@@ -186,23 +188,24 @@ function GradeIndicadores({ dados, periodo }: { dados: Fase1Dados; periodo: 'hoj
   const rotuloRef = periodo === 'hoje' ? 'vs. sua média diária do mês' : 'vs. mesmo período de setembro';
   const score = rankingCalculado(dados, 'loja', 'SCORE').find((l) => l.linha.pessoaId === dados.vendedor.id);
   const evolucao = pctMeta !== null && periodo === 'mes' ? pctMeta - dados.comparavel.percentualMeta : null;
+  const ind = dados.indicadores;
 
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-      <Indicador rotulo="Vendas (R$)" valor={reais(r.faturamento)} tendencia={<Tendencia atual={r.faturamento} anterior={ref.faturamento} rotuloComparacao={rotuloRef} />} />
-      <Indicador rotulo="Nº de vendas" valor={inteiro(r.vendas)} tendencia={<Tendencia atual={r.vendas} anterior={ref.vendas} rotuloComparacao={rotuloRef} />} />
-      <Indicador rotulo="Pares" valor={inteiro(r.pares)} tendencia={<Tendencia atual={r.pares} anterior={ref.pares} rotuloComparacao={rotuloRef} />} />
-      <Indicador rotulo="Ticket médio" valor={r.ticketMedio !== null ? reais(r.ticketMedio) : '—'} tendencia={<Tendencia atual={r.ticketMedio} anterior={ref.ticketMedio} rotuloComparacao={rotuloRef} />} />
-      <Indicador rotulo="PA" valor={r.pa !== null ? decimal(r.pa, 2) : '—'} contexto="pares por venda" tendencia={<Tendencia atual={r.pa} anterior={ref.pa} rotuloComparacao={rotuloRef} />} />
-      <Indicador rotulo="% da meta" valor={pctMeta !== null ? pct(pctMeta) : 'sem meta'} contexto={p.meta !== null ? `de ${reais(p.meta)}` : undefined} />
-      {periodo === 'mes' && (
+      {ind.VENDAS && <Indicador rotulo="Vendas (R$)" valor={reais(r.faturamento)} tendencia={<Tendencia atual={r.faturamento} anterior={ref.faturamento} rotuloComparacao={rotuloRef} />} />}
+      {ind.QTD_VENDAS && <Indicador rotulo="Nº de vendas" valor={inteiro(r.vendas)} tendencia={<Tendencia atual={r.vendas} anterior={ref.vendas} rotuloComparacao={rotuloRef} />} />}
+      {ind.PARES && <Indicador rotulo="Pares" valor={inteiro(r.pares)} tendencia={<Tendencia atual={r.pares} anterior={ref.pares} rotuloComparacao={rotuloRef} />} />}
+      {ind.TICKET && <Indicador rotulo="Ticket médio" valor={r.ticketMedio !== null ? reais(r.ticketMedio) : '—'} tendencia={<Tendencia atual={r.ticketMedio} anterior={ref.ticketMedio} rotuloComparacao={rotuloRef} />} />}
+      {ind.PA && <Indicador rotulo="PA" valor={r.pa !== null ? decimal(r.pa, 2) : '—'} contexto="pares por venda" tendencia={<Tendencia atual={r.pa} anterior={ref.pa} rotuloComparacao={rotuloRef} />} />}
+      {ind.PERCENTUAL_META && <Indicador rotulo="% da meta" valor={pctMeta !== null ? pct(pctMeta) : 'sem meta'} contexto={p.meta !== null ? `de ${reais(p.meta)}` : undefined} />}
+      {periodo === 'mes' && ind.EVOLUCAO && (
         <Indicador
           rotulo="Evolução"
           valor={evolucao !== null ? `${evolucao >= 0 ? '+' : ''}${decimal(evolucao)} p.p.` : '—'}
           contexto="% da meta vs. mesmo período de setembro"
         />
       )}
-      {periodo === 'mes' && score && <Indicador rotulo="Score Geral" valor={inteiro(score.linha.valor)} contexto={`#${score.posicao} na loja`} />}
+      {periodo === 'mes' && ind.SCORE && score && <Indicador rotulo="Score Geral" valor={inteiro(score.linha.valor)} contexto={`#${score.posicao} na loja`} />}
     </div>
   );
 }
@@ -282,14 +285,20 @@ function Comparar() {
   const { dados } = useFase1();
   const [escopo, setEscopo] = useState<'loja' | 'geral'>('loja');
 
-  if (dados.vendedor.novo) {
-    return <Vazio icone="🌱" titulo="Comparações depois da adaptação" texto="Nos primeiros dias, comparar com quem já tem meses de casa não é justo. Por enquanto, acompanhe sua própria evolução." />;
+  if (!dados.elegibilidade.elegivel) {
+    return (
+      <Vazio
+        icone="🌱"
+        titulo={dados.vendedor.novo ? 'Comparações depois da adaptação' : 'Comparações indisponíveis neste período'}
+        texto={dados.vendedor.novo ? 'Nos primeiros dias, comparar com quem já tem meses de casa não é justo. Por enquanto, acompanhe sua própria evolução.' : (dados.elegibilidade.motivo ?? '')}
+      />
+    );
   }
   if (!dados.status.rankingDisponivel) {
     return <Vazio icone="⏳" titulo="Comparações indisponíveis agora" texto="Voltam assim que os dados do ERP sincronizarem." />;
   }
 
-  const metricas = escopo === 'loja' ? METRICAS_LOJA : METRICAS_EMPRESA;
+  const metricas = (escopo === 'loja' ? METRICAS_LOJA : METRICAS_EMPRESA).filter((m) => dados.metricasRanking.includes(m));
   return (
     <>
       <Abas<'loja' | 'geral'> compacta rotulo="Comparar com" ativa={escopo} onTrocar={setEscopo} abas={[{ id: 'loja', rotulo: 'Eu × Minha loja' }, { id: 'geral', rotulo: 'Eu × Empresa' }]} />

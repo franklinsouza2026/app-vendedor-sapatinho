@@ -76,8 +76,10 @@ export interface Missao {
   recompensa: Recompensa;
   terminaEm: string;
   /** Produtos elegíveis (Produto da Semana / ponta de estoque). */
-  produtos?: { referencia: string; nome: string }[];
+  produtos?: { referencia: string; nome: string; foto?: string }[];
   concluidaEm?: string;
+  /** Prêmio empresarial/digital extra, além de XP e VendaCoins. */
+  premio?: string;
 }
 
 export type TipoCompeticao = 'VENDEDOR' | 'LOJA' | 'EVOLUCAO' | 'CATEGORIA' | 'DUELO';
@@ -106,7 +108,12 @@ export interface Campanha {
   descricao: string;
   iniciaEm: string;
   terminaEm: string;
+  status: 'ATIVA' | 'ENCERRADA';
+  regras: string;
   frentes: { id: string; icone: string; titulo: string; descricao: string; premio: string; situacao: string }[];
+  /** Só em campanha encerrada. */
+  resultado?: { titulo: string; vencedor: string; premio: string; minhaPosicao: number | null }[];
+  meusGanhos?: { xp: number; moedas: number } | null;
 }
 
 export interface EventoXp {
@@ -148,8 +155,11 @@ export interface Recorde {
   atual: number | null;
 }
 
+export type TipoFeed = 'POSICAO' | 'META' | 'RECORDE' | 'MISSAO' | 'CONQUISTA' | 'LOJA' | 'COMPETICAO' | 'RECONHECIMENTO';
+
 export interface EventoFeed {
   id: string;
+  tipo: TipoFeed;
   quando: string;
   icone: string;
   texto: string;
@@ -161,6 +171,7 @@ export interface Reconhecimento {
   id: string;
   quando: string;
   autor: string;
+  motivo: string;
   titulo: string;
   mensagem: string;
 }
@@ -230,7 +241,10 @@ export interface Fase1Dados {
   sequencia: { atual: number; maior: number; criterio: string };
   missoes: Missao[];
   competicoes: Competicao[];
-  campanha: Campanha | null;
+  /** Ativas primeiro, depois encerradas (histórico). */
+  campanhas: Campanha[];
+  /** Cenário que destaca a campanha na Home. */
+  campanhaEmDestaque: boolean;
   conquistas: Conquista[];
   recordes: Recorde[];
   feed: EventoFeed[];
@@ -239,4 +253,12 @@ export interface Fase1Dados {
   /** Valores do mês do período comparável (mês anterior até o mesmo dia) — para tendências. */
   comparavel: Realizado & { percentualMeta: number };
   celebracoes: Celebracao[];
+  /** Indicadores que o Admin liberou para o vendedor (confiáveis e ativos). */
+  indicadores: Record<IndicadorVendedor, boolean>;
+  /** Métricas de ranking ativas e visíveis, e a métrica da "corrida" na Home. */
+  metricasRanking: Metrica[];
+  metricaCorrida: Metrica;
+  elegibilidade: { elegivel: boolean; motivo: string | null };
 }
+
+export type IndicadorVendedor = 'VENDAS' | 'QTD_VENDAS' | 'PARES' | 'TICKET' | 'PA' | 'PERCENTUAL_META' | 'SCORE' | 'EVOLUCAO' | 'CONSISTENCIA' | 'CONVERSAO';

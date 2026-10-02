@@ -17,12 +17,14 @@ import { distanciaMetrica, inteiro, plural, valorMetrica } from '../formato';
 import { Fase1Pagina } from './Fase1Pagina';
 
 type Escopo = 'loja' | 'geral' | 'lojas';
-const METRICAS: Metrica[] = ['SCORE', 'VENDAS', 'PERCENTUAL_META', 'EVOLUCAO', 'PA', 'TICKET', 'CONSISTENCIA'];
 
 export function Ranking() {
   const [params, setParams] = useSearchParams();
   const escopo = (['loja', 'geral', 'lojas'].includes(params.get('escopo') ?? '') ? params.get('escopo') : 'loja') as Escopo;
-  const [metrica, setMetrica] = useState<Metrica>('VENDAS');
+  const { dados } = useFase1();
+  const [escolhida, setMetrica] = useState<Metrica>(dados.metricaCorrida);
+  // Se o Admin desligar o indicador escolhido, cai para a primeira métrica ainda liberada.
+  const metrica = dados.metricasRanking.includes(escolhida) ? escolhida : (dados.metricasRanking[0] ?? 'SCORE');
 
   return (
     <Fase1Pagina carregando="Carregando ranking...">
@@ -56,7 +58,7 @@ function RankingPessoas({ escopo, metrica, onMetrica }: { escopo: 'loja' | 'gera
   return (
     <>
       <div role="group" aria-label="Indicador do ranking" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
-        {METRICAS.map((m) => (
+        {dados.metricasRanking.map((m) => (
           <button
             key={m}
             onClick={() => onMetrica(m)}
@@ -69,7 +71,11 @@ function RankingPessoas({ escopo, metrica, onMetrica }: { escopo: 'loja' | 'gera
       </div>
       <p className="-mt-1 text-xs text-slate-400">{u.ajuda}</p>
 
-      {eu ? <SuaPosicao dados={dados} eu={eu} total={linhas.length} metrica={metrica} acima={linhas[eu.posicao - 2] ?? null} escopo={escopo} /> : dados.vendedor.novo && <AvisoProvisorio>Você entra no ranking depois do período de adaptação (prazo em definição).</AvisoProvisorio>}
+      {eu ? (
+        <SuaPosicao dados={dados} eu={eu} total={linhas.length} metrica={metrica} acima={linhas[eu.posicao - 2] ?? null} escopo={escopo} />
+      ) : (
+        !dados.elegibilidade.elegivel && <AvisoProvisorio>Você está fora do ranking neste período. {dados.elegibilidade.motivo}</AvisoProvisorio>
+      )}
 
       <ListaRanking dados={dados} linhas={linhas} metrica={metrica} escopo={escopo} />
     </>

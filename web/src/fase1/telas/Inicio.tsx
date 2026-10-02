@@ -12,6 +12,7 @@ import { CardMetaHoje, CardMissao, CorridaMes, MinhaCorrida, ProximoAlvo, VocePe
 import { Painel, TituloSecao } from '../componentes/ui';
 import { dataPorExtenso, haQuanto, hora, inteiro, saudacao, tempoRestante } from '../formato';
 import { Fase1Pagina } from './Fase1Pagina';
+import { useSimularMissao } from '../demo/simulacao';
 
 export function Inicio() {
   return (
@@ -23,6 +24,8 @@ export function Inicio() {
 
 function ConteudoInicio() {
   const { dados } = useFase1();
+  const simular = useSimularMissao();
+  const campanha = dados.campanhas.find((c) => c.status === 'ATIVA') ?? null;
   const nivel = calcularNivel(dados.xp.total);
   const loja = dados.lojas.find((l) => l.id === dados.vendedor.lojaId)!;
   const alvos = priorizarAlvos(derivarAlvos(dados));
@@ -67,6 +70,28 @@ function ConteudoInicio() {
       {operando && principal && principal.id !== 'meta-dia' && <ProximoAlvo alvo={principal} />}
       {operando && <VocePerto alvos={perto} />}
 
+      {campanha && dados.campanhaEmDestaque && (
+        <Painel destaque rotulo={`Campanha ${campanha.nome}`}>
+          <p className="text-xs font-bold uppercase tracking-wider text-accentSoft">📣 Campanha em andamento · {tempoRestante(campanha.terminaEm, dados.agora)}</p>
+          <h2 className="mt-1 text-xl font-extrabold text-white">{campanha.nome}</h2>
+          <ul className="mt-3 flex flex-col gap-2">
+            {campanha.frentes.map((f) => (
+              <li key={f.id} className="flex items-center gap-3 rounded-xl bg-slate-800/80 px-3 py-2">
+                <span aria-hidden="true">{f.icone}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-medium text-white">{f.titulo}</span>
+                  <span className="block truncate text-xs text-slate-400">🎁 {f.premio}</span>
+                </span>
+                <span className="shrink-0 text-xs font-semibold text-accentSoft">{f.situacao.replace('Você está em ', '').replace('Sua loja está em ', 'loja ')}</span>
+              </li>
+            ))}
+          </ul>
+          <Link to="/fase1/desafios?aba=campanha" className="mt-3 inline-flex min-h-[44px] items-center text-sm font-medium text-accentSoft">
+            Ver regras e prêmios →
+          </Link>
+        </Painel>
+      )}
+
       <CorridaMes dados={dados} />
 
       <MinhaCorrida dados={dados} />
@@ -78,13 +103,13 @@ function ConteudoInicio() {
           </TituloSecao>
           <div className="flex flex-col gap-3">
             {missoesAbertas.map((m) => (
-              <CardMissao key={m.id} missao={m} />
+              <CardMissao key={m.id} missao={m} onSimular={() => simular(m)} />
             ))}
           </div>
         </section>
       )}
 
-      {dados.campanha && (
+      {campanha && !dados.campanhaEmDestaque && (
         <Link to="/fase1/desafios?aba=campanha" className="block">
           <Painel className="flex items-center gap-3 active:opacity-90">
             <span aria-hidden="true" className="text-3xl">
@@ -92,14 +117,27 @@ function ConteudoInicio() {
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold uppercase tracking-wider text-accentSoft">Campanha</p>
-              <p className="font-semibold text-white">{dados.campanha.nome}</p>
+              <p className="font-semibold text-white">{campanha.nome}</p>
               <p className="text-sm text-slate-400">
-                {dados.campanha.frentes.length} formas de ganhar · {tempoRestante(dados.campanha.terminaEm, dados.agora)}
+                {campanha.frentes.length} formas de ganhar · {tempoRestante(campanha.terminaEm, dados.agora)}
               </p>
             </div>
             <span aria-hidden="true" className="text-slate-400">
               →
             </span>
+          </Painel>
+        </Link>
+      )}
+      {!campanha && dados.campanhas[0]?.status === 'ENCERRADA' && dados.campanhas[0].terminaEm.slice(0, 7) === dados.agora.slice(0, 7) && (
+        <Link to="/fase1/desafios?aba=campanha" className="block">
+          <Painel destaque className="active:opacity-90">
+            <p className="text-xs font-bold uppercase tracking-wider text-accentSoft">🏁 Campanha encerrada</p>
+            <p className="mt-1 text-lg font-bold text-white">{dados.campanhas[0].nome}</p>
+            {dados.campanhas[0].meusGanhos && (
+              <p className="text-sm text-slate-300">
+                Você ganhou <strong className="text-white">+{dados.campanhas[0].meusGanhos.xp} XP</strong> e <strong className="text-white">+{dados.campanhas[0].meusGanhos.moedas} VendaCoins</strong>. Ver resultado →
+              </p>
+            )}
           </Painel>
         </Link>
       )}

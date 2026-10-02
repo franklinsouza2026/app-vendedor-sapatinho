@@ -4,7 +4,7 @@
  * aparecem aqui (continuam no código, nas rotas antigas, intocados).
  */
 import { useEffect, useState } from 'react';
-import { NavLink, Navigate, Outlet, useLocation } from 'react-router-dom';
+import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useFase1 } from './demo/Fase1Contexto';
 import { SeletorCenario } from './demo/SeletorCenario';
 import { Celebracao } from './componentes/Celebracao';
@@ -34,7 +34,8 @@ function useOnline() {
 }
 
 export function Fase1Layout() {
-  const { perfil, dados, celebracaoAtual, fecharCelebracao } = useFase1();
+  const { perfil, dados, celebracaoAtual, fecharCelebracao, previewAdmin, voltarAoAdmin } = useFase1();
+  const navegar = useNavigate();
   const location = useLocation();
   const online = useOnline();
 
@@ -57,6 +58,23 @@ export function Fase1Layout() {
         </div>
       )}
 
+      {previewAdmin && (
+        <div className="bg-violet-600 px-4 py-2 text-white">
+          <div className="mx-auto flex w-full max-w-md items-center gap-2 text-xs md:max-w-2xl">
+            <span aria-hidden="true">👁</span>
+            <span className="min-w-0 flex-1 font-medium">Pré-visualização do Admin — você está vendo o app como a Ana vê.</span>
+            <button
+              onClick={() => {
+                voltarAoAdmin();
+                navegar('/fase1/admin');
+              }}
+              className="min-h-[36px] shrink-0 rounded-full bg-white px-3 font-semibold text-violet-700"
+            >
+              Voltar ao Admin
+            </button>
+          </div>
+        </div>
+      )}
       <SeletorCenario />
 
       <main className="mx-auto w-full max-w-md px-4 pb-28 pt-5 md:max-w-2xl">
