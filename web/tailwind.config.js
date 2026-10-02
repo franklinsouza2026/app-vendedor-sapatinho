@@ -1,6 +1,11 @@
+// A demo da Fase 1 (src/fase1) só entra no CSS quando ela existe no bundle —
+// mesma condição do App.tsx. Sem isso, o build de produção carregaria ~14 kB
+// de classes de uma tela que nem é registrada.
+const fase1Demo = process.env.NODE_ENV !== 'production' || process.env.VITE_FASE1_DEMO === 'true';
+
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: ['./index.html', './src/**/*.{ts,tsx}'],
+  content: ['./index.html', './src/**/*.{ts,tsx}', ...(fase1Demo ? [] : ['!./src/fase1/**'])],
   theme: {
     extend: {
       colors: {

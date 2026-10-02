@@ -1,11 +1,12 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { rotaInicialPara } from '../auth/rotaInicial';
 import { listarLojas } from '../api/auth';
 import { ApiError } from '../api/client';
 import { Loja } from '../types';
 import { LoadingState } from '../components/LoadingState';
+import { FASE1_DEMO_HABILITADA } from '../fase1/flags';
 
 export function Login() {
   const { sessao, erroSessao, login } = useAuth();
@@ -110,6 +111,13 @@ export function Login() {
             {enviando ? 'Entrando...' : 'Entrar'}
           </button>
         </form>
+      )}
+
+      {/* Atalho para a homologação visual da Fase 1 — só existe em dev ou com VITE_FASE1_DEMO=true. */}
+      {FASE1_DEMO_HABILITADA && (
+        <Link to="/fase1" className="mt-8 inline-flex min-h-[44px] items-center justify-center rounded-lg border border-dashed border-sky-400/50 text-sm text-sky-200">
+          🧪 Abrir demonstração da Fase 1 (dados simulados)
+        </Link>
       )}
     </div>
   );

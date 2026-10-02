@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthContext';
 import { RequireAuth } from './auth/RequireAuth';
@@ -33,6 +34,12 @@ import { AdminEstrutura } from './screens/admin/AdminEstrutura';
 import { AdminMetas } from './screens/admin/AdminMetas';
 import { ReuniaoDoDia } from './screens/ReuniaoDoDia';
 import { AdminAlertasGerenciais } from './screens/admin/AdminAlertasGerenciais';
+import { LoadingState } from './components/LoadingState';
+
+// Fase 1 — Performance & Game: protótipo de homologação com dados simulados.
+// A condição usa `import.meta.env` direto (e não a constante de flags.ts) para
+// o Vite resolvê-la em build e descartar o chunk quando a demo está desligada.
+const Fase1App = import.meta.env.DEV || import.meta.env.VITE_FASE1_DEMO === 'true' ? lazy(() => import('./fase1/Fase1App')) : null;
 
 export function App() {
   return (
@@ -41,6 +48,16 @@ export function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/ativacao" element={<Ativacao />} />
+          {Fase1App && (
+            <Route
+              path="/fase1/*"
+              element={
+                <Suspense fallback={<LoadingState texto="Abrindo a demonstração da Fase 1..." />}>
+                  <Fase1App />
+                </Suspense>
+              }
+            />
+          )}
           {/* Admin Foundation (Fatia 7.5A) — desktop-first, fora do Layout do
               vendedor (sem bottom nav), só acessível pra papel ADMIN. */}
           <Route

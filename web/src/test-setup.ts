@@ -5,3 +5,8 @@ import '@testing-library/jest-dom/vitest';
 if (typeof window !== 'undefined') {
   window.HTMLElement.prototype.scrollIntoView = () => {};
 }
+
+// jsdom também não implementa window.scrollTo — a Fase 1 rola ao topo a cada troca de tela.
+if (typeof window !== 'undefined') {
+  window.scrollTo = () => {};
+}
