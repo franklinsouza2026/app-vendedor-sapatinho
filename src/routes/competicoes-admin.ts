@@ -53,7 +53,7 @@ const criarSeasonSchema = z.object({
 competicoesAdminRouter.get(
   '/admin/competicoes/seasons',
   requireAuth('ADMIN'),
-  asyncHandler(async (_req, res) => res.json({ seasons: await listarSeasons() }))
+  asyncHandler(async (req, res) => res.json({ seasons: await listarSeasons(req.auth!.empresaId) }))
 );
 
 competicoesAdminRouter.post(
@@ -64,6 +64,7 @@ competicoesAdminRouter.post(
     if (!parsed.success) return res.status(400).json({ error: 'dados inválidos', detalhes: parsed.error.flatten() });
     try {
       const season = await criarSeason(
+        req.auth!.empresaId,
         {
           ...parsed.data,
           startsAt: new Date(parsed.data.startsAt),
@@ -86,7 +87,7 @@ competicoesAdminRouter.post(
   requireAuth('ADMIN'),
   asyncHandler(async (req, res) => {
     try {
-      res.json(await finalizarSeasonCompleta(req.params.id, req.auth!.vendedorId));
+      res.json(await finalizarSeasonCompleta(req.params.id, req.auth!.vendedorId, req.auth!.empresaId));
     } catch (err) {
       tratarErro(err, res);
     }
@@ -98,7 +99,7 @@ competicoesAdminRouter.get(
   requireAuth('ADMIN'),
   asyncHandler(async (req, res) => {
     try {
-      res.json(await buscarSeason(req.params.id));
+      res.json(await buscarSeason(req.params.id, req.auth!.empresaId));
     } catch (err) {
       tratarErro(err, res);
     }
@@ -114,7 +115,7 @@ competicoesAdminRouter.post(
     const parsed = transicaoSeasonSchema.safeParse(req.params.transicao);
     if (!parsed.success) return res.status(400).json({ error: 'transição inválida' });
     try {
-      res.json(await transicionarSeason(req.params.id, parsed.data, req.auth!.vendedorId));
+      res.json(await transicionarSeason(req.params.id, parsed.data, req.auth!.vendedorId, req.auth!.empresaId));
     } catch (err) {
       tratarErro(err, res);
     }
@@ -126,9 +127,9 @@ competicoesAdminRouter.post(
 competicoesAdminRouter.get(
   '/admin/competicoes/ligas',
   requireAuth('ADMIN'),
-  asyncHandler(async (_req, res) => {
-    await seedLigasV1();
-    res.json({ ligas: await listarLigas() });
+  asyncHandler(async (req, res) => {
+    await seedLigasV1(req.auth!.empresaId);
+    res.json({ ligas: await listarLigas(req.auth!.empresaId) });
   })
 );
 
@@ -140,7 +141,7 @@ competicoesAdminRouter.post(
   asyncHandler(async (req, res) => {
     const parsed = criarLigaSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'dados inválidos' });
-    res.status(201).json(await criarLiga(parsed.data, req.auth!.vendedorId));
+    res.status(201).json(await criarLiga(req.auth!.empresaId, parsed.data, req.auth!.vendedorId));
   })
 );
 
@@ -152,7 +153,11 @@ competicoesAdminRouter.put(
   asyncHandler(async (req, res) => {
     const parsed = atualizarLigaSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'dados inválidos' });
-    res.json(await atualizarLiga(req.params.id, parsed.data, req.auth!.vendedorId));
+    try {
+      res.json(await atualizarLiga(req.auth!.empresaId, req.params.id, parsed.data, req.auth!.vendedorId));
+    } catch (err) {
+      tratarErro(err, res);
+    }
   })
 );
 
@@ -179,7 +184,7 @@ competicoesAdminRouter.get(
   requireAuth('ADMIN'),
   asyncHandler(async (req, res) => {
     const status = typeof req.query.status === 'string' ? (req.query.status as never) : undefined;
-    res.json({ competicoes: await listarCompetitions(status) });
+    res.json({ competicoes: await listarCompetitions(req.auth!.empresaId, status) });
   })
 );
 
@@ -190,7 +195,7 @@ competicoesAdminRouter.post(
     const parsed = criarCompetitionSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'dados inválidos', detalhes: parsed.error.flatten() });
     try {
-      const competicao = await criarCompetition({ ...parsed.data, startsAt: new Date(parsed.data.startsAt), endsAt: new Date(parsed.data.endsAt) }, req.auth!.vendedorId);
+      const competicao = await criarCompetition({ ...parsed.data, empresaId: req.auth!.empresaId, startsAt: new Date(parsed.data.startsAt), endsAt: new Date(parsed.data.endsAt) }, req.auth!.vendedorId);
       res.status(201).json(competicao);
     } catch (err) {
       tratarErro(err, res);
@@ -205,7 +210,7 @@ competicoesAdminRouter.post(
   requireAuth('ADMIN'),
   asyncHandler(async (req, res) => {
     try {
-      res.json(await finalizarCompetition(req.params.id, req.auth!.vendedorId));
+      res.json(await finalizarCompetition(req.params.id, req.auth!.vendedorId, req.auth!.empresaId));
     } catch (err) {
       tratarErro(err, res);
     }
@@ -221,7 +226,7 @@ competicoesAdminRouter.post(
     const parsed = desqualificarSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'dados inválidos' });
     try {
-      await desqualificarParticipante(req.params.id, parsed.data.participantId, parsed.data.motivo, req.auth!.vendedorId);
+      await desqualificarParticipante(req.params.id, parsed.data.participantId, parsed.data.motivo, req.auth!.vendedorId, req.auth!.empresaId);
       res.status(204).send();
     } catch (err) {
       tratarErro(err, res);
@@ -233,7 +238,12 @@ competicoesAdminRouter.get(
   '/admin/competicoes/:id/resultados',
   requireAuth('ADMIN'),
   asyncHandler(async (req, res) => {
-    res.json({ resultados: await listarResultadosCompetition(req.params.id) });
+    try {
+      await buscarCompetition(req.params.id, req.auth!.empresaId);
+      res.json({ resultados: await listarResultadosCompetition(req.params.id) });
+    } catch (err) {
+      tratarErro(err, res);
+    }
   })
 );
 
@@ -242,7 +252,8 @@ competicoesAdminRouter.get(
   requireAuth('ADMIN'),
   asyncHandler(async (req, res) => {
     try {
-      const [competicao, participantes] = await Promise.all([buscarCompetition(req.params.id), listarParticipantesCompetition(req.params.id)]);
+      const competicao = await buscarCompetition(req.params.id, req.auth!.empresaId);
+      const participantes = await listarParticipantesCompetition(competicao.id);
       res.json({ competicao, participantes });
     } catch (err) {
       tratarErro(err, res);
@@ -266,7 +277,7 @@ competicoesAdminRouter.put(
     const parsed = atualizarRegrasSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'dados inválidos' });
     try {
-      res.json(await atualizarRegrasCompetition(req.params.id, parsed.data, req.auth!.vendedorId));
+      res.json(await atualizarRegrasCompetition(req.params.id, parsed.data, req.auth!.vendedorId, req.auth!.empresaId));
     } catch (err) {
       tratarErro(err, res);
     }
@@ -282,7 +293,7 @@ competicoesAdminRouter.post(
     const parsed = transicaoCompetitionSchema.safeParse(req.params.transicao);
     if (!parsed.success) return res.status(400).json({ error: 'transição inválida' });
     try {
-      res.json(await transicionarCompetition(req.params.id, parsed.data, req.auth!.vendedorId));
+      res.json(await transicionarCompetition(req.params.id, parsed.data, req.auth!.vendedorId, req.auth!.empresaId));
     } catch (err) {
       tratarErro(err, res);
     }

@@ -10,7 +10,7 @@ import { CompeticoesError } from './constantes';
 describe('Recognition — regras (seção 30-32)', () => {
   it('rejeita autorreconhecimento', async () => {
     const { vendedor, loja } = await criarFixtureEmpresa();
-    await expect(registrarReconhecimento({ authorId: vendedor.id, subjectId: vendedor.id, tipo: 'PERFORMANCE', lojaId: loja.id })).rejects.toThrow(CompeticoesError);
+    await expect(registrarReconhecimento({ empresaId: vendedor.empresaId, authorId: vendedor.id, subjectId: vendedor.id, tipo: 'PERFORMANCE', lojaId: loja.id })).rejects.toThrow(CompeticoesError);
   });
 
   it('registra reconhecimento válido e aparece na lista de recebidos', async () => {
@@ -19,7 +19,7 @@ describe('Recognition — regras (seção 30-32)', () => {
     const autor = await prisma.vendedor.create({ data: { empresaId, lojaId: loja.id, matriculaErp: `AUT-${randomUUID()}`, nome: 'Autor', senhaHash: 'x' } });
     const subject = await prisma.vendedor.create({ data: { empresaId, lojaId: loja.id, matriculaErp: `SUB-${randomUUID()}`, nome: 'Subject', senhaHash: 'x' } });
 
-    const reconhecimento = await registrarReconhecimento({ authorId: autor.id, subjectId: subject.id, tipo: 'TEAMWORK', message: 'Ótimo trabalho em equipe!', lojaId: loja.id });
+    const reconhecimento = await registrarReconhecimento({ empresaId: autor.empresaId, authorId: autor.id, subjectId: subject.id, tipo: 'TEAMWORK', message: 'Ótimo trabalho em equipe!', lojaId: loja.id });
     expect(reconhecimento.tipo).toBe('TEAMWORK');
 
     const recebidos = await listarReconhecimentosRecebidos(subject.id);
@@ -32,7 +32,7 @@ describe('Recognition — regras (seção 30-32)', () => {
     const autor = await prisma.vendedor.create({ data: { empresaId, lojaId: loja.id, matriculaErp: `AUT2-${randomUUID()}`, nome: 'Autor2', senhaHash: 'x' } });
     const subject = await prisma.vendedor.create({ data: { empresaId, lojaId: loja.id, matriculaErp: `SUB2-${randomUUID()}`, nome: 'Subject2', senhaHash: 'x' } });
 
-    const reconhecimento = await registrarReconhecimento({ authorId: autor.id, subjectId: subject.id, tipo: 'CUSTOM', message: '<script>alert(1)</script>Parabéns!', lojaId: loja.id });
+    const reconhecimento = await registrarReconhecimento({ empresaId: autor.empresaId, authorId: autor.id, subjectId: subject.id, tipo: 'CUSTOM', message: '<script>alert(1)</script>Parabéns!', lojaId: loja.id });
     expect(reconhecimento.message).not.toMatch(/<script/i);
     expect(reconhecimento.message).toContain('Parabéns!');
   });
@@ -44,7 +44,7 @@ describe('Recognition — regras (seção 30-32)', () => {
     const subject = await prisma.vendedor.create({ data: { empresaId, lojaId: loja.id, matriculaErp: `SUB3-${randomUUID()}`, nome: 'Subject3', senhaHash: 'x' } });
 
     const textoGigante = 'a'.repeat(10000);
-    const reconhecimento = await registrarReconhecimento({ authorId: autor.id, subjectId: subject.id, tipo: 'CUSTOM', message: textoGigante, lojaId: loja.id });
+    const reconhecimento = await registrarReconhecimento({ empresaId: autor.empresaId, authorId: autor.id, subjectId: subject.id, tipo: 'CUSTOM', message: textoGigante, lojaId: loja.id });
     expect(reconhecimento.message!.length).toBeLessThanOrEqual(500);
   });
 });

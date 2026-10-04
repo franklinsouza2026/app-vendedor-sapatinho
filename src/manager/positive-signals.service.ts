@@ -124,6 +124,7 @@ export async function parabenizarSinalPositivo(empresaId: string, lojaId: string
   if (!sinal) throw new ManagerError('not_found', 'este destaque não está mais disponível pra parabenizar');
 
   return registrarReconhecimento({
+    empresaId,
     authorId: managerId,
     subjectId: sellerId,
     lojaId,

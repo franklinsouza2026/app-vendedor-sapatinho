@@ -4,7 +4,6 @@
 import { StatusCompeticao, TipoParticipante, TipoMetricaCompeticao } from '@prisma/client';
 import { prisma } from '../db';
 import { registrarEventoAuditoria } from '../identidade/auditoria.service';
-import { resolverEmpresaUnica } from '../universidade/schools.service';
 import { concederXp, concederMoeda } from '../gamificacao/ledger.service';
 import { concederBadge, CATALOGO_BADGES_V1, CodigoBadge } from '../gamificacao/badges.service';
 import { registrarPontosSeason } from './seasons.service';
@@ -15,6 +14,7 @@ import { CompeticoesError, METRICAS_COM_CALCULADOR } from './constantes';
 
 export async function criarCompetition(
   dados: {
+    empresaId: string;
     seasonId?: string;
     code: string;
     name: string;
@@ -36,29 +36,37 @@ export async function criarCompetition(
   if (dados.metricType === 'COMPETENCY_EVOLUTION' && !dados.competencyId) throw new CompeticoesError('invalid_reference', 'COMPETENCY_EVOLUTION exige competencyId');
   if (dados.rewardBadgeCodigo && !CATALOGO_BADGES_V1.some((b) => b.codigo === dados.rewardBadgeCodigo)) throw new CompeticoesError('invalid_reference', `badge "${dados.rewardBadgeCodigo}" não existe no catálogo`);
 
+  if (dados.seasonId) {
+    const season = await prisma.season.findFirst({ where: { id: dados.seasonId, empresaId: dados.empresaId }, select: { id: true } });
+    if (!season) throw new CompeticoesError('invalid_reference', 'season não encontrada nesta empresa');
+  }
+
   const competicao = await prisma.competition.create({ data: { ...dados, createdBy: actorId } });
-  await registrarEventoAuditoria({ empresaId: await resolverEmpresaUnica(), acao: 'COMPETITION_CREATED', actorId, metadata: { competitionId: competicao.id } });
+  await registrarEventoAuditoria({ empresaId: dados.empresaId, acao: 'COMPETITION_CREATED', actorId, metadata: { competitionId: competicao.id } });
   return competicao;
 }
 
-export async function listarCompetitions(status?: StatusCompeticao) {
-  return prisma.competition.findMany({ where: status ? { status } : {}, orderBy: { startsAt: 'desc' } });
+export async function listarCompetitions(empresaId: string, status?: StatusCompeticao) {
+  return prisma.competition.findMany({ where: { empresaId, ...(status ? { status } : {}) }, orderBy: { startsAt: 'desc' } });
 }
 
-export async function buscarCompetition(id: string) {
-  const competicao = await prisma.competition.findUnique({ where: { id } });
+/** Multiempresa (Fase 1, D8): rota SEMPRE passa `empresaId` do token —
+ * competição de outra empresa é indistinguível de inexistente (404). Chamadas
+ * internas (worker/finalização) passam só o id. */
+export async function buscarCompetition(id: string, empresaId?: string) {
+  const competicao = await prisma.competition.findFirst({ where: { id, ...(empresaId ? { empresaId } : {}) } });
   if (!competicao) throw new CompeticoesError('not_found', 'competição não encontrada');
   return competicao;
 }
 
 /** Editar regras depois de agendada/ativa incrementa `rulesVersion` (seção
  * 13/46) — nunca reescreve silenciosamente uma regra já em disputa. */
-export async function atualizarRegrasCompetition(id: string, dados: Partial<{ name: string; description: string; minDiasAtivos: number; rewardXp: number; rewardMoedas: number; rewardBadgeCodigo: string }>, actorId: string) {
+export async function atualizarRegrasCompetition(id: string, dados: Partial<{ name: string; description: string; minDiasAtivos: number; rewardXp: number; rewardMoedas: number; rewardBadgeCodigo: string }>, actorId: string, empresaId?: string) {
   if (dados.rewardBadgeCodigo && !CATALOGO_BADGES_V1.some((b) => b.codigo === dados.rewardBadgeCodigo)) throw new CompeticoesError('invalid_reference', `badge "${dados.rewardBadgeCodigo}" não existe no catálogo`);
-  const atual = await buscarCompetition(id);
+  const atual = await buscarCompetition(id, empresaId);
   const bump = atual.status !== 'DRAFT';
-  const competicao = await prisma.competition.update({ where: { id }, data: { ...dados, ...(bump ? { rulesVersion: { increment: 1 } } : {}) } });
-  await registrarEventoAuditoria({ empresaId: await resolverEmpresaUnica(), acao: 'COMPETITION_UPDATED', actorId, metadata: { competitionId: id, rulesVersion: competicao.rulesVersion } });
+  const competicao = await prisma.competition.update({ where: { id: atual.id }, data: { ...dados, ...(bump ? { rulesVersion: { increment: 1 } } : {}) } });
+  await registrarEventoAuditoria({ empresaId: atual.empresaId, acao: 'COMPETITION_UPDATED', actorId, metadata: { competitionId: id, rulesVersion: competicao.rulesVersion } });
   return competicao;
 }
 
@@ -76,10 +84,14 @@ export async function atualizarRegrasCompetition(id: string, dados: Partial<{ na
  */
 export async function garantirParticipantesInscritos(competitionId: string, actorId?: string) {
   const competicao = await buscarCompetition(competitionId);
+  // Candidatos SEMPRE da empresa da competição (D8) e só das lojas
+  // participantes; vendedor inelegível no ranking (exceção do Admin) também
+  // não entra na disputa.
+  const filtroLojas = competicao.todasLojas ? {} : { id: { in: competicao.lojaIds } };
   const candidatoIds =
     competicao.participantType === 'SELLER'
-      ? (await prisma.vendedor.findMany({ where: { papel: 'VENDEDOR', status: 'ACTIVE' }, select: { id: true } })).map((v) => v.id)
-      : (await prisma.loja.findMany({ select: { id: true } })).map((l) => l.id);
+      ? (await prisma.vendedor.findMany({ where: { empresaId: competicao.empresaId, papel: 'VENDEDOR', status: 'ACTIVE', elegivelRanking: true, ...(competicao.todasLojas ? {} : { lojaId: { in: competicao.lojaIds } }) }, select: { id: true } })).map((v) => v.id)
+      : (await prisma.loja.findMany({ where: { empresaId: competicao.empresaId, ativa: true, ...filtroLojas }, select: { id: true } })).map((l) => l.id);
 
   const jaInscritos = await prisma.competitionParticipant.findMany({ where: { competitionId }, select: { participantId: true } });
   const jaInscritosSet = new Set(jaInscritos.map((p) => p.participantId));
@@ -106,7 +118,7 @@ export async function garantirParticipantesInscritos(competitionId: string, acto
   if (competicao.seasonId) {
     await Promise.all(novosCandidatos.map((participantId) => garantirMembroNaLiga(competicao.seasonId!, competicao.participantType, participantId)));
   }
-  if (resultado.count > 0) await registrarEventoAuditoria({ empresaId: await resolverEmpresaUnica(), acao: 'COMPETITION_PARTICIPANT_ADDED', actorId, metadata: { competitionId, novos: resultado.count } });
+  if (resultado.count > 0) await registrarEventoAuditoria({ empresaId: competicao.empresaId, acao: 'COMPETITION_PARTICIPANT_ADDED', actorId, metadata: { competitionId, novos: resultado.count } });
   return resultado.count;
 }
 
@@ -116,23 +128,24 @@ const TRANSICOES_COMPETITION: Record<'agendar' | 'ativar' | 'cancelar', { de: St
   cancelar: { de: ['DRAFT', 'SCHEDULED', 'ACTIVE'], para: 'CANCELLED', acao: 'COMPETITION_CANCELLED' },
 };
 
-export async function transicionarCompetition(id: string, transicao: keyof typeof TRANSICOES_COMPETITION, actorId?: string) {
+export async function transicionarCompetition(id: string, transicao: keyof typeof TRANSICOES_COMPETITION, actorId?: string, empresaId?: string) {
   const regra = TRANSICOES_COMPETITION[transicao];
-  const atual = await buscarCompetition(id);
-  const resultado = await prisma.competition.updateMany({ where: { id, status: { in: regra.de } }, data: { status: regra.para } });
+  const atual = await buscarCompetition(id, empresaId);
+  const resultado = await prisma.competition.updateMany({ where: { id, empresaId: atual.empresaId, status: { in: regra.de } }, data: { status: regra.para } });
   if (resultado.count !== 1) throw new CompeticoesError('invalid_transition', `competição não está em um estado válido para "${transicao}" (estado atual: ${atual.status})`);
-  await registrarEventoAuditoria({ empresaId: await resolverEmpresaUnica(), acao: regra.acao, actorId, metadata: { competitionId: id } });
+  await registrarEventoAuditoria({ empresaId: atual.empresaId, acao: regra.acao, actorId, metadata: { competitionId: id } });
   if (transicao === 'ativar') await garantirParticipantesInscritos(id, actorId);
   return buscarCompetition(id);
 }
 
-export async function desqualificarParticipante(competitionId: string, participantId: string, motivo: string, actorId: string) {
+export async function desqualificarParticipante(competitionId: string, participantId: string, motivo: string, actorId: string, empresaId?: string) {
+  const competicao = await buscarCompetition(competitionId, empresaId);
   const resultado = await prisma.competitionParticipant.updateMany({
     where: { competitionId, participantId, status: { in: ['ELIGIBLE', 'ACTIVE'] } },
     data: { status: 'DISQUALIFIED', disqualifiedAt: new Date(), disqualifiedReason: motivo, disqualifiedBy: actorId },
   });
   if (resultado.count !== 1) throw new CompeticoesError('invalid_transition', 'participante não está num estado desqualificável');
-  await registrarEventoAuditoria({ empresaId: await resolverEmpresaUnica(), acao: 'COMPETITION_DISQUALIFIED', actorId, metadata: { competitionId, participantId, motivo } });
+  await registrarEventoAuditoria({ empresaId: competicao.empresaId, acao: 'COMPETITION_DISQUALIFIED', actorId, metadata: { competitionId, participantId, motivo } });
 }
 
 export interface LinhaRanking {
@@ -173,8 +186,8 @@ export async function calcularRankingCompetition(competitionId: string): Promise
  * ou ainda não commitou nada (a perdedora recebe `count!==1` e nunca lê o
  * status antigo capturado antes da corrida, sempre reconsulta o real).
  */
-export async function finalizarCompetition(id: string, actorId?: string) {
-  const competicaoAntesDaCorrida = await buscarCompetition(id);
+export async function finalizarCompetition(id: string, actorId?: string, empresaId?: string) {
+  const competicaoAntesDaCorrida = await buscarCompetition(id, empresaId);
   const ranking = await calcularRankingCompetition(id);
 
   const commitou = await prisma.$transaction(async (tx) => {
@@ -229,15 +242,16 @@ export async function finalizarCompetition(id: string, actorId?: string) {
         if (competicao.rewardMoedas > 0) await concederMoeda(ctx, competicao.rewardMoedas);
         if (competicao.rewardBadgeCodigo) await concederBadge(vendedorVencedor.empresaId, vendedorVencedor.lojaId, vendedorVencedor.id, competicao.rewardBadgeCodigo as CodigoBadge, idempotencyKey);
         await prisma.competitionResult.updateMany({ where: { competitionId: id, participantId: vencedor.participantId }, data: { rewardGranted: true } });
-        await registrarEventoAuditoria({ empresaId: await resolverEmpresaUnica(), acao: 'COMPETITION_REWARD_GRANTED', actorId, metadata: { competitionId: id, vencedorId: vencedor.participantId } });
+        await registrarEventoAuditoria({ empresaId: competicao.empresaId, acao: 'COMPETITION_REWARD_GRANTED', actorId, metadata: { competitionId: id, vencedorId: vencedor.participantId } });
       }
     }
   }
 
-  await registrarEventoAuditoria({ empresaId: await resolverEmpresaUnica(), acao: 'COMPETITION_FINISHED', actorId, metadata: { competitionId: id, vencedorId: vencedor?.participantId } });
+  await registrarEventoAuditoria({ empresaId: competicao.empresaId, acao: 'COMPETITION_FINISHED', actorId, metadata: { competitionId: id, vencedorId: vencedor?.participantId } });
 
   if (vencedor && competicao.participantType === 'SELLER') {
     await publicarEventoFeed({
+      empresaId: competicao.empresaId,
       eventType: 'COMPETITION_WON',
       sourceType: 'COMPETITION',
       sourceId: id,
@@ -258,9 +272,9 @@ export async function listarParticipantesCompetition(competitionId: string) {
   return prisma.competitionParticipant.findMany({ where: { competitionId } });
 }
 
-export async function listarMinhasCompetitionsElegiveis(vendedorId: string, agora: Date = new Date()) {
+export async function listarMinhasCompetitionsElegiveis(vendedorId: string, empresaId: string) {
   return prisma.competitionParticipant.findMany({
-    where: { participantType: 'SELLER', participantId: vendedorId, competicao: { status: { in: ['ACTIVE', 'SCHEDULED', 'FINISHED'] } } },
+    where: { participantType: 'SELLER', participantId: vendedorId, competicao: { empresaId, status: { in: ['ACTIVE', 'SCHEDULED', 'FINISHED'] } } },
     include: { competicao: true },
     orderBy: { competicao: { startsAt: 'desc' } },
   });

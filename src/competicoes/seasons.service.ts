@@ -5,25 +5,29 @@
 import { Prisma, StatusSeason, TipoParticipante } from '@prisma/client';
 import { prisma } from '../db';
 import { registrarEventoAuditoria } from '../identidade/auditoria.service';
-import { resolverEmpresaUnica } from '../universidade/schools.service';
 import { CompeticoesError } from './constantes';
 
+// Multiempresa (Fase 1, D8): toda season pertence a UMA empresa. Leituras
+// vindas de rota sempre passam `empresaId` do token — season de outra empresa
+// é indistinguível de inexistente (404). Chamadas internas (worker) passam só
+// o id e usam a empresa do próprio registro.
 export async function criarSeason(
+  empresaId: string,
   dados: { code: string; name: string; description: string; startsAt: Date; endsAt: Date; registrationStartsAt?: Date; registrationEndsAt?: Date },
   actorId: string
 ) {
   if (dados.endsAt <= dados.startsAt) throw new CompeticoesError('invalid_reference', 'endsAt precisa ser depois de startsAt');
-  const season = await prisma.season.create({ data: { ...dados, createdBy: actorId } });
-  await registrarEventoAuditoria({ empresaId: await resolverEmpresaUnica(), acao: 'SEASON_CREATED', actorId, metadata: { seasonId: season.id } });
+  const season = await prisma.season.create({ data: { ...dados, empresaId, createdBy: actorId } });
+  await registrarEventoAuditoria({ empresaId, acao: 'SEASON_CREATED', actorId, metadata: { seasonId: season.id } });
   return season;
 }
 
-export async function listarSeasons() {
-  return prisma.season.findMany({ orderBy: { startsAt: 'desc' } });
+export async function listarSeasons(empresaId: string) {
+  return prisma.season.findMany({ where: { empresaId }, orderBy: { startsAt: 'desc' } });
 }
 
-export async function buscarSeason(id: string) {
-  const season = await prisma.season.findUnique({ where: { id } });
+export async function buscarSeason(id: string, empresaId?: string) {
+  const season = await prisma.season.findFirst({ where: { id, ...(empresaId ? { empresaId } : {}) } });
   if (!season) throw new CompeticoesError('not_found', 'season não encontrada');
   return season;
 }
@@ -38,12 +42,12 @@ const TRANSICOES_SEASON: Record<'agendar' | 'ativar' | 'cancelar', { de: StatusS
 // não tem um Vendedor humano por trás — AuditEvent.actorId é uma FK real
 // pra Vendedor (achado da Fatia 7.5D), nunca um id fictício tipo
 // "sistema"/"worker" seria aceito ali.
-export async function transicionarSeason(id: string, transicao: keyof typeof TRANSICOES_SEASON, actorId?: string) {
+export async function transicionarSeason(id: string, transicao: keyof typeof TRANSICOES_SEASON, actorId?: string, empresaId?: string) {
   const regra = TRANSICOES_SEASON[transicao];
-  const atual = await buscarSeason(id);
-  const resultado = await prisma.season.updateMany({ where: { id, status: { in: regra.de } }, data: { status: regra.para } });
+  const atual = await buscarSeason(id, empresaId);
+  const resultado = await prisma.season.updateMany({ where: { id, empresaId: atual.empresaId, status: { in: regra.de } }, data: { status: regra.para } });
   if (resultado.count !== 1) throw new CompeticoesError('invalid_transition', `season não está em um estado válido para "${transicao}" (estado atual: ${atual.status})`);
-  await registrarEventoAuditoria({ empresaId: await resolverEmpresaUnica(), acao: regra.acao, actorId, metadata: { seasonId: id } });
+  await registrarEventoAuditoria({ empresaId: atual.empresaId, acao: regra.acao, actorId, metadata: { seasonId: id } });
   return buscarSeason(id);
 }
 

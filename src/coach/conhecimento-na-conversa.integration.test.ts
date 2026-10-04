@@ -289,6 +289,7 @@ describe('SOBERANIA — a existência de um card não amplia nenhuma autorizaç�
     await publicarPiloto();
     await prisma.feedEvent.create({
       data: {
+        empresaId: f.loja.empresaId,
         lojaId: f.loja.id,
         subjectId: f.vendedor.id,
         eventType: 'CERTIFICATION_ISSUED',
@@ -318,6 +319,7 @@ describe('UM ASSUNTO POR VEZ — intervenção estruturada tem precedência', ()
     // Uma conquista pendente ocupa o turno com CELEBROU.
     await prisma.feedEvent.create({
       data: {
+        empresaId: f.loja.empresaId,
         lojaId: f.loja.id,
         subjectId: f.vendedor.id,
         eventType: 'PDI_COMPLETED',

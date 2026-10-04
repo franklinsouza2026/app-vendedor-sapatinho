@@ -22,9 +22,9 @@ describe('League — promoção/rebaixamento (seção 18-20)', () => {
     // com o seed global (Bronze/Prata/Ouro/Diamante, sortOrder 0-3) nem com
     // ligas de outras rodadas de teste no mesmo banco compartilhado.
     const base = 100000 + Math.floor(Math.random() * 100000); // dentro do range INT4, alto o bastante pra nunca colidir com o seed (0-3)
-    const ligaBaixa = await criarLiga({ code: `baixa-${sufixo}`, name: 'Baixa', sortOrder: base, promotionThreshold: 1 }, vendedor.id);
-    const ligaAlta = await criarLiga({ code: `alta-${sufixo}`, name: 'Alta', sortOrder: base + 1 }, vendedor.id);
-    const season = await criarSeason({ code: `season-liga-${sufixo}`, name: 'S', description: 'd', ...datasSeason() }, vendedor.id);
+    const ligaBaixa = await criarLiga(vendedor.empresaId, { code: `baixa-${sufixo}`, name: 'Baixa', sortOrder: base, promotionThreshold: 1 }, vendedor.id);
+    const ligaAlta = await criarLiga(vendedor.empresaId, { code: `alta-${sufixo}`, name: 'Alta', sortOrder: base + 1 }, vendedor.id);
+    const season = await criarSeason(vendedor.empresaId, { code: `season-liga-${sufixo}`, name: 'S', description: 'd', ...datasSeason() }, vendedor.id);
 
     const top = randomUUID();
     const resto = randomUUID();
@@ -35,8 +35,8 @@ describe('League — promoção/rebaixamento (seção 18-20)', () => {
 
     await processarPromocaoRebaixamento(season.id);
 
-    const ligaDoTop = await ligaAtualDoParticipante('SELLER', top);
-    const ligaDoResto = await ligaAtualDoParticipante('SELLER', resto);
+    const ligaDoTop = await ligaAtualDoParticipante(vendedor.empresaId, 'SELLER', top);
+    const ligaDoResto = await ligaAtualDoParticipante(vendedor.empresaId, 'SELLER', resto);
     expect(ligaDoTop?.id).toBe(ligaAlta.id);
     expect(ligaDoResto?.id).toBe(ligaBaixa.id); // não promovido — fica onde estava
 
@@ -48,8 +48,8 @@ describe('League — promoção/rebaixamento (seção 18-20)', () => {
   it('garantirMembroNaLiga é idempotente — 2 chamadas não criam 2 memberships ativas', async () => {
     const { vendedor } = await criarFixtureEmpresa();
     const sufixo = randomUUID();
-    await criarLiga({ code: `unica-${sufixo}`, name: 'Única', sortOrder: 0 }, vendedor.id);
-    const season = await criarSeason({ code: `season-idem-${sufixo}`, name: 'S', description: 'd', ...datasSeason() }, vendedor.id);
+    await criarLiga(vendedor.empresaId, { code: `unica-${sufixo}`, name: 'Única', sortOrder: 0 }, vendedor.id);
+    const season = await criarSeason(vendedor.empresaId, { code: `season-idem-${sufixo}`, name: 'S', description: 'd', ...datasSeason() }, vendedor.id);
     const participantId = randomUUID();
 
     await garantirMembroNaLiga(season.id, 'SELLER', participantId);

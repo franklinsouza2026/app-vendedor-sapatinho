@@ -43,7 +43,7 @@ export async function getMissoesAtivas(vendedorId: string, agora: Date = new Dat
 
   const hoje = inicioDoDia(agora);
   const assignments = await prisma.missionAssignment.findMany({
-    where: { vendedorId, startsAt: hoje },
+    where: { vendedorId, startsAt: hoje, definicao: { empresaId: null } },
     include: { definicao: true },
     orderBy: { createdAt: 'asc' },
   });
@@ -68,7 +68,7 @@ export async function getMissoesAtivas(vendedorId: string, agora: Date = new Dat
 
 export async function getHistoricoMissoes(vendedorId: string) {
   const assignments = await prisma.missionAssignment.findMany({
-    where: { vendedorId, status: { in: ['COMPLETED', 'EXPIRED'] } },
+    where: { vendedorId, status: { in: ['COMPLETED', 'EXPIRED'] }, definicao: { empresaId: null } },
     include: { definicao: true },
     orderBy: { startsAt: 'desc' },
     take: 30,

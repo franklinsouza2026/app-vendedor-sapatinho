@@ -40,7 +40,7 @@ describe('Missões gerenciais — atribuição e critérios com evidência real'
     const missaoReconhecimento = missoes.find((m) => m.definicao.criterionType === 'RECOGNITION_CREATED')!;
     expect(missaoReconhecimento.status).toBe('ASSIGNED');
 
-    await prisma.recognition.create({ data: { tipo: 'PERFORMANCE', authorId: gerente.id, subjectId: vendedor.id, message: 'Ótimo trabalho' } });
+    await prisma.recognition.create({ data: { empresaId: gerente.empresaId, tipo: 'PERFORMANCE', authorId: gerente.id, subjectId: vendedor.id, message: 'Ótimo trabalho' } });
     await avaliarMissoesDoVendedor(gerente.id);
 
     const atualizada = await prisma.missionAssignment.findUniqueOrThrow({ where: { id: missaoReconhecimento.id } });

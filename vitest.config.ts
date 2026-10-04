@@ -45,7 +45,11 @@ export default defineConfig({
       // ('training-intelligence'), mesmo raciocínio de isolamento por
       // DATABASE_URL dedicado no mesmo servidor Postgres, não um servidor à parte.
       REDIS_URL: 'redis://localhost:6380',
-      ERP_MODE: 'mock',
+      // Fase 1: módulos fora do piloto continuam cobertos pelos testes de
+      // regressão — na API de teste as rotas deles ficam montadas.
+      MODULOS_LEGADOS_ATIVOS: 'true',
+      INTEGRATION_SECRETS_ENCRYPTION_KEY: 'b'.repeat(64),
+      ERP_CONTROLADO_DIR: resolve(__dirname, 'node_modules/.cache/erp-controlado-teste'),
       // Testes de integração de identidade (Fatia 7.5A) chamam /auth/login e
       // /auth/ativacao repetidamente dentro da mesma janela de 1 minuto — bem
       // mais rápido que qualquer cadência humana real. Mesmo raciocínio já

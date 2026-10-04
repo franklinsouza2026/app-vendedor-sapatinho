@@ -1,47 +1,27 @@
-import { ErpAdapter, IndicadorErp } from '../erp-adapter.interface';
-import { env } from '../../../config';
+import { ErpAdapter, ErroIntegracao, ResultadoTesteConexao } from '../erp-adapter.interface';
 
 /**
- * Adapter real do ERP Linx — pendente de validação com credenciais/documentação
- * de API reais (ver risco registrado em 02-Arquitetura-Proposta.md do vault:
- * "API do Linx pode não ter endpoint por vendedor/hora granular o suficiente").
+ * Adapter LINX — PONTO DE ENCAIXE, ainda NÃO implementado (decisão D1/§35 da
+ * convergência: a integração Linx real é a PRÓXIMA etapa, depois de frontend,
+ * backend, segurança e E2E estarem GREEN).
  *
- * O formato exato do endpoint/payload precisa ser confirmado contra o ambiente
- * real da Sapatinho de Luxo antes de considerar esta implementação pronta —
- * o mapeamento abaixo é um ponto de partida, não uma integração testada.
+ * O que a etapa Linx precisa entregar aqui, sem mudar nada fora deste arquivo:
+ *   buscarEventos → traduzir o que a API Linx devolve para EventoErp
+ *   (VENDA com itens/pares/referência/categoria, CANCELAMENTO, DEVOLUCAO),
+ *   usando `consulta.credencial` (decifrada só em memória) e
+ *   `consulta.configuracao` (URL base etc.).
+ *
+ * A versão anterior chamava um endpoint INVENTADO com campos supostos; foi
+ * removida para que nenhum dado inventado entre no sistema por engano.
  */
 export class LinxErpAdapter implements ErpAdapter {
-  async buscarIndicadoresPorLoja(codigoErpLoja: string, dataHora: Date): Promise<IndicadorErp[]> {
-    const url = new URL(`${env.LINX_API_URL}/lojas/${codigoErpLoja}/indicadores-vendedor`);
-    url.searchParams.set('dataHora', dataHora.toISOString());
+  readonly provedor = 'LINX' as const;
 
-    const resp = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${env.LINX_API_KEY}`,
-        Accept: 'application/json',
-      },
-    });
-
-    if (!resp.ok) {
-      throw new Error(`Linx respondeu ${resp.status} ao buscar indicadores da loja ${codigoErpLoja}`);
-    }
-
-    const data = (await resp.json()) as unknown[];
-
-    // TODO: mapear campos reais do payload Linx assim que o contrato for confirmado
-    return this.mapear(data);
+  async buscarEventos(): Promise<unknown[]> {
+    throw new ErroIntegracao('Integração Linx preparada, mas ainda não conectada — etapa de integração Linx pendente.');
   }
 
-  private mapear(data: unknown[]): IndicadorErp[] {
-    return data.map((item) => {
-      const raw = item as Record<string, unknown>;
-      return {
-        matriculaErp: String(raw.matricula ?? ''),
-        faturamento: Number(raw.faturamento ?? 0),
-        ticketMedio: Number(raw.ticket_medio ?? 0),
-        pa: Number(raw.pa ?? 0),
-        numAtendimentos: Number(raw.num_atendimentos ?? 0),
-      };
-    });
+  async testarConexao(): Promise<ResultadoTesteConexao> {
+    return { ok: false, mensagem: 'Integração Linx preparada, mas ainda não conectada — etapa de integração Linx pendente.' };
   }
 }

@@ -4,6 +4,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../middlewares/auth';
+import { lojaRestritaDe } from '../middlewares/escopo';
 import { asyncHandler } from '../middlewares/async-handler';
 import { UniversidadeError } from '../universidade/constantes';
 import { garantirVendedorNoEscopoDoGerente } from '../universidade/manager-scope.service';
@@ -25,15 +26,12 @@ function tratarErro(err: unknown, res: import('express').Response) {
   throw err;
 }
 
-function lojaRestritaDe(req: { auth?: { papel: string; lojaId: string } }): string | undefined {
-  return req.auth!.papel === 'GERENTE' ? req.auth!.lojaId : undefined;
-}
 
 competicoesManagerRouter.get(
   '/equipe/competicoes',
   requireAuth('ADMIN', 'GERENTE'),
-  asyncHandler(async (_req, res) => {
-    res.json({ competicoes: await listarCompetitions('ACTIVE') });
+  asyncHandler(async (req, res) => {
+    res.json({ competicoes: await listarCompetitions(req.auth!.empresaId, 'ACTIVE') });
   })
 );
 
@@ -47,7 +45,7 @@ competicoesManagerRouter.post(
     if (!parsed.success) return res.status(400).json({ error: 'dados inválidos' });
     try {
       const vendedor = await garantirVendedorNoEscopoDoGerente(req.params.vendedorId, req.auth!.empresaId, lojaRestritaDe(req));
-      const reconhecimento = await registrarReconhecimento({ authorId: req.auth!.vendedorId, subjectId: vendedor.id, tipo: parsed.data.tipo, message: parsed.data.message, lojaId: vendedor.lojaId });
+      const reconhecimento = await registrarReconhecimento({ empresaId: req.auth!.empresaId, authorId: req.auth!.vendedorId, subjectId: vendedor.id, tipo: parsed.data.tipo, message: parsed.data.message, lojaId: vendedor.lojaId });
       res.status(201).json(reconhecimento);
     } catch (err) {
       tratarErro(err, res);
@@ -61,7 +59,7 @@ competicoesManagerRouter.get(
   asyncHandler(async (req, res) => {
     try {
       const vendedor = await garantirVendedorNoEscopoDoGerente(req.params.vendedorId, req.auth!.empresaId, lojaRestritaDe(req));
-      res.json({ reconhecimentos: await listarReconhecimentosRecebidos(vendedor.id) });
+      res.json({ reconhecimentos: await listarReconhecimentosRecebidos(vendedor.id, req.auth!.empresaId) });
     } catch (err) {
       tratarErro(err, res);
     }

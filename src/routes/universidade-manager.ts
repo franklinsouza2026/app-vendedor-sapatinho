@@ -6,6 +6,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db';
 import { requireAuth } from '../middlewares/auth';
+import { lojaRestritaDe } from '../middlewares/escopo';
 import { asyncHandler } from '../middlewares/async-handler';
 import { UniversidadeError } from '../universidade/constantes';
 import { garantirVendedorNoEscopoDoGerente } from '../universidade/manager-scope.service';
@@ -37,9 +38,6 @@ function tratarErro(err: unknown, res: import('express').Response) {
   throw err;
 }
 
-function lojaRestritaDe(req: { auth?: { papel: string; lojaId: string } }): string | undefined {
-  return req.auth!.papel === 'GERENTE' ? req.auth!.lojaId : undefined;
-}
 
 universidadeManagerRouter.get(
   '/universidade/equipe',

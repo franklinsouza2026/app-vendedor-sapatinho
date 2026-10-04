@@ -7,26 +7,22 @@
 //
 // Dia "sem meta cadastrada" é tratado como neutro (não quebra, não conta) —
 // nunca inferimos presença/ausência sem fonte confiável (seção 19).
+//
+// Fase 1 (convergência, D4): este fechamento continua registrando
+// StreakChecagem/StreakVendedor (consumidos pelo score de consistência e pela
+// elegibilidade de competições), mas NÃO concede mais XP/VendaCoins/badge. A
+// recompensa de sequência é derivada dos fatos pelo motor único de
+// reconciliação (src/fase1/reconciliacao/motor.ts), que também a desfaz se um
+// cancelamento quebrar a sequência — duas fontes pagando o mesmo limiar seria
+// recompensa em dobro.
 import { prisma } from '../db';
-import { dataISO, inicioDoDia, metaDoPeriodo, realizadoNoPeriodo } from '../services/metas.service';
-import { getRegraAtiva } from './regras.service';
-import { concederMoeda, concederXp } from './ledger.service';
-import { concederBadge } from './badges.service';
-import { TipoEventoGamificacao } from '@prisma/client';
+import { inicioDoDia, metaDoPeriodo, realizadoNoPeriodo } from '../services/metas.service';
 import { createLogger } from '../utils/logger';
 
 const log = createLogger('gamificacao:streak');
 
-const LIMIARES: { valor: number; evento: TipoEventoGamificacao }[] = [
-  { valor: 3, evento: 'STREAK_3' },
-  { valor: 5, evento: 'STREAK_5' },
-  { valor: 10, evento: 'STREAK_10' },
-];
-
 function fimDoDia(dia: Date): Date {
-  const proximo = new Date(dia);
-  proximo.setDate(proximo.getDate() + 1);
-  return new Date(proximo.getTime() - 1);
+  return new Date(dia.getTime() + 24 * 3600 * 1000 - 1);
 }
 
 export interface ResultadoFechamento {
@@ -58,10 +54,6 @@ export async function avaliarFechamentoDia(vendedorId: string, dia: Date): Promi
   }
 
   const vendedor = await prisma.vendedor.findUniqueOrThrow({ where: { id: vendedorId } });
-  // Falha rápido ANTES de qualquer escrita: se a empresa não tiver regra ativa,
-  // não podemos deixar StreakChecagem/StreakVendedor já gravados — isso marcaria
-  // o dia como "fechado" pra sempre sem nunca conceder o XP/moeda do limiar.
-  const regra = await getRegraAtiva(vendedor.empresaId);
 
   const realizado = await realizadoNoPeriodo(vendedorId, diaNormalizado, fimDoDia(diaNormalizado));
   const percentualMeta = (realizado.faturamento / meta) * 100;
@@ -114,31 +106,7 @@ export async function avaliarFechamentoDia(vendedorId: string, dia: Date): Promi
     update: { streakAtual: novoStreak, maiorStreak: novoMaior, ultimaDataContada: diaNormalizado },
   });
 
-  const ds = dataISO(diaNormalizado);
-
-  const limiarAtingido = LIMIARES.find((l) => l.valor === novoStreak);
-  if (limiarAtingido) {
-    const idemKey = `streak-${limiarAtingido.valor}-${vendedorId}-${ds}`;
-    const ctx = {
-      empresaId: vendedor.empresaId,
-      lojaId: vendedor.lojaId,
-      vendedorId,
-      tipoEvento: limiarAtingido.evento,
-      referenciaTipo: 'STREAK',
-      idempotencyKey: idemKey,
-      regraVersao: regra.versao,
-      ocorridoEm: diaNormalizado,
-    };
-    const xp = regra.regrasXp[limiarAtingido.evento] ?? 0;
-    const moeda = regra.regrasMoeda[limiarAtingido.evento] ?? 0;
-    if (xp > 0) await concederXp(ctx, xp);
-    if (moeda > 0) await concederMoeda(ctx, moeda);
-    log.info({ vendedorId, streak: novoStreak }, 'limiar de streak atingido');
-  }
-
-  if (novoStreak === 7) {
-    await concederBadge(vendedor.empresaId, vendedor.lojaId, vendedorId, 'STREAK_7', `badge-streak-7-${vendedorId}`);
-  }
+  log.debug({ vendedorId, streak: novoStreak }, 'dia fechado na sequência legada');
 
   return { avaliado: true, atingiu: true, streakAtual: novoStreak };
 }

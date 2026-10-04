@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { Papel, StatusConta } from '@prisma/client';
 import { prisma } from '../db';
 import { requireAuth } from '../middlewares/auth';
+import { lojaRestritaDe } from '../middlewares/escopo';
 import { asyncHandler } from '../middlewares/async-handler';
 import { preAutorizarVendedor, reemitirAcesso } from '../identidade/ativacao.service';
 import { atualizarLoja, criarLoja, inativarLoja, listarLojasDaEmpresa, reativarLoja } from '../identidade/lojas.service';
@@ -26,9 +27,6 @@ import { IdentidadeError } from '../identidade/erros';
 
 export const adminRouter = Router();
 
-function lojaRestritaDe(req: { auth?: { papel: string; lojaId: string } }): string | undefined {
-  return req.auth!.papel === 'GERENTE' ? req.auth!.lojaId : undefined;
-}
 
 function tratarErro(err: unknown, res: import('express').Response) {
   if (err instanceof IdentidadeError) return res.status(err.status).json({ error: err.message, type: err.type });

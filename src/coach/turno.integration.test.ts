@@ -31,6 +31,7 @@ type Fixture = Awaited<ReturnType<typeof criarFixtureEmpresa>>;
 async function conquista(f: Fixture, eventType: string, chave: string, nome: string) {
   return prisma.feedEvent.create({
     data: {
+      empresaId: f.loja.empresaId,
       lojaId: f.loja.id,
       subjectId: f.vendedor.id,
       eventType,

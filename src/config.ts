@@ -21,9 +21,29 @@ const envSchema = z.object({
   DATABASE_URL: z.string().url('DATABASE_URL invalido'),
   REDIS_URL: z.string().url(),
 
-  ERP_MODE: z.enum(['mock', 'linx']).default('mock'),
-  LINX_API_URL: z.union([z.string().url(), z.literal('')]).optional(),
-  LINX_API_KEY: z.string().optional(),
+  // ERP (Fase 1, T1-T3): a integração é configurada POR EMPRESA no Admin
+  // (Configurações → Integrações), com credencial cifrada no banco — nunca
+  // mais por variável de ambiente global. ERP_MODE/LINX_API_* foram removidos.
+  //
+  // Pasta do adapter CONTROLADO (testes/E2E): eventos depositados como JSON.
+  ERP_CONTROLADO_DIR: z.string().optional(),
+  // Frequência do sync de vendas (cron do worker). Padrão: a cada 15 minutos.
+  ERP_SYNC_CRON: z.string().default('*/15 * * * *'),
+  // Chave mestra (AES-256-GCM, 32 bytes hex) das credenciais de integração
+  // (T2). Fora do banco, fora do repositório. Obrigatória em produção.
+  INTEGRATION_SECRETS_ENCRYPTION_KEY: z
+    .union([z.string().regex(/^[0-9a-f]{64}$/i, 'INTEGRATION_SECRETS_ENCRYPTION_KEY deve ter 64 caracteres hex (32 bytes)'), z.literal('')])
+    .optional()
+    .transform((v) => (v === '' ? undefined : v)),
+
+  // Módulos fora da Fase 1 (Conselheiro, Treinador, Simulador, Universidade,
+  // Academia, painel do gerente). No piloto ficam DESLIGADOS: as rotas nem são
+  // montadas na API (não basta esconder no app). Testes de regressão desses
+  // módulos ligam via .env.test.
+  MODULOS_LEGADOS_ATIVOS: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
 
   // Coach IA (Fatia 4) — provider desacoplado, mock por padrão em dev/test/CI.
   // A ausência de ANTHROPIC_API_KEY nunca bloqueia o app: só impede
@@ -101,9 +121,17 @@ function validateEnv(): Env {
     process.exit(1);
   }
 
-  if (result.data.ERP_MODE === 'linx' && (!result.data.LINX_API_URL || !result.data.LINX_API_KEY)) {
-    console.error('\n🔴 ERP_MODE=linx exige LINX_API_URL e LINX_API_KEY definidos.\n');
-    process.exit(1);
+  // Produção/piloto (T7): falha no boot em vez de subir inseguro.
+  if (result.data.NODE_ENV === 'production') {
+    const problemas: string[] = [];
+    if (!result.data.INTEGRATION_SECRETS_ENCRYPTION_KEY) problemas.push('INTEGRATION_SECRETS_ENCRYPTION_KEY é obrigatória em produção');
+    if (result.data.JWT_SECRET === result.data.CPF_HASH_SECRET) problemas.push('JWT_SECRET e CPF_HASH_SECRET precisam ser diferentes');
+    if (result.data.ERP_CONTROLADO_DIR) problemas.push('ERP_CONTROLADO_DIR (adapter de teste) não pode existir em produção');
+    if (problemas.length) {
+      console.error('\n🔴 CONFIGURAÇÃO DE PRODUÇÃO INVÁLIDA:\n');
+      problemas.forEach((p) => console.error(`  ❌ ${p}`));
+      process.exit(1);
+    }
   }
 
   return result.data;

@@ -4,7 +4,6 @@
 // nenhum dos 3 depende dela de volta.
 import { prisma } from '../db';
 import { registrarEventoAuditoria } from '../identidade/auditoria.service';
-import { resolverEmpresaUnica } from '../universidade/schools.service';
 import { buscarSeason } from './seasons.service';
 import { finalizarCompetition } from './competitions.service';
 import { processarPromocaoRebaixamento } from './leagues.service';
@@ -17,8 +16,8 @@ import { processarPromocaoRebaixamento } from './leagues.service';
  * (seção 68/84/104): a 2ª chamada encontra a season já FINISHED e devolve
  * sem reprocessar nada.
  */
-export async function finalizarSeasonCompleta(seasonId: string, actorId?: string) {
-  const atual = await buscarSeason(seasonId);
+export async function finalizarSeasonCompleta(seasonId: string, actorId?: string, empresaId?: string) {
+  const atual = await buscarSeason(seasonId, empresaId);
   if (atual.status === 'FINISHED') return atual; // idempotente — já processada
 
   const competicoesAtivas = await prisma.competition.findMany({ where: { seasonId, status: 'ACTIVE' }, select: { id: true } });
@@ -30,6 +29,6 @@ export async function finalizarSeasonCompleta(seasonId: string, actorId?: string
   if (resultado.count !== 1) return buscarSeason(seasonId); // corrida perdida — outra chamada já finalizou
 
   await processarPromocaoRebaixamento(seasonId);
-  await registrarEventoAuditoria({ empresaId: await resolverEmpresaUnica(), acao: 'SEASON_FINISHED', actorId, metadata: { seasonId, competicoesFinalizadas: competicoesAtivas.length } });
+  await registrarEventoAuditoria({ empresaId: atual.empresaId, acao: 'SEASON_FINISHED', actorId, metadata: { seasonId, competicoesFinalizadas: competicoesAtivas.length } });
   return buscarSeason(seasonId);
 }

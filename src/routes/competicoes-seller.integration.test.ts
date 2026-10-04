@@ -56,7 +56,7 @@ describe('GET /temporadas/:id/ranking — Season Points, nunca faturamento (seç
 
   it('season real sem pontos ainda devolve ranking vazio, sempre 200', async () => {
     const { token, vendedor } = await tokenVendedor();
-    const season = await criarSeason({ code: `season-rank-${randomUUID()}`, name: 'S', description: 'd', startsAt: new Date(), endsAt: new Date(Date.now() + 86400000) }, vendedor.id);
+    const season = await criarSeason(vendedor.empresaId, { code: `season-rank-${randomUUID()}`, name: 'S', description: 'd', startsAt: new Date(), endsAt: new Date(Date.now() + 86400000) }, vendedor.id);
 
     const res = await request(app).get(`/temporadas/${season.id}/ranking`).set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(200);

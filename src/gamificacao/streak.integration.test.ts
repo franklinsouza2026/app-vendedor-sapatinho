@@ -34,8 +34,11 @@ describe('avaliarFechamentoDia', () => {
     expect(r2.streakAtual).toBe(2);
     expect(r1.streakAtual).toBe(3);
 
-    // limiar de 3 dias concede XP/moeda (régua v1: STREAK_3 = 75 XP / 25 moedas)
-    expect(await getSaldoMoedas(vendedor.id)).toBe(25);
+    // Fase 1 (D4): o fechamento legado só registra a sequência. A recompensa
+    // do limiar é do motor único de reconciliação (src/fase1/reconciliacao),
+    // que também a desfaz se um cancelamento quebrar a sequência — aqui nada
+    // pode ser pago em dobro.
+    expect(await getSaldoMoedas(vendedor.id)).toBe(0);
 
     // dia seguinte não bate a meta — streak reseta
     const hoje = diasAtras(0);

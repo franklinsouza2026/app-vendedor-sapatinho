@@ -112,8 +112,8 @@ export async function montarDailyHuddle(empresaId: string, lojaId: string, agora
     realizadoNoPeriodoEmLote(ids, ontem, hoje),
     listarSinaisPositivosDaLoja(empresaId, lojaId, agora),
     listarAlertas(empresaId, lojaId, { status: ['OPEN', 'ACKNOWLEDGED'] }),
-    listarSeasons(),
-    prisma.competition.findMany({ where: { status: 'ACTIVE' }, select: { id: true, name: true }, take: 5 }),
+    listarSeasons(empresaId),
+    prisma.competition.findMany({ where: { empresaId, status: 'ACTIVE' }, select: { id: true, name: true }, take: 5 }),
     ids.length > 0
       ? prisma.developmentPlanItem.count({ where: { status: 'PENDING', plano: { subjectUserId: { in: ids }, status: 'ACTIVE', targetDate: { gte: hoje, lte: em7Dias } } } })
       : Promise.resolve(0),

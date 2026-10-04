@@ -290,6 +290,7 @@ describe('TESTE CRÍTICO #11 — a continuidade estruturada não é afetada', ()
     const f = await criarFixtureEmpresa();
     await prisma.feedEvent.create({
       data: {
+        empresaId: f.loja.empresaId,
         lojaId: f.loja.id,
         subjectId: f.vendedor.id,
         eventType: 'CERTIFICATION_ISSUED',

@@ -73,8 +73,9 @@ describe('avaliarMetaDiaria', () => {
     const transacoesApos2a = await prisma.moedaTransacao.findMany({ where: { vendedorId: vendedor.id } });
     expect(transacoesApos2a).toHaveLength(2); // não criou uma segunda reversão
 
-    // XP não é revertido (princípio: XP não diminui em situações normais)
-    expect(await getTotalXp(vendedor.id)).toBe(100);
+    // Fase 1 (D4): XP do tier também é estornado — "a realidade deve ser
+    // refletida": venda cancelada não deixa XP de meta que não foi batida.
+    expect(await getTotalXp(vendedor.id)).toBe(0);
 
     // ERP corrige de novo e o faturamento volta a bater o tier NO MESMO DIA —
     // precisa conceder de novo (regressão do bug: idemKey já usada travava reconcessão)
@@ -87,8 +88,9 @@ describe('avaliarMetaDiaria', () => {
     const transacoesFinal = await prisma.moedaTransacao.findMany({ where: { vendedorId: vendedor.id } });
     expect(transacoesFinal).toHaveLength(3); // credito original + reversão + novo credito
 
-    // XP NÃO é concedido de novo na 2ª geração (só na 1ª) — senão oscilar o ERP
-    // pra cima/baixo repetidas vezes infla XP sem limite (bug encontrado em review)
+    // XP volta junto (nova geração) e o saldo LÍQUIDO é sempre de uma única
+    // concessão: oscilar o ERP pra cima/baixo nunca infla XP (crédito,
+    // estorno, crédito = 1x).
     expect(await getTotalXp(vendedor.id)).toBe(100);
 
     // reprocessar de novo no mesmo estado não duplica a segunda concessão

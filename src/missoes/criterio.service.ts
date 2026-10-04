@@ -38,6 +38,19 @@ export async function avaliarCriterio(
       return avaliarOneOnOneConcluido(vendedorId, janela.inicio);
     case 'PDI_REVIEWED':
       return avaliarPdiRevisado(vendedorId, janela.inicio);
+    // Fase 1 — missões GOVERNADAS (Admin/template) têm avaliador próprio,
+    // calculado das vendas reais (src/fase1/missoes). Nunca passam por aqui:
+    // o avaliador legado só processa o catálogo global (empresaId null).
+    case 'VENDAS_PERIODO':
+    case 'FATURAMENTO_PERIODO':
+    case 'PARES_PRODUTOS':
+    case 'VENDAS_PRODUTOS':
+    case 'VENDAS_MULTIPAR':
+    case 'VENDAS_CATEGORIA':
+    case 'PARES_CATEGORIA':
+    case 'DIAS_TICKET_ACIMA':
+    case 'DIAS_META_SEGUIDOS':
+      throw new Error(`critério ${criterionType} é de missão governada — avaliado por src/fase1/missoes`);
   }
 }
 

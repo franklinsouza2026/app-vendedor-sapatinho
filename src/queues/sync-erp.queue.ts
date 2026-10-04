@@ -1,112 +1,55 @@
+// Fila de sincronização de vendas (Fase 1, D1/T6). Dois tipos de job:
+//   - 'sync-todas'      repetível (ERP_SYNC_CRON, padrão a cada 15 min): todas
+//                       as integrações ATIVAS de todas as empresas;
+//   - 'sync-integracao' sob demanda (botão "Sincronizar agora" do Admin).
+// concurrency 1: duas execuções nunca disputam o mesmo cursor (a ingestão é
+// idempotente de qualquer forma).
 import { Queue, Worker } from 'bullmq';
 import { connection } from './connection';
+import { env } from '../config';
 import { createLogger } from '../utils/logger';
-import { erpAdapter } from '../integracoes/erp';
-import { prisma } from '../db';
-import { avaliarMetaDiaria } from '../gamificacao/motor.service';
-import { recalcularTodosOsRankingsDoDia } from '../gamificacao/ranking.service';
+import { sincronizarIntegracao, sincronizarTodasAtivas } from '../fase1/integracoes/sync.service';
 
 const log = createLogger('queue:sync-erp');
 
 export const syncErpQueue = new Queue('sync-erp', {
   connection,
   defaultJobOptions: {
-    attempts: 5,
+    attempts: 3,
     backoff: { type: 'exponential', delay: 30_000 },
     removeOnComplete: { age: 7 * 24 * 3600 },
     removeOnFail: { age: 30 * 24 * 3600 },
   },
 });
 
-/**
- * Agenda o job repetível de hora em hora. Chamar uma vez no boot do worker.
- * jobId fixo garante que o schedule não duplica se o worker reiniciar.
- */
 export async function agendarSyncHorario() {
-  await syncErpQueue.add(
-    'sync-todas-lojas',
-    {},
-    {
-      repeat: { pattern: '0 * * * *' },
-      jobId: 'sync-erp-repeatable',
-    }
-  );
-  log.info('sync horário de indicadores agendado');
+  await syncErpQueue.add('sync-todas', {}, { repeat: { pattern: env.ERP_SYNC_CRON }, jobId: 'sync-erp-repeatable-fase1' });
+  log.info({ cron: env.ERP_SYNC_CRON }, 'sync de vendas agendado');
+}
+
+export async function solicitarSyncIntegracao(integracaoId: string) {
+  // jobId por integração: dois cliques seguidos no botão viram UM job pendente.
+  return syncErpQueue.add('sync-integracao', { integracaoId }, { jobId: `sync-manual-${integracaoId}`, removeOnComplete: true, removeOnFail: { age: 24 * 3600 } });
+}
+
+export async function contarFilaSync() {
+  const c = await syncErpQueue.getJobCounts('waiting', 'delayed', 'failed', 'active');
+  return { aguardando: (c.waiting ?? 0) + (c.delayed ?? 0), falhas: c.failed ?? 0 };
 }
 
 export function createSyncErpWorker() {
   return new Worker(
     'sync-erp',
     async (job) => {
-      const dataHora = new Date();
-      dataHora.setMinutes(0, 0, 0); // normaliza pro início da hora — chave de idempotência
-
-      // Loja inativada (Fatia 9.7) sai do sync — não faz sentido puxar
-      // indicador de uma loja que não opera mais. O histórico dela permanece.
-      const lojas = await prisma.loja.findMany({ where: { ativa: true }, select: { id: true, empresaId: true, codigoErp: true } });
-
-      let totalProcessados = 0;
-      const empresasAfetadas = new Set<string>();
-
-      for (const loja of lojas) {
-        const indicadores = await erpAdapter.buscarIndicadoresPorLoja(loja.codigoErp, dataHora);
-
-        for (const ind of indicadores) {
-          const vendedor = await prisma.vendedor.findUnique({
-            where: { lojaId_matriculaErp: { lojaId: loja.id, matriculaErp: ind.matriculaErp } },
-          });
-
-          if (!vendedor) {
-            log.warn({ loja: loja.codigoErp, matricula: ind.matriculaErp }, 'vendedor do ERP não cadastrado no app — pulando');
-            continue;
-          }
-
-          await prisma.indicadorRealizado.upsert({
-            where: { vendedorId_dataHora: { vendedorId: vendedor.id, dataHora } },
-            create: {
-              empresaId: loja.empresaId,
-              lojaId: loja.id,
-              vendedorId: vendedor.id,
-              dataHora,
-              faturamento: ind.faturamento,
-              ticketMedio: ind.ticketMedio,
-              pa: ind.pa,
-              numAtendimentos: ind.numAtendimentos,
-              fonteJobId: job.id!,
-            },
-            update: {
-              faturamento: ind.faturamento,
-              ticketMedio: ind.ticketMedio,
-              pa: ind.pa,
-              numAtendimentos: ind.numAtendimentos,
-              fonteJobId: job.id!,
-            },
-          });
-
-          totalProcessados++;
-          empresasAfetadas.add(loja.empresaId);
-
-          // Motor de gamificação roda no worker (nunca no processo HTTP) logo
-          // após o indicador ser persistido — mantém eventos de performance
-          // próximos do dado que os originou (seção 8/16 da fonte de verdade).
-          try {
-            await avaliarMetaDiaria(vendedor.id);
-          } catch (err) {
-            log.error({ err, vendedorId: vendedor.id }, 'falha ao avaliar gamificação — sync do indicador não é afetado');
-          }
-        }
+      if (job.name === 'sync-integracao') {
+        const resumo = await sincronizarIntegracao(String(job.data.integracaoId));
+        log.info(resumo, 'sincronização manual concluída');
+        return resumo;
       }
-
-      for (const empresaId of empresasAfetadas) {
-        try {
-          await recalcularTodosOsRankingsDoDia(empresaId);
-        } catch (err) {
-          log.error({ err, empresaId }, 'falha ao recalcular rankings do dia');
-        }
-      }
-
-      log.info({ lojas: lojas.length, vendedoresProcessados: totalProcessados, dataHora }, 'sync de indicadores concluído');
+      const resumos = await sincronizarTodasAtivas();
+      log.info({ integracoes: resumos.length, erros: resumos.filter((r) => r.status === 'ERRO').length }, 'sincronização periódica concluída');
+      return resumos;
     },
-    { connection, concurrency: 1 } // 1 por vez — evita corrida entre execuções do mesmo horário
+    { connection, concurrency: 1 }
   );
 }

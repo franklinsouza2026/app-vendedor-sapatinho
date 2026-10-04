@@ -1,86 +1,79 @@
 import { createHash } from 'node:crypto';
-import { ErpAdapter, IndicadorErp } from './erp-adapter.interface';
 import { prisma } from '../../db';
+import { diaLocal, instanteDoDia, listarDias, TZ_PADRAO } from '../../tempo/dia';
+import { ConsultaEventosErp, ErpAdapter, EventoErp, ResultadoTesteConexao } from './erp-adapter.interface';
 
 /**
- * Adapter de desenvolvimento: gera indicadores plausíveis para os vendedores
- * já cadastrados no banco, sem depender de credenciais reais do Linx.
- * Usado quando ERP_MODE=mock (padrão em dev/local).
+ * Adapter de DESENVOLVIMENTO (provedor MOCK). Gera vendas determinísticas para
+ * os VENDEDORES já cadastrados nas lojas vinculadas — nunca para ADMIN/GERENTE
+ * (Fatia 9.7). Recusado em produção (src/fase1/integracoes). Mesmo instante →
+ * mesmos eventos, com os mesmos ids: reprocessar nunca duplica (idempotência
+ * do contrato).
  *
- * Fatia 9.7 — dois defeitos reais corrigidos (achados em auditoria):
- *
- * 1. ACUMULADO MONOTÔNICO. A versão anterior chamava `Math.random()` a cada
- *    invocação, então o "acumulado do dia" do vendedor SUBIA E DESCIA entre
- *    syncs. Isso violava a premissa que `metas.service.ts` documenta (cada
- *    snapshot é o acumulado do dia até aquela hora) e fazia o motor de
- *    gamificação conceder e reverter moeda o dia inteiro sem motivo real.
- *    Agora o valor é derivado deterministicamente de (vendedor, dia) e cresce
- *    com a hora — reproduzível em teste e coerente ao longo do dia.
- *
- * 2. SELLER-ONLY. `findMany` filtrava só por loja + ACTIVE, gerando venda
- *    fake para ADMIN e GERENTE, que então apareciam no ranking comercial.
- *
- * Continua sendo um mock: não simula devolução/cancelamento. Uma queda de
- * faturamento continua possível no produto (o motor sabe reverter), mas ela
- * deve vir de um cenário explícito, nunca de ruído aleatório.
+ * Perfil: 3 a 9 vendas por dia, entre 10h e 21h locais, itens de um catálogo
+ * FICTÍCIO marcado com o prefixo "DEMO-". ~4% das vendas são canceladas 20 min
+ * depois — para que o fluxo de cancelamento também seja exercitado em DEV.
  */
+const CATALOGO_DEMO = [
+  { referencia: 'DEMO-1001', descricao: 'Scarpin Demo Nude', categoria: 'Salto', preco: 289.9, pares: 1 },
+  { referencia: 'DEMO-1002', descricao: 'Sandália Demo Preta', categoria: 'Salto', preco: 249.9, pares: 1 },
+  { referencia: 'DEMO-2001', descricao: 'Rasteira Demo Caramelo', categoria: 'Rasteira', preco: 129.9, pares: 1 },
+  { referencia: 'DEMO-3001', descricao: 'Bolsa Demo Tiracolo', categoria: 'Bolsa', preco: 349.9, pares: 0 },
+  { referencia: 'DEMO-4001', descricao: 'Tênis Demo Branco', categoria: 'Tênis', preco: 259.9, pares: 1 },
+];
+
 export class MockErpAdapter implements ErpAdapter {
-  async buscarIndicadoresPorLoja(codigoErpLoja: string, dataHora: Date): Promise<IndicadorErp[]> {
-    const loja = await prisma.loja.findFirst({ where: { codigoErp: codigoErpLoja } });
-    if (!loja) return [];
+  readonly provedor = 'MOCK' as const;
 
-    const vendedores = await prisma.vendedor.findMany({
-      // Só quem de fato vende: ADMIN e GERENTE são linhas de Vendedor mas não
-      // têm faturamento próprio (e não participam do ranking comercial).
-      where: { lojaId: loja.id, status: 'ACTIVE', papel: 'VENDEDOR' },
-    });
+  async buscarEventos(consulta: ConsultaEventosErp): Promise<EventoErp[]> {
+    const tz = (await prisma.empresa.findUnique({ where: { id: consulta.empresaId }, select: { timezone: true } }))?.timezone ?? TZ_PADRAO;
+    const vinculos = await prisma.integracaoLoja.findMany({ where: { integracaoId: consulta.integracaoId, codigoExterno: { in: consulta.lojasExternas } } });
+    const eventos: EventoErp[] = [];
 
-    return vendedores.map((v) => {
-      // Semente estável por vendedor+dia: o mesmo vendedor tem o mesmo "perfil
-      // de dia" em todas as horas daquele dia, e um perfil diferente amanhã.
-      //
-      // A chave do dia usa componentes LOCAIS de propósito. Com `toISOString()`
-      // o dia virava em UTC enquanto `getHours()` abaixo lê hora local — num
-      // fuso negativo (ex.: UTC-3) a semente trocava às 21h local, no meio do
-      // expediente, e o acumulado do dia CAÍA: exatamente o defeito que este
-      // adapter foi reescrito pra eliminar. Todo o resto do produto também
-      // trabalha em dia local (ver `inicioDoDia` em metas.service.ts).
-      const dia = chaveDoDiaLocal(dataHora);
-      const semente = pseudoAleatorio(`${v.id}:${dia}`);
+    for (const vinculo of vinculos) {
+      const vendedores = await prisma.vendedor.findMany({ where: { lojaId: vinculo.lojaId, status: 'ACTIVE', papel: 'VENDEDOR' }, select: { matriculaErp: true } });
+      for (const dia of listarDias(diaLocal(consulta.desde, tz), diaLocal(consulta.ate, tz))) {
+        const meiaNoite = instanteDoDia(dia, tz).getTime();
+        for (const v of vendedores) {
+          for (const evento of eventosDoDia(vinculo.codigoExterno, v.matriculaErp, dia, meiaNoite)) {
+            const quando = new Date(evento.ocorridoEm).getTime();
+            if (quando >= consulta.desde.getTime() && quando <= consulta.ate.getTime()) eventos.push(evento);
+          }
+        }
+      }
+    }
+    return eventos;
+  }
 
-      // Fração do dia já decorrida (0 → 1), usada pra fazer o acumulado crescer
-      // hora a hora. `+1` na hora pra que o primeiro sync do dia já tenha venda.
-      const progressoDoDia = Math.min(1, (dataHora.getHours() + 1) / 24);
-
-      const atendimentosNoDia = 4 + Math.floor(semente * 8); // 4..11 no dia inteiro
-      const numAtendimentos = Math.max(1, Math.round(atendimentosNoDia * progressoDoDia));
-
-      // Ticket e PA são médias — não acumulam, então variam só por vendedor/dia.
-      const ticketMedio = Number((90 + pseudoAleatorio(`${v.id}:${dia}:ticket`) * 110).toFixed(2));
-      const pa = Number((1.2 + pseudoAleatorio(`${v.id}:${dia}:pa`) * 1.8).toFixed(2));
-
-      return {
-        matriculaErp: v.matriculaErp,
-        numAtendimentos,
-        ticketMedio,
-        pa,
-        faturamento: Number((ticketMedio * numAtendimentos).toFixed(2)),
-      };
-    });
+  async testarConexao(): Promise<ResultadoTesteConexao> {
+    return { ok: true, mensagem: 'Mock de desenvolvimento — sempre disponível (não usar em piloto).' };
   }
 }
 
-/** YYYY-MM-DD em horário LOCAL — precisa casar com o `getHours()` usado acima. */
-function chaveDoDiaLocal(data: Date): string {
-  const ano = data.getFullYear();
-  const mes = String(data.getMonth() + 1).padStart(2, '0');
-  const dia = String(data.getDate()).padStart(2, '0');
-  return `${ano}-${mes}-${dia}`;
+/** Eventos de um vendedor num dia — função pura e determinística (testada). */
+export function eventosDoDia(loja: string, matricula: string, dia: string, meiaNoiteLocal: number): EventoErp[] {
+  const base = `${loja}:${matricula}:${dia}`;
+  const quantidade = 3 + Math.floor(pseudoAleatorio(`${base}:qtd`) * 7);
+  const eventos: EventoErp[] = [];
+  for (let n = 0; n < quantidade; n++) {
+    const minutos = 10 * 60 + Math.floor((n + pseudoAleatorio(`${base}:${n}:min`)) * ((11 * 60) / quantidade));
+    const ocorridoEm = new Date(meiaNoiteLocal + minutos * 60_000);
+    const qtdItens = 1 + Math.floor(pseudoAleatorio(`${base}:${n}:itens`) * 3);
+    const itens = Array.from({ length: qtdItens }, (_, i) => {
+      const produto = CATALOGO_DEMO[Math.floor(pseudoAleatorio(`${base}:${n}:${i}:p`) * CATALOGO_DEMO.length)];
+      return { referencia: produto.referencia, descricao: produto.descricao, categoria: produto.categoria, quantidade: 1, pares: produto.pares, valor: produto.preco };
+    });
+    const idVenda = `MOCK-${base}-${n}`;
+    eventos.push({ tipo: 'VENDA', idExterno: idVenda, lojaExterna: loja, vendedorExterno: matricula, ocorridoEm: ocorridoEm.toISOString(), valor: Math.round(itens.reduce((a, i) => a + i.valor, 0) * 100) / 100, itens });
+    if (pseudoAleatorio(`${base}:${n}:cancela`) < 0.04) {
+      eventos.push({ tipo: 'CANCELAMENTO', idExterno: `${idVenda}-CANC`, vendaIdExterno: idVenda, ocorridoEm: new Date(ocorridoEm.getTime() + 20 * 60_000).toISOString() });
+    }
+  }
+  return eventos;
 }
 
 /** Hash estável → [0,1). Determinístico entre processos e execuções (ao contrário de Math.random). */
 function pseudoAleatorio(chave: string): number {
   const hash = createHash('sha256').update(chave).digest();
-  // 4 bytes bastam pra granularidade que o mock precisa.
   return hash.readUInt32BE(0) / 0xffffffff;
 }

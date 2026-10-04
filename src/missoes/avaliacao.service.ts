@@ -30,7 +30,9 @@ const ATIVOS: StatusMissao[] = ['ASSIGNED', 'IN_PROGRESS'];
 
 export async function avaliarMissoesDoVendedor(vendedorId: string, agora: Date = new Date()) {
   const ativas = await prisma.missionAssignment.findMany({
-    where: { vendedorId, status: { in: ATIVOS } },
+    // Só o catálogo global legado (empresaId null). Missão governada da Fase 1
+    // tem avaliador próprio, calculado das vendas (src/fase1/missoes).
+    where: { vendedorId, status: { in: ATIVOS }, definicao: { empresaId: null } },
     include: { definicao: true },
   });
 

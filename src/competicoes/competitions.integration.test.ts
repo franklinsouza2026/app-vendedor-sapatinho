@@ -32,7 +32,7 @@ describe('Competition — validação na criação (seção 48: sem eval/fórmul
     const { vendedor } = await criarFixtureEmpresa();
     const { startsAt, endsAt } = periodoCurto();
     await expect(
-      criarCompetition({ code: `comp-${randomUUID()}`, name: 'C', description: 'd', participantType: 'SELLER', metricType: 'CUSTOM_RULE', startsAt, endsAt }, vendedor.id)
+      criarCompetition({ empresaId: vendedor.empresaId, code: `comp-${randomUUID()}`, name: 'C', description: 'd', participantType: 'SELLER', metricType: 'CUSTOM_RULE', startsAt, endsAt }, vendedor.id)
     ).rejects.toThrow(CompeticoesError);
   });
 
@@ -40,7 +40,7 @@ describe('Competition — validação na criação (seção 48: sem eval/fórmul
     const { vendedor } = await criarFixtureEmpresa();
     const { startsAt, endsAt } = periodoCurto();
     await expect(
-      criarCompetition({ code: `comp-${randomUUID()}`, name: 'C', description: 'd', participantType: 'SELLER', metricType: 'COMPETENCY_EVOLUTION', startsAt, endsAt }, vendedor.id)
+      criarCompetition({ empresaId: vendedor.empresaId, code: `comp-${randomUUID()}`, name: 'C', description: 'd', participantType: 'SELLER', metricType: 'COMPETENCY_EVOLUTION', startsAt, endsAt }, vendedor.id)
     ).rejects.toThrow(CompeticoesError);
   });
 
@@ -48,7 +48,7 @@ describe('Competition — validação na criação (seção 48: sem eval/fórmul
     const { vendedor } = await criarFixtureEmpresa();
     const { startsAt, endsAt } = periodoCurto();
     await expect(
-      criarCompetition({ code: `comp-${randomUUID()}`, name: 'C', description: 'd', participantType: 'SELLER', metricType: 'CONSISTENCY', startsAt, endsAt, rewardBadgeCodigo: 'BADGE_INVENTADO' }, vendedor.id)
+      criarCompetition({ empresaId: vendedor.empresaId, code: `comp-${randomUUID()}`, name: 'C', description: 'd', participantType: 'SELLER', metricType: 'CONSISTENCY', startsAt, endsAt, rewardBadgeCodigo: 'BADGE_INVENTADO' }, vendedor.id)
     ).rejects.toThrow(CompeticoesError);
   });
 });
@@ -57,7 +57,7 @@ describe('Competition — fairness (seção 12/59/98)', () => {
   it('auto-enrollment marca DISQUALIFIED (não score 0) quem não tem dias ativos suficientes', async () => {
     const { vendedor } = await criarFixtureEmpresa();
     const { startsAt, endsAt } = periodoCurto();
-    const competicao = await criarCompetition({ code: `comp-fair-${randomUUID()}`, name: 'C', description: 'd', participantType: 'SELLER', metricType: 'CONSISTENCY', startsAt, endsAt, minDiasAtivos: 5 }, vendedor.id);
+    const competicao = await criarCompetition({ empresaId: vendedor.empresaId, code: `comp-fair-${randomUUID()}`, name: 'C', description: 'd', participantType: 'SELLER', metricType: 'CONSISTENCY', startsAt, endsAt, minDiasAtivos: 5 }, vendedor.id);
     await transicionarCompetition(competicao.id, 'ativar', vendedor.id);
 
     const participantes = await listarParticipantesCompetition(competicao.id);
@@ -70,7 +70,7 @@ describe('Competition — fairness (seção 12/59/98)', () => {
     const { vendedor } = await criarFixtureEmpresa();
     await marcarDiasAtivos(vendedor.id, 6);
     const { startsAt, endsAt } = periodoCurto();
-    const competicao = await criarCompetition({ code: `comp-fair-ok-${randomUUID()}`, name: 'C', description: 'd', participantType: 'SELLER', metricType: 'CONSISTENCY', startsAt, endsAt, minDiasAtivos: 5 }, vendedor.id);
+    const competicao = await criarCompetition({ empresaId: vendedor.empresaId, code: `comp-fair-ok-${randomUUID()}`, name: 'C', description: 'd', participantType: 'SELLER', metricType: 'CONSISTENCY', startsAt, endsAt, minDiasAtivos: 5 }, vendedor.id);
     await transicionarCompetition(competicao.id, 'ativar', vendedor.id);
 
     const participantes = await listarParticipantesCompetition(competicao.id);
@@ -81,8 +81,14 @@ describe('Competition — fairness (seção 12/59/98)', () => {
 
 describe('Competition — ranking determinístico (seção 14/85/97)', () => {
   it('GOAL_ATTAINMENT: quem tem % de meta maior fica em 1º, sem faturamento bruto influenciar', async () => {
+    // Os dois vendedores são da MESMA empresa (D8): competição nunca inscreve
+    // vendedor de outra empresa — antes da Fase 1 este teste usava duas
+    // empresas e só passava porque o auto-enrollment era global.
     const fixtureA = await criarFixtureEmpresa();
-    const fixtureB = await criarFixtureEmpresa();
+    const vendedorB = await prisma.vendedor.create({ data: { empresaId: fixtureA.empresa.id, lojaId: fixtureA.loja.id, matriculaErp: `B-${randomUUID()}`, nome: 'Vendedor B' } });
+    const fixtureB = { empresa: fixtureA.empresa, loja: fixtureA.loja, vendedor: vendedorB };
+    const intrusa = await criarFixtureEmpresa();
+    await marcarDiasAtivos(intrusa.vendedor.id, 6);
     await marcarDiasAtivos(fixtureA.vendedor.id, 6);
     await marcarDiasAtivos(fixtureB.vendedor.id, 6);
 
@@ -95,7 +101,7 @@ describe('Competition — ranking determinístico (seção 14/85/97)', () => {
     await prisma.indicadorRealizado.create({ data: { empresaId: fixtureB.empresa.id, lojaId: fixtureB.loja.id, vendedorId: fixtureB.vendedor.id, dataHora: new Date(), faturamento: 90, ticketMedio: 90, pa: 1, numAtendimentos: 1, fonteJobId: 'teste' } });
 
     const { startsAt, endsAt } = periodoCurto();
-    const competicao = await criarCompetition({ code: `comp-goal-${randomUUID()}`, name: 'C', description: 'd', participantType: 'SELLER', metricType: 'GOAL_ATTAINMENT', startsAt, endsAt, minDiasAtivos: 5 }, fixtureA.vendedor.id);
+    const competicao = await criarCompetition({ empresaId: fixtureA.vendedor.empresaId, code: `comp-goal-${randomUUID()}`, name: 'C', description: 'd', participantType: 'SELLER', metricType: 'GOAL_ATTAINMENT', startsAt, endsAt, minDiasAtivos: 5 }, fixtureA.vendedor.id);
     await transicionarCompetition(competicao.id, 'ativar', fixtureA.vendedor.id);
 
     const ranking = await calcularRankingCompetition(competicao.id);
@@ -104,6 +110,8 @@ describe('Competition — ranking determinístico (seção 14/85/97)', () => {
     expect(linhaA.score).toBeCloseTo(110, 0);
     expect(linhaB.score).toBeCloseTo(90, 0);
     expect(linhaA.posicao).toBeLessThan(linhaB.posicao); // A (110%) na frente de B (90%)
+    // Vendedor elegível de OUTRA empresa nunca entra na disputa.
+    expect(ranking.some((r) => r.participantId === intrusa.vendedor.id)).toBe(false);
   });
 });
 
@@ -112,7 +120,7 @@ describe('Competition — finalização (seção 64/79/84/91/103): snapshot imut
     const { vendedor } = await criarFixtureEmpresa();
     await marcarDiasAtivos(vendedor.id, 6);
     const { startsAt, endsAt } = periodoCurto();
-    const competicao = await criarCompetition({ code: `comp-final-${randomUUID()}`, name: 'C', description: 'd', participantType: 'SELLER', metricType: 'CONSISTENCY', startsAt, endsAt, minDiasAtivos: 5, rewardXp: 50, rewardMoedas: 10 }, vendedor.id);
+    const competicao = await criarCompetition({ empresaId: vendedor.empresaId, code: `comp-final-${randomUUID()}`, name: 'C', description: 'd', participantType: 'SELLER', metricType: 'CONSISTENCY', startsAt, endsAt, minDiasAtivos: 5, rewardXp: 50, rewardMoedas: 10 }, vendedor.id);
     await transicionarCompetition(competicao.id, 'ativar', vendedor.id);
 
     await Promise.all([finalizarCompetition(competicao.id, vendedor.id), finalizarCompetition(competicao.id, vendedor.id)]);
@@ -134,7 +142,7 @@ describe('Competition — finalização (seção 64/79/84/91/103): snapshot imut
     const { vendedor } = await criarFixtureEmpresa();
     await marcarDiasAtivos(vendedor.id, 6);
     const { startsAt, endsAt } = periodoCurto();
-    const competicao = await criarCompetition({ code: `comp-final2-${randomUUID()}`, name: 'C', description: 'd', participantType: 'SELLER', metricType: 'CONSISTENCY', startsAt, endsAt, minDiasAtivos: 5 }, vendedor.id);
+    const competicao = await criarCompetition({ empresaId: vendedor.empresaId, code: `comp-final2-${randomUUID()}`, name: 'C', description: 'd', participantType: 'SELLER', metricType: 'CONSISTENCY', startsAt, endsAt, minDiasAtivos: 5 }, vendedor.id);
     await transicionarCompetition(competicao.id, 'ativar', vendedor.id);
     await finalizarCompetition(competicao.id, vendedor.id);
     const resultadosAntes = await prisma.competitionResult.findMany({ where: { competitionId: competicao.id } });
@@ -147,7 +155,7 @@ describe('Competition — finalização (seção 64/79/84/91/103): snapshot imut
   it('rejeita finalizar uma competição que nunca foi ativada', async () => {
     const { vendedor } = await criarFixtureEmpresa();
     const { startsAt, endsAt } = periodoCurto();
-    const competicao = await criarCompetition({ code: `comp-draft-${randomUUID()}`, name: 'C', description: 'd', participantType: 'SELLER', metricType: 'CONSISTENCY', startsAt, endsAt }, vendedor.id);
+    const competicao = await criarCompetition({ empresaId: vendedor.empresaId, code: `comp-draft-${randomUUID()}`, name: 'C', description: 'd', participantType: 'SELLER', metricType: 'CONSISTENCY', startsAt, endsAt }, vendedor.id);
     await expect(finalizarCompetition(competicao.id, vendedor.id)).rejects.toThrow(CompeticoesError);
   });
 });

@@ -4,8 +4,21 @@ import { createSyncErpWorker, agendarSyncHorario } from './queues/sync-erp.queue
 import { createFechamentoDiaWorker, agendarFechamentoDiario } from './queues/fechamento-dia.queue';
 import { createTrainingIntelligenceWorker } from './queues/training-intelligence.queue';
 import { createTemporadasWorker, agendarProcessamentoTemporadas } from './queues/temporadas.queue';
+import { prisma } from './db';
+
+/** Batida do worker (T6): a API mostra no Admin se o processador de tarefas está vivo. */
+async function baterCoracao() {
+  try {
+    await prisma.workerHeartbeat.upsert({ where: { nome: 'worker' }, create: { nome: 'worker', ultimoEm: new Date(), info: { pid: process.pid } }, update: { ultimoEm: new Date(), info: { pid: process.pid } } });
+  } catch (err) {
+    logger.error({ err }, 'falha ao registrar batida do worker');
+  }
+}
 
 async function main() {
+  await baterCoracao();
+  setInterval(baterCoracao, 60_000).unref();
+
   const syncWorker = createSyncErpWorker();
   syncWorker.on('completed', (job) => logger.info({ jobId: job.id }, 'job de sync concluído'));
   syncWorker.on('failed', (job, err) => logger.error({ jobId: job?.id, err: err.message }, 'job de sync falhou'));
@@ -25,7 +38,7 @@ async function main() {
   temporadasWorker.on('failed', (job, err) => logger.error({ jobId: job?.id, err: err.message }, 'job de temporadas/competições falhou'));
   await agendarProcessamentoTemporadas();
 
-  logger.info({ erpMode: env.ERP_MODE }, 'worker rodando — sync horário, fechamento diário, Training Intelligence e temporadas/competições agendados');
+  logger.info({ syncCron: env.ERP_SYNC_CRON }, 'worker rodando — sync de vendas, fechamento diário, Training Intelligence e temporadas/competições agendados');
 }
 
 main().catch((err) => {

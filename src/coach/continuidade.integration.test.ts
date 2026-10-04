@@ -29,6 +29,7 @@ import { criarNovaConversa, getOrCreateConversaAtual } from './conversation.serv
 async function conquistaReal(fixture: Awaited<ReturnType<typeof criarFixtureEmpresa>>, nome = 'Certificação de Abordagem') {
   return prisma.feedEvent.create({
     data: {
+      empresaId: fixture.loja.empresaId,
       lojaId: fixture.loja.id,
       subjectId: fixture.vendedor.id,
       eventType: 'CERTIFICATION_ISSUED',

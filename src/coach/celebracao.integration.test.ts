@@ -42,6 +42,7 @@ describe('TESTE CRÍTICO #4 — celebração vem de fato real, nunca inventada',
     const { empresa, vendedor, loja } = await criarFixtureEmpresa();
     await prisma.feedEvent.create({
       data: {
+        empresaId: loja.empresaId,
         lojaId: loja.id,
         subjectId: vendedor.id,
         eventType: 'CERTIFICATION_ISSUED',
@@ -78,7 +79,7 @@ describe('TESTE CRÍTICO #4 — celebração vem de fato real, nunca inventada',
   it('CELEBRAR não puxa contexto comercial — parabéns não vem emendado com cobrança', async () => {
     const { vendedor, loja } = await criarFixtureEmpresa();
     await prisma.feedEvent.create({
-      data: { lojaId: loja.id, subjectId: vendedor.id, eventType: 'PDI_COMPLETED', visibility: 'STORE', sourceType: 'DEVELOPMENT_PLAN', sourceId: randomUUID(), templateData: { competencyName: 'Fechamento' } },
+      data: { empresaId: loja.empresaId, lojaId: loja.id, subjectId: vendedor.id, eventType: 'PDI_COMPLETED', visibility: 'STORE', sourceType: 'DEVELOPMENT_PLAN', sourceId: randomUUID(), templateData: { competencyName: 'Fechamento' } },
     });
 
     const contexto = await buildCoachContext(vendedor.id, decidirPertinencia('CELEBRACAO', null, 'LLM'));
@@ -95,7 +96,7 @@ describe('TESTE CRÍTICO #4 — celebração vem de fato real, nunca inventada',
     const a = await criarFixtureEmpresa();
     const b = await criarFixtureEmpresa();
     await prisma.feedEvent.create({
-      data: { lojaId: a.loja.id, subjectId: a.vendedor.id, eventType: 'CERTIFICATION_ISSUED', visibility: 'STORE', sourceType: 'USER_CERTIFICATION', sourceId: randomUUID(), templateData: { certificationName: 'Só do A' } },
+      data: { empresaId: a.loja.empresaId, lojaId: a.loja.id, subjectId: a.vendedor.id, eventType: 'CERTIFICATION_ISSUED', visibility: 'STORE', sourceType: 'USER_CERTIFICATION', sourceId: randomUUID(), templateData: { certificationName: 'Só do A' } },
     });
 
     expect(await listarSinaisPositivosDoVendedor(b.vendedor.id)).toEqual([]);
@@ -105,6 +106,7 @@ describe('TESTE CRÍTICO #4 — celebração vem de fato real, nunca inventada',
     const { vendedor, loja } = await criarFixtureEmpresa();
     await prisma.feedEvent.create({
       data: {
+        empresaId: loja.empresaId,
         lojaId: loja.id,
         subjectId: vendedor.id,
         eventType: 'CERTIFICATION_ISSUED',

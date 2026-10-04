@@ -1,5 +1,8 @@
 import { PeriodoMeta, TipoMeta } from '@prisma/client';
+import { TZ_PADRAO, diaLocal, diaDaSemana, inicioDoDiaLocal, instanteDoDia, mesLocal, somarDias } from '../tempo/dia';
 import { prisma } from '../db';
+import { timezoneDaEmpresa } from '../tempo/empresa';
+import { metaDiariaDerivada, metasDoMesEmLote } from '../fase1/metas.service';
 
 // PREMISSA A VALIDAR contra o contrato real do Linx (ver TODO em linx-client.ts):
 // cada `indicador_realizado` representa o "acumulado do dia até aquela hora"
@@ -7,31 +10,32 @@ import { prisma } from '../db';
 // Por isso o realizado do dia é o snapshot mais recente do dia, e o realizado
 // da semana/mês é a soma dos "fechamentos" (snapshot mais recente de cada dia).
 
-export function inicioDoDia(data: Date): Date {
-  const d = new Date(data);
-  d.setHours(0, 0, 0, 0);
-  return d;
+// Fase 1 (convergência): o "dia" é SEMPRE o dia local do fuso da empresa
+// (src/tempo). Antes usava `setHours(0)` = fuso do PROCESSO — num container
+// em UTC, 21h de Pernambuco virava "amanhã". O parâmetro `tz` tem padrão
+// Brasília (fuso de todas as empresas existentes); o caminho da Fase 1 passa
+// o fuso da empresa explicitamente.
+export function inicioDoDia(data: Date, tz: string = TZ_PADRAO): Date {
+  return inicioDoDiaLocal(data, tz);
 }
 
-/** Data no formato YYYY-MM-DD — usado em idempotencyKeys em vários módulos de gamificação. */
-export function dataISO(data: Date): string {
-  return inicioDoDia(data).toISOString().slice(0, 10);
+/** Data no formato YYYY-MM-DD (dia LOCAL) — usado em idempotencyKeys em vários módulos de gamificação. */
+export function dataISO(data: Date, tz: string = TZ_PADRAO): string {
+  return diaLocal(data, tz);
 }
 
-export function inicioDaSemana(data: Date): Date {
-  const d = inicioDoDia(data);
-  const diaSemana = d.getDay(); // 0 = domingo
-  d.setDate(d.getDate() - diaSemana);
-  return d;
+/** Domingo da semana (convenção legada de metas SEMANA). */
+export function inicioDaSemana(data: Date, tz: string = TZ_PADRAO): Date {
+  const dia = diaLocal(data, tz);
+  const domingo = somarDias(dia, -(diaDaSemana(dia) % 7));
+  return instanteDoDia(domingo, tz);
 }
 
-export function inicioDoMes(data: Date): Date {
-  const d = inicioDoDia(data);
-  d.setDate(1);
-  return d;
+export function inicioDoMes(data: Date, tz: string = TZ_PADRAO): Date {
+  return instanteDoDia(`${mesLocal(data, tz)}-01`, tz);
 }
 
-export async function realizadoNoPeriodo(vendedorId: string, desde: Date, ate: Date) {
+export async function realizadoNoPeriodo(vendedorId: string, desde: Date, ate: Date, tz: string = TZ_PADRAO) {
   const snapshots = await prisma.indicadorRealizado.findMany({
     where: { vendedorId, dataHora: { gte: desde, lte: ate } },
     orderBy: { dataHora: 'asc' },
@@ -40,7 +44,7 @@ export async function realizadoNoPeriodo(vendedorId: string, desde: Date, ate: D
   // agrupa por dia e pega o último snapshot de cada dia (fechamento do dia)
   const fechamentoPorDia = new Map<string, (typeof snapshots)[number]>();
   for (const s of snapshots) {
-    const chave = inicioDoDia(s.dataHora).toISOString();
+    const chave = dataISO(s.dataHora, tz);
     fechamentoPorDia.set(chave, s); // como está em ordem asc, o último grava por cima
   }
 
@@ -78,6 +82,17 @@ export async function ultimaSincronizacao(vendedorId: string): Promise<Date | nu
 }
 
 export async function metaDoPeriodo(vendedorId: string, tipo: TipoMeta, periodo: PeriodoMeta, referencia: Date) {
+  // Fase 1 (D6): meta DIÁRIA de faturamento é DERIVADA (mensal ÷ dias
+  // previstos). Linha DIA explícita só vale como legado, quando não há base
+  // para derivar — nunca as duas competindo.
+  if (tipo === 'FATURAMENTO' && periodo === 'DIA') {
+    const vendedor = await prisma.vendedor.findUnique({ where: { id: vendedorId }, select: { empresaId: true } });
+    if (vendedor) {
+      const tz = await timezoneDaEmpresa(vendedor.empresaId);
+      const derivada = await metaDiariaDerivada(vendedorId, mesLocal(referencia, tz), tz);
+      if (derivada !== null) return derivada;
+    }
+  }
   const meta = await prisma.meta.findUnique({
     where: { vendedorId_tipo_periodo_referencia: { vendedorId, tipo, periodo, referencia } },
   });
@@ -144,7 +159,19 @@ export async function realizadoNoPeriodoEmLote(vendedorIds: string[], desde: Dat
 export async function metaDoPeriodoEmLote(vendedorIds: string[], tipo: TipoMeta, periodo: PeriodoMeta, referencia: Date): Promise<Map<string, number>> {
   if (vendedorIds.length === 0) return new Map();
   const metas = await prisma.meta.findMany({ where: { vendedorId: { in: vendedorIds }, tipo, periodo, referencia } });
-  return new Map(metas.map((m) => [m.vendedorId, Number(m.valorMeta)]));
+  const resultado = new Map(metas.map((m) => [m.vendedorId, Number(m.valorMeta)]));
+  // Fase 1 (D6): derivada tem precedência sobre a linha DIA legada.
+  if (tipo === 'FATURAMENTO' && periodo === 'DIA') {
+    const vendedores = await prisma.vendedor.findMany({ where: { id: { in: vendedorIds } }, select: { id: true, empresaId: true } });
+    const porEmpresa = new Map<string, string[]>();
+    for (const v of vendedores) porEmpresa.set(v.empresaId, [...(porEmpresa.get(v.empresaId) ?? []), v.id]);
+    for (const [empresaId, ids] of porEmpresa) {
+      const tz = await timezoneDaEmpresa(empresaId);
+      const derivadas = await metasDoMesEmLote(ids, mesLocal(referencia, tz), tz);
+      for (const [id, m] of derivadas) if (m.diaria !== null) resultado.set(id, m.diaria);
+    }
+  }
+  return resultado;
 }
 
 export interface ProgressoPeriodo {
