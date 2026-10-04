@@ -65,6 +65,25 @@ app.seudominio.com.br {
 }
 ```
 
+### HTTPS — validado em ambiente controlado (2026-10-04)
+
+Executado com a stack de produção + Caddy (`local_certs`, CA local, sem domínio
+nem DNS), cadeia Caddy → nginx → API, `TRUST_PROXY_HOPS=2`:
+
+| Verificação | Resultado |
+|---|---|
+| Certificado | cadeia validada contra a CA (`curl --cacert`, `openssl s_client`: *Verify return code 0*), SAN `localhost`; sem a CA o cliente recusa |
+| HTTP → HTTPS | 308 |
+| Headers do PWA | HSTS, CSP, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`; `index.html`/`sw.js` sem cache |
+| Manifest | `application/manifest+json` (corrigido nesta rodada; antes `octet-stream`) |
+| API via proxy | `/api/health`, `/api/health/deep` 200; login devolve token no corpo, **nenhum cookie** |
+| CORS | origem estranha sem `Access-Control-Allow-Origin`; origem do app permitida |
+| IP real | o Caddy descarta `X-Forwarded-For` forjado e envia o IP do cliente; com 2 saltos o Express chega ao cliente; 12 logins com XFF forjados → 429 a partir do 10º (o forjado não cria balde novo) |
+| Serviços internos | api, postgres, redis e worker sem porta no host |
+| PWA sob HTTPS | contexto seguro, service worker controlando, login, reload, sem conteúdo misto, sem erro no console (Chromium confiando só na chave deste certificado) |
+
+Depende do servidor real: certificado público (Let's Encrypt via Caddy) e DNS.
+
 ## 5. Backup e restauração
 
 ```bash
@@ -75,6 +94,26 @@ docker compose exec -T postgres pg_dump -U vendedor_app -Fc app_vendedor_sapatin
 # restauração (para um banco novo/vazio)
 docker compose exec -T postgres pg_restore -U vendedor_app -d app_vendedor_sapatinho --clean --if-exists \
   < /backup/vendedor-AAAA-MM-DD.dump
+```
+
+**Procedimento validado (2026-10-04, banco controlado na stack de produção):**
+banco carregado com dados conhecidos (2 empresas, 4 lojas, 10 pessoas, 23 vendas,
+4 cancelamentos, metas, ledger de XP/VendaCoins, campanhas, missão, competições,
+auditoria) → impressão digital (contagem + hash do conteúdo de 15 tabelas,
+saldos do ledger, 165 constraints, 267 índices, 30 migrations) → `pg_dump -Fc` →
+(a) corrupção parcial e (b) `DROP DATABASE` → `pg_restore --clean --if-exists` →
+impressão **idêntica** nos dois casos. Banco restaurado utilizável:
+`prisma migrate status` "up to date", unique de idempotência do ledger recusando
+duplicata e o painel de uma vendedora montado pela aplicação com hash idêntico
+ao do banco original.
+
+Verificar um backup sem tocar no banco de produção:
+
+```bash
+docker compose exec -T postgres psql -U vendedor_app -d postgres -c "CREATE DATABASE restore_teste"
+docker compose exec -T postgres pg_restore -U vendedor_app -d restore_teste < /backup/vendedor-AAAA-MM-DD.dump
+docker compose exec -T postgres psql -U vendedor_app -d restore_teste -c "select count(*) from venda"
+docker compose exec -T postgres psql -U vendedor_app -d postgres -c "DROP DATABASE restore_teste"
 ```
 
 Guardar junto (fora do servidor): o `.env` (principalmente
