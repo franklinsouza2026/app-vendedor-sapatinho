@@ -167,10 +167,10 @@ describe('PDI — etapas trazem título e destino (Etapa 2A)', () => {
     }
   });
 
-  it('REGRESSÃO: todo destino de etapa existe de verdade no App.tsx', async () => {
+  it('REGRESSÃO: todo destino de etapa existe de verdade nas rotas legadas (legado/RotasLegado.tsx)', async () => {
     // Mesma classe de erro dos 5 href quebrados do "Para Você": o app não tem
     // rota curinga, então um destino inventado leva a TELA EM BRANCO.
-    const appTsx = readFileSync(join(__dirname, '../../web/src/App.tsx'), 'utf8');
+    const appTsx = readFileSync(join(__dirname, '../../web/src/legado/RotasLegado.tsx'), 'utf8');
     const rotas = [...appTsx.matchAll(/path="([^"]+)"/g)].map((m) => m[1]);
     expect(rotas.length).toBeGreaterThan(10); // sanidade: leu o arquivo mesmo
 
@@ -209,7 +209,7 @@ describe('PDI — etapas trazem título e destino (Etapa 2A)', () => {
 
     for (const item of plano.itens) {
       if (!item.href) continue;
-      expect(rotas, `destino "${item.href}" (item ${item.tipo}) não existe em App.tsx`).toContain(item.href.split('?')[0]);
+      expect(rotas, `destino "${item.href}" (item ${item.tipo}) não existe em RotasLegado.tsx`).toContain(item.href.split('?')[0]);
     }
   });
 

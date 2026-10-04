@@ -8,14 +8,13 @@
  * conhece missões de treinamento (actionType → Treinador/Academia...).
  */
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { useFase1 } from '../demo/Fase1Contexto';
+import { useFase1 } from '../contexto';
 import type { Competicao, Fase1Dados } from '../dominio/tipos';
 import { faltaMissao } from '../dominio/alvos';
 import { CardMissao } from '../componentes/blocos';
 import { Abas, AvisoProvisorio, CabecalhoTela, Medalha, Painel, Pilula, Vazio } from '../componentes/ui';
 import { dataCurta, decimal, inteiro, periodo, plural, tempoRestante } from '../formato';
 import { Fase1Pagina } from './Fase1Pagina';
-import { useSimularMissao } from '../demo/simulacao';
 
 type Aba = 'missoes' | 'competicoes' | 'campanha';
 
@@ -57,7 +56,7 @@ export function Desafios() {
 
 function Missoes() {
   const { dados } = useFase1();
-  const simular = useSimularMissao();
+  const { simularMissao } = useFase1();
   if (dados.missoes.length === 0) {
     return <Vazio icone="🎯" titulo="Nenhuma missão ativa agora" texto="Quando a loja lançar uma missão, ela aparece aqui com o objetivo e a recompensa." />;
   }
@@ -72,7 +71,7 @@ function Missoes() {
             Em andamento · {abertas.length}
           </h2>
           {abertas.map((m) => (
-            <CardMissao key={m.id} missao={m} onSimular={() => simular(m)} para={`/fase1/desafios/missao/${m.id}`} />
+            <CardMissao key={m.id} missao={m} onSimular={simularMissao ? () => simularMissao(m) : undefined} para={`/desafios/missao/${m.id}`} />
           ))}
         </section>
       )}
@@ -82,7 +81,7 @@ function Missoes() {
             Concluídas
           </h2>
           {concluidas.map((m) => (
-            <CardMissao key={m.id} missao={m} para={`/fase1/desafios/missao/${m.id}`} />
+            <CardMissao key={m.id} missao={m} para={`/desafios/missao/${m.id}`} />
           ))}
         </section>
       )}
@@ -96,7 +95,9 @@ function Missoes() {
 const ROTULO_FORMATO: Record<Competicao['formato'], string> = { MENSAL: 'Mensal', SEMANAL: 'Semanal', ESPECIAL: 'Especial' };
 const ROTULO_TIPO: Record<Competicao['tipo'], string> = { VENDEDOR: 'Individual', LOJA: 'Loja × Loja', EVOLUCAO: 'Evolução', CATEGORIA: 'Categoria' };
 
-function valorCompeticao(c: Competicao, v: number): string {
+function valorCompeticao(c: Competicao, v: number | null): string {
+  // Valor financeiro de colega nunca chega ao app (privacidade).
+  if (v === null) return '•••';
   switch (c.unidade) {
     case 'vendas':
       return plural(v, 'venda');
@@ -151,18 +152,20 @@ function Competicoes() {
 function MinhaPosicaoCompeticao({ c }: { c: Competicao }) {
   const i = c.participantes.findIndex((p) => p.id === c.meuId);
   const minha = i >= 0 ? c.participantes[i] : null;
-  const acima = i > 0 ? c.participantes[i - 1] : null;
+  const minhaPosicao = minha ? (minha.posicao ?? i + 1) : 0;
+  // Acima = o último participante com posição melhor que a minha (empate = mesma posição).
+  const acima = minha ? ([...c.participantes].filter((p) => (p.posicao ?? c.participantes.indexOf(p) + 1) < minhaPosicao).pop() ?? null) : null;
   const ehLoja = c.tipo === 'LOJA';
   if (c.status === 'PROXIMA') return null;
   if (!minha) return c.status === 'ATIVA' ? <p className="mt-3 text-sm text-slate-400">Você não participa desta competição.</p> : null;
   return (
     <div className="mt-3 rounded-xl bg-slate-800/80 p-3">
       <p className="text-sm text-slate-300">
-        {ehLoja ? 'Sua loja' : 'Você'} {c.status === 'ENCERRADA' ? 'terminou em' : 'está em'} <strong className="text-xl text-white">{i + 1}º lugar</strong> de {c.participantes.length} · {valorCompeticao(c, minha.valor)}
+        {ehLoja ? 'Sua loja' : 'Você'} {c.status === 'ENCERRADA' ? 'terminou em' : 'está em'} <strong className="text-xl text-white">{minhaPosicao}º lugar</strong> de {c.participantes.length} · {valorCompeticao(c, minha.valor)}
       </p>
-      {c.status === 'ATIVA' && acima && (
+      {c.status === 'ATIVA' && acima && acima.valor !== null && minha.valor !== null && (
         <p className="mt-1 text-sm text-slate-300">
-          Faltam <strong className="text-white">{distanciaCompeticao(c, acima.valor - minha.valor)}</strong> para {i === 1 ? 'alcançar a liderança' : `alcançar ${acima.nome.split(' ')[0]} (${i}º lugar)`}.
+          Faltam <strong className="text-white">{distanciaCompeticao(c, acima.valor - minha.valor)}</strong> para {(acima.posicao ?? 1) === 1 ? 'alcançar a liderança' : `alcançar ${acima.nome.split(' ')[0]} (${acima.posicao}º lugar)`}.
         </p>
       )}
       {c.status === 'ATIVA' && !acima && <p className="mt-1 text-sm text-emerald-300">🏆 {ehLoja ? 'Sua loja está em 1º lugar.' : 'Você está em 1º lugar.'}</p>}
@@ -187,7 +190,7 @@ function CardCompeticao({ c, dados }: { c: Competicao; dados: Fase1Dados }) {
         <span className="sr-only">Prêmio: </span>
         {c.premio}
       </p>
-      <Link to={`/fase1/desafios/competicao/${c.id}`} className="mt-2 inline-flex min-h-[44px] items-center text-sm font-semibold text-accentSoft">
+      <Link to={`/desafios/competicao/${c.id}`} className="mt-2 inline-flex min-h-[44px] items-center text-sm font-semibold text-accentSoft">
         Ver detalhes e classificação →
       </Link>
     </Painel>
@@ -200,7 +203,7 @@ export function DetalheCompeticao() {
   const c = dados.competicoes.find((x) => x.id === id);
   return (
     <Fase1Pagina carregando="Carregando competição...">
-      <CabecalhoTela titulo={c?.nome ?? 'Competição não encontrada'} voltar="/fase1/desafios?aba=competicoes" />
+      <CabecalhoTela titulo={c?.nome ?? 'Competição não encontrada'} voltar="/desafios?aba=competicoes" />
       {!c ? (
         <Vazio icone="🏁" titulo="Essa competição não está mais disponível" texto="Ela pode ter sido encerrada ou cancelada. Volte para ver as competições ativas." />
       ) : (
@@ -226,7 +229,7 @@ export function DetalheCompeticao() {
                   const eu = p.id === c.meuId;
                   return (
                     <li key={p.id} aria-current={eu ? 'true' : undefined} className={`flex min-h-[48px] items-center gap-2 px-3 py-2 text-sm ${eu ? 'bg-accent/15' : ''}`}>
-                      <Medalha posicao={pos + 1} />
+                      <Medalha posicao={p.posicao ?? pos + 1} />
                       <span className={`min-w-0 flex-1 truncate ${eu ? 'font-bold text-accentSoft' : 'text-slate-200'}`}>{eu && c.tipo !== 'LOJA' ? 'Você' : p.nome}</span>
                       <span className="shrink-0 font-semibold text-white">{valorCompeticao(c, p.valor)}</span>
                     </li>
@@ -244,17 +247,17 @@ export function DetalheCompeticao() {
 export function DetalheMissao() {
   const { id } = useParams();
   const { dados } = useFase1();
-  const simular = useSimularMissao();
+  const { simularMissao } = useFase1();
   const m = dados.missoes.find((x) => x.id === id);
   return (
     <Fase1Pagina carregando="Carregando missão...">
-      <CabecalhoTela titulo={m?.titulo ?? 'Missão não encontrada'} voltar="/fase1/desafios" />
+      <CabecalhoTela titulo={m?.titulo ?? 'Missão não encontrada'} voltar="/desafios" />
       {!m ? (
         <Vazio icone="🎯" titulo="Essa missão não está mais ativa" texto="Ela pode ter terminado ou sido cancelada. Volte para ver as missões de hoje." />
       ) : (
         <>
           {!m.concluidaEm && <p className="-mt-2 text-sm font-medium text-amber-200">⏱ {tempoRestante(m.terminaEm, dados.agora)}</p>}
-          <CardMissao missao={m} onSimular={() => simular(m)} />
+          <CardMissao missao={m} onSimular={simularMissao ? () => simularMissao(m) : undefined} />
           <Painel rotulo="Como conta">
             <h2 className="text-sm font-bold text-white">O que conta para o progresso</h2>
             <p className="mt-1 text-sm text-slate-300">{m.regra ?? m.descricao}</p>
@@ -299,7 +302,7 @@ function CampanhaAba() {
                     <p className="mt-2 text-sm font-semibold text-white">{f.situacao}</p>
                     <p className="mt-1 text-xs text-slate-300">🎁 {f.premio}</p>
                     {f.competicaoId && (
-                      <Link to={`/fase1/desafios/competicao/${f.competicaoId}`} className="mt-1 inline-flex min-h-[44px] items-center text-sm font-semibold text-accentSoft">
+                      <Link to={`/desafios/competicao/${f.competicaoId}`} className="mt-1 inline-flex min-h-[44px] items-center text-sm font-semibold text-accentSoft">
                         Ver classificação →
                       </Link>
                     )}

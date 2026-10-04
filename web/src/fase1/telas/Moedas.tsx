@@ -3,7 +3,7 @@
  * Sem conversão financeira e sem valor em R$: isso é decisão de política,
  * não de tela. O ledger real não é tocado.
  */
-import { useFase1 } from '../demo/Fase1Contexto';
+import { useFase1 } from '../contexto';
 import { AvisoProvisorio, CabecalhoTela, Painel, TituloSecao, Vazio } from '../componentes/ui';
 import { dataCurta, inteiro } from '../formato';
 import { Fase1Pagina } from './Fase1Pagina';
@@ -19,7 +19,7 @@ export function Moedas() {
   const ganhosMes = dados.moedas.historico.filter((e) => e.valor > 0 && e.quando.startsWith(dados.agora.slice(0, 7))).reduce((a, e) => a + e.valor, 0);
   return (
     <Fase1Pagina carregando="Carregando suas VendaCoins...">
-      <CabecalhoTela titulo="VendaCoins" subtitulo="Sua moeda de recompensa." voltar="/fase1/perfil" />
+      <CabecalhoTela titulo="VendaCoins" subtitulo="Sua moeda de recompensa." voltar="/perfil" />
       <Painel destaque rotulo="Saldo">
         <p className="text-xs font-semibold uppercase tracking-wider text-slate-300">Saldo</p>
         <p className="text-5xl font-extrabold text-amber-200">

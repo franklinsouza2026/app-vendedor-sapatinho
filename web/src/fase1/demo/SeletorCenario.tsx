@@ -5,10 +5,10 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { CELEBRACOES_DEMO, CENARIOS } from './cenarios';
-import { useFase1 } from './Fase1Contexto';
+import { useDemo } from './Fase1Contexto';
 
 export function SeletorCenario() {
-  const { cenario, trocarCenario, celebrar } = useFase1();
+  const { cenario, trocarCenario, celebrar } = useDemo();
   const [aberto, setAberto] = useState(false);
   const fechar = useRef<HTMLButtonElement>(null);
 

@@ -5,7 +5,7 @@
  */
 import { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import type { StatusCiclo } from '../demo/estado';
+import type { StatusCiclo } from './tiposAdmin';
 import { ROTULO_STATUS, type ItemValidacao } from '../dominio/admin';
 
 export function TituloPagina({ titulo, descricao, acoes, voltar }: { titulo: string; descricao?: string; acoes?: ReactNode; voltar?: { para: string; texto: string } }) {

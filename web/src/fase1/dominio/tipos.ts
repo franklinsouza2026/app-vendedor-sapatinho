@@ -1,10 +1,9 @@
 /**
  * Contrato de dados da Fase 1 — Performance & Game.
  *
- * É o formato que as telas consomem. Hoje é preenchido por `demo/cenarios.ts`
- * (mock determinístico); na etapa de conexão, cada campo passa a vir de um
- * endpoint real — o mapa campo → endpoint está em
- * `docs/FASE-1-MAPA-FRONTEND-BACKEND.md`. As telas NÃO devem conhecer a origem.
+ * É o formato que as telas consomem. Em produção vem INTEIRO do servidor
+ * (GET /app/painel — src/fase1/painel/painel.service.ts); nos testes de
+ * interface, de `demo/cenarios.ts`. As telas NÃO conhecem a origem.
  *
  * Valores DERIVADOS (percentual, falta, vendas estimadas, pares, ritmo,
  * distância no ranking) não ficam aqui: são calculados em `estimativas.ts`,
@@ -44,18 +43,29 @@ export interface PeriodoMes extends PeriodoMeta {
   diasTrabalhados: number;
 }
 
-/** Linha bruta de ranking: só o valor da métrica. Posição e distância são derivadas. */
+/**
+ * Linha de ranking como o SERVIDOR entrega (D9): posição já com desempate
+ * (faturamento → acessos no mês → ticket → empate). Privacidade: `valor` de
+ * métrica financeira de colega vem null; `distanciaAcima` só na própria linha.
+ */
 export interface LinhaRankingBruta {
   pessoaId: string;
-  valor: number;
+  valor: number | null;
+  /** Posição calculada no servidor (empate = mesma posição). Ausente só em dado legado de demonstração. */
+  posicao?: number;
   /** Posição no período comparável anterior — para mostrar ↑↓. null = não estava no ranking. */
   posicaoAnterior: number | null;
+  /** Só na linha de quem está vendo: quanto falta para a linha imediatamente acima. */
+  distanciaAcima?: number | null;
+  empatado?: boolean;
 }
 
 export interface LinhaRankingLoja {
   lojaId: string;
   pontos: number;
+  posicao?: number;
   posicaoAnterior: number | null;
+  distanciaAcima?: number | null;
 }
 
 export type TipoMissao = 'DIARIA' | 'SEMANAL' | 'CATEGORIA' | 'PERFORMANCE' | 'CONSISTENCIA' | 'PRODUTO_SEMANA' | 'PONTA_ESTOQUE';
@@ -103,8 +113,8 @@ export interface Competicao {
   terminaEm: string;
   status: 'ATIVA' | 'PROXIMA' | 'ENCERRADA';
   premio: string;
-  /** Participantes já ordenados (pessoas ou lojas, conforme `tipo`). */
-  participantes: { id: string; nome: string; valor: number }[];
+  /** Participantes já ordenados (pessoas ou lojas, conforme `tipo`). `valor` null = valor financeiro de colega (privacidade). */
+  participantes: { id: string; nome: string; valor: number | null; posicao?: number }[];
   /** id do participante que representa o vendedor (ele mesmo ou a loja dele). */
   meuId: string;
 }
@@ -242,8 +252,12 @@ export interface Fase1Dados {
     loja: Record<Metrica, LinhaRankingBruta[]>;
     geral: Record<Metrica, LinhaRankingBruta[]>;
     lojas: LinhaRankingLoja[];
+    /** Médias calculadas no servidor (null = grupo pequeno demais para mostrar sem expor colegas). */
+    medias?: { loja: Record<Metrica, number | null>; geral: Record<Metrica, number | null> };
   };
   xp: { total: number; historico: EventoXp[] };
+  /** Nível calculado no SERVIDOR (fonte única da curva de níveis). */
+  nivel: NivelDados;
   moedas: { saldo: number; historico: EventoMoedas[] };
   sequencia: { atual: number; maior: number; criterio: string };
   missoes: Missao[];
@@ -266,6 +280,16 @@ export interface Fase1Dados {
   metricasRanking: Metrica[];
   metricaCorrida: Metrica;
   elegibilidade: { elegivel: boolean; motivo: string | null };
+}
+
+export interface NivelDados {
+  nivel: number;
+  nome: string;
+  xpInicioNivel: number;
+  proximo: { nivel: number; nome: string; xpMinimo: number } | null;
+  faltaXp: number | null;
+  progresso: number;
+  niveis: { nivel: number; nome: string; xpMinimo: number }[];
 }
 
 export type IndicadorVendedor = 'VENDAS' | 'QTD_VENDAS' | 'PARES' | 'TICKET' | 'PA' | 'PERCENTUAL_META' | 'SCORE' | 'EVOLUCAO' | 'CONSISTENCIA' | 'CONVERSAO';

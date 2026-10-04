@@ -4,15 +4,13 @@
  * o que posso conquistar → o que está acontecendo.
  */
 import { Link } from 'react-router-dom';
-import { useFase1 } from '../demo/Fase1Contexto';
+import { useFase1 } from '../contexto';
 import { derivarAlvos } from '../dominio/alvos';
 import { priorizarAlvos, vocePerto } from '../dominio/proximoAlvo';
-import { calcularNivel } from '../dominio/niveis';
 import { CardMetaHoje, CardMissao, CorridaMes, MinhaCorrida, NotaTicket, ProximoAlvo, VocePerto } from '../componentes/blocos';
 import { Painel, TituloSecao } from '../componentes/ui';
 import { dataPorExtenso, haQuanto, hora, inteiro, saudacao, tempoRestante } from '../formato';
 import { Fase1Pagina } from './Fase1Pagina';
-import { useSimularMissao } from '../demo/simulacao';
 
 export function Inicio() {
   return (
@@ -24,9 +22,9 @@ export function Inicio() {
 
 function ConteudoInicio() {
   const { dados } = useFase1();
-  const simular = useSimularMissao();
+  const { simularMissao } = useFase1();
   const campanha = dados.campanhas.find((c) => c.status === 'ATIVA') ?? null;
-  const nivel = calcularNivel(dados.xp.total);
+  const nivel = dados.nivel;
   const loja = dados.lojas.find((l) => l.id === dados.vendedor.lojaId)!;
   const alvos = priorizarAlvos(derivarAlvos(dados));
   const principal = alvos[0] ?? null;
@@ -49,16 +47,16 @@ function ConteudoInicio() {
           {dados.vendedor.empresa} • {loja.nome}
         </p>
         <nav aria-label="Seu progresso" className="mt-3 flex flex-wrap gap-2 max-[359px]:gap-1.5">
-          <Link to="/fase1/progresso" className="flex min-h-[40px] items-center gap-1.5 rounded-full bg-surface px-3 text-sm ring-1 ring-slate-700 max-[359px]:px-2">
+          <Link to="/progresso" className="flex min-h-[40px] items-center gap-1.5 rounded-full bg-surface px-3 text-sm ring-1 ring-slate-700 max-[359px]:px-2">
             <span aria-hidden="true">⭐</span>
             <span className="font-semibold text-white">{nivel.nome}</span>
             <span className="text-slate-400">· nível {nivel.nivel}</span>
           </Link>
-          <Link to="/fase1/progresso" className="flex min-h-[40px] items-center gap-1.5 rounded-full bg-surface px-3 text-sm ring-1 ring-slate-700 max-[359px]:px-2">
+          <Link to="/progresso" className="flex min-h-[40px] items-center gap-1.5 rounded-full bg-surface px-3 text-sm ring-1 ring-slate-700 max-[359px]:px-2">
             <span className="font-semibold text-white">{inteiro(dados.xp.total)}</span>
             <span className="text-slate-400">XP</span>
           </Link>
-          <Link to="/fase1/moedas" className="flex min-h-[40px] items-center gap-1.5 rounded-full bg-surface px-3 text-sm ring-1 ring-slate-700 max-[359px]:px-2">
+          <Link to="/moedas" className="flex min-h-[40px] items-center gap-1.5 rounded-full bg-surface px-3 text-sm ring-1 ring-slate-700 max-[359px]:px-2">
             <span aria-hidden="true">🪙</span>
             <span className="font-semibold text-white">{inteiro(dados.moedas.saldo)}</span>
             <span className="sr-only">VendaCoins</span>
@@ -89,7 +87,7 @@ function ConteudoInicio() {
               </li>
             ))}
           </ul>
-          <Link to="/fase1/desafios?aba=campanha" className="mt-3 inline-flex min-h-[44px] items-center text-sm font-medium text-accentSoft">
+          <Link to="/desafios?aba=campanha" className="mt-3 inline-flex min-h-[44px] items-center text-sm font-medium text-accentSoft">
             Ver regras e prêmios →
           </Link>
         </Painel>
@@ -101,19 +99,19 @@ function ConteudoInicio() {
 
       {missoesAbertas.length > 0 && (
         <section aria-labelledby="missoes-home">
-          <TituloSecao acao={{ para: '/fase1/desafios', texto: 'Todas' }}>
+          <TituloSecao acao={{ para: '/desafios', texto: 'Todas' }}>
             <span id="missoes-home">Suas missões</span>
           </TituloSecao>
           <div className="flex flex-col gap-3">
             {missoesAbertas.map((m) => (
-              <CardMissao key={m.id} missao={m} onSimular={() => simular(m)} para={`/fase1/desafios/missao/${m.id}`} />
+              <CardMissao key={m.id} missao={m} onSimular={simularMissao ? () => simularMissao(m) : undefined} para={`/desafios/missao/${m.id}`} />
             ))}
           </div>
         </section>
       )}
 
       {campanha && !dados.campanhaEmDestaque && (
-        <Link to="/fase1/desafios?aba=campanha" className="block">
+        <Link to="/desafios?aba=campanha" className="block">
           <Painel className="flex items-center gap-3 active:opacity-90">
             <span aria-hidden="true" className="text-3xl">
               🏁
@@ -132,7 +130,7 @@ function ConteudoInicio() {
         </Link>
       )}
       {!campanha && dados.campanhas[0]?.status === 'ENCERRADA' && dados.campanhas[0].terminaEm.slice(0, 7) === dados.agora.slice(0, 7) && (
-        <Link to="/fase1/desafios?aba=campanha" className="block">
+        <Link to="/desafios?aba=campanha" className="block">
           <Painel destaque className="active:opacity-90">
             <p className="text-xs font-bold uppercase tracking-wider text-accentSoft">🏁 Campanha encerrada</p>
             <p className="mt-1 text-lg font-bold text-white">{dados.campanhas[0].nome}</p>
@@ -147,7 +145,7 @@ function ConteudoInicio() {
 
       {dados.feed.length > 0 && (
         <section aria-labelledby="feed-home">
-          <TituloSecao acao={{ para: '/fase1/feed', texto: 'Ver tudo' }}>
+          <TituloSecao acao={{ para: '/feed', texto: 'Ver tudo' }}>
             <span id="feed-home">Acontecendo agora</span>
           </TituloSecao>
           <Painel>
@@ -168,7 +166,7 @@ function ConteudoInicio() {
 
       <NotaTicket dados={dados} />
       <p className="text-center text-xs text-slate-400">
-        {dados.status.sincronizadoEm ? `Dados do ERP de ${hora(dados.status.sincronizadoEm)} · atualiza a cada hora` : 'Ainda sem sincronização do ERP hoje.'}
+        {dados.status.sincronizadoEm ? `Dados do ERP de ${hora(dados.status.sincronizadoEm)} · atualiza automaticamente` : 'Ainda sem sincronização do ERP hoje.'}
       </p>
     </>
   );

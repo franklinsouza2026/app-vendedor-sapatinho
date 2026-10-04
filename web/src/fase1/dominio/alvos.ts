@@ -8,7 +8,6 @@
 import type { Alvo, Fase1Dados, Metrica, Missao } from './tipos';
 import { falta, ordenarRanking, ordenarRankingLojas, proximoMarco, UNIDADE_METRICA, vendasEstimadas, type PosicaoCalculada } from './estimativas';
 import type { LinhaRankingBruta, LinhaRankingLoja } from './tipos';
-import { calcularNivel } from './niveis';
 import { distanciaMetrica, plural, reais } from '../formato';
 
 export interface MinhaPosicao {
@@ -76,11 +75,11 @@ export function derivarAlvos(dados: Fase1Dados): Alvo[] {
   const { meta: metaDia, realizado: rDia } = dados.hoje;
   const faltaDia = falta(rDia.faturamento, metaDia);
   if (operando && faltaDia !== null && faltaDia > 0) {
-    alvos.push({ id: 'meta-dia', tipo: 'META_DIA', icone: '🎯', falta: reais(faltaDia), objetivo: 'para bater sua meta de hoje', esforcoVendas: vendasEstimadas(faltaDia, ticket), rota: '/fase1/desempenho' });
+    alvos.push({ id: 'meta-dia', tipo: 'META_DIA', icone: '🎯', falta: reais(faltaDia), objetivo: 'para bater sua meta de hoje', esforcoVendas: vendasEstimadas(faltaDia, ticket), rota: '/desempenho' });
   } else if (operando && faltaDia === 0) {
     const marco = proximoMarco(rDia.faturamento, metaDia);
     if (marco) {
-      alvos.push({ id: 'marco-dia', tipo: 'META_DIA', icone: '🎯', falta: reais(marco.faltaReais), objetivo: `para chegar a ${marco.marco}% da meta de hoje`, esforcoVendas: vendasEstimadas(marco.faltaReais, ticket), rota: '/fase1/desempenho' });
+      alvos.push({ id: 'marco-dia', tipo: 'META_DIA', icone: '🎯', falta: reais(marco.faltaReais), objetivo: `para chegar a ${marco.marco}% da meta de hoje`, esforcoVendas: vendasEstimadas(marco.faltaReais, ticket), rota: '/desempenho' });
     }
   }
 
@@ -90,7 +89,7 @@ export function derivarAlvos(dados: Fase1Dados): Alvo[] {
   if (pos && pos.distanciaAcima !== null && pos.posicao > 1) {
     const alvoPos = pos.posicao - 1;
     const emReais = metrica === 'VENDAS';
-    alvos.push({ id: 'ranking-loja', tipo: 'RANKING', icone: '🏆', falta: emReais ? reais(pos.distanciaAcima) : distanciaMetrica(metrica, pos.distanciaAcima), objetivo: `para alcançar o ${alvoPos}º lugar da loja${emReais ? '' : ` em ${UNIDADE_METRICA[metrica].curto}`}`, esforcoVendas: emReais ? vendasEstimadas(pos.distanciaAcima, ticket) : null, rota: '/fase1/ranking' });
+    alvos.push({ id: 'ranking-loja', tipo: 'RANKING', icone: '🏆', falta: emReais ? reais(pos.distanciaAcima) : distanciaMetrica(metrica, pos.distanciaAcima), objetivo: `para alcançar o ${alvoPos}º lugar da loja${emReais ? '' : ` em ${UNIDADE_METRICA[metrica].curto}`}`, esforcoVendas: emReais ? vendasEstimadas(pos.distanciaAcima, ticket) : null, rota: '/ranking' });
   }
 
   // Missões e desafios em andamento.
@@ -107,21 +106,21 @@ export function derivarAlvos(dados: Fase1Dados): Alvo[] {
       falta: textoUnidade(m.unidade, f),
       objetivo: `para concluir “${m.titulo}”`,
       esforcoVendas,
-      rota: `/fase1/desafios/missao/${m.id}`,
+      rota: `/desafios/missao/${m.id}`,
     });
   }
 
   // Nível — só entra como alvo quando está realmente perto (≤ 200 XP).
-  const nivel = calcularNivel(dados.xp.total);
+  const nivel = dados.nivel;
   if (nivel.proximo && nivel.faltaXp !== null && nivel.faltaXp <= 200) {
-    alvos.push({ id: 'nivel', tipo: 'NIVEL', icone: '⭐', falta: `${nivel.faltaXp} XP`, objetivo: `para subir para ${nivel.proximo.nome}`, esforcoVendas: null, rota: '/fase1/progresso' });
+    alvos.push({ id: 'nivel', tipo: 'NIVEL', icone: '⭐', falta: `${nivel.faltaXp} XP`, objetivo: `para subir para ${nivel.proximo.nome}`, esforcoVendas: null, rota: '/progresso' });
   }
 
   // Recordes em disputa (melhor mês / melhor dia).
   for (const r of dados.recordes) {
     if (r.unidade !== 'reais' || r.atual === null || r.atual >= r.valor) continue;
     const f = r.valor - r.atual;
-    alvos.push({ id: `recorde-${r.tipo}`, tipo: 'RECORDE', icone: '🚀', falta: reais(f), objetivo: r.tipo === 'MELHOR_MES' ? 'para fazer seu melhor mês' : 'para fazer seu melhor dia', esforcoVendas: vendasEstimadas(f, ticket), rota: '/fase1/recordes' });
+    alvos.push({ id: `recorde-${r.tipo}`, tipo: 'RECORDE', icone: '🚀', falta: reais(f), objetivo: r.tipo === 'MELHOR_MES' ? 'para fazer seu melhor mês' : 'para fazer seu melhor dia', esforcoVendas: vendasEstimadas(f, ticket), rota: '/recordes' });
   }
 
   return alvos;

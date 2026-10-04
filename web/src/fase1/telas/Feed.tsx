@@ -4,7 +4,7 @@
  * própria (na Fase 1, quem reconhece é o Admin).
  */
 import { useState } from 'react';
-import { useFase1 } from '../demo/Fase1Contexto';
+import { useFase1 } from '../contexto';
 import { Abas, CabecalhoTela, Painel, Vazio } from '../componentes/ui';
 import { dataCurta, haQuanto } from '../formato';
 import { Fase1Pagina } from './Fase1Pagina';
@@ -14,7 +14,7 @@ export function Feed() {
   const [aba, setAba] = useState<'feed' | 'reconhecimentos'>('feed');
   return (
     <Fase1Pagina carregando="Carregando novidades...">
-      <CabecalhoTela titulo="Acontecendo agora" subtitulo="O que mudou nas corridas e competições." voltar="/fase1/inicio" />
+      <CabecalhoTela titulo="Acontecendo agora" subtitulo="O que mudou nas corridas e competições." voltar="/inicio" />
       <Abas<'feed' | 'reconhecimentos'>
         rotulo="Novidades"
         ativa={aba}

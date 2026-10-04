@@ -1,21 +1,20 @@
 /**
  * Shell do vendedor na Fase 1. Navegação de 5 itens, só com o que a Fase 1
  * entrega — Conselheiro, Universidade, Simulador, Treinador e Academia NÃO
- * aparecem aqui (continuam no código, nas rotas antigas, intocados).
+ * aparecem aqui (continuam no código, desligados no piloto).
  */
 import { useEffect, useState } from 'react';
-import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { useFase1 } from './demo/Fase1Contexto';
-import { SeletorCenario } from './demo/SeletorCenario';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { useFase1 } from './contexto';
 import { Celebracao } from './componentes/Celebracao';
 import { hora } from './formato';
 
 const ITENS = [
-  { para: '/fase1/inicio', icone: '🏠', rotulo: 'Início', tambem: [] as string[] },
-  { para: '/fase1/desempenho', icone: '📊', rotulo: 'Desempenho', tambem: [] },
-  { para: '/fase1/ranking', icone: '🏆', rotulo: 'Ranking', tambem: [] },
-  { para: '/fase1/desafios', icone: '🔥', rotulo: 'Desafios', tambem: [] },
-  { para: '/fase1/perfil', icone: '👤', rotulo: 'Perfil', tambem: ['/fase1/progresso', '/fase1/moedas', '/fase1/conquistas', '/fase1/recordes', '/fase1/reconhecimentos', '/fase1/feed'] },
+  { para: '/inicio', icone: '🏠', rotulo: 'Início', tambem: [] as string[] },
+  { para: '/desempenho', icone: '📊', rotulo: 'Desempenho', tambem: [] },
+  { para: '/ranking', icone: '🏆', rotulo: 'Ranking', tambem: [] },
+  { para: '/desafios', icone: '🔥', rotulo: 'Desafios', tambem: [] },
+  { para: '/perfil', icone: '👤', rotulo: 'Perfil', tambem: ['/progresso', '/moedas', '/conquistas', '/recordes', '/reconhecimentos', '/feed'] },
 ];
 
 function useOnline() {
@@ -34,8 +33,7 @@ function useOnline() {
 }
 
 export function Fase1Layout() {
-  const { perfil, dados, celebracaoAtual, fecharCelebracao, previewAdmin, voltarAoAdmin } = useFase1();
-  const navegar = useNavigate();
+  const { dados, celebracaoAtual, fecharCelebracao, extraTopo } = useFase1();
   const location = useLocation();
   const online = useOnline();
 
@@ -43,8 +41,6 @@ export function Fase1Layout() {
   useEffect(() => {
     window.scrollTo?.(0, 0);
   }, [location.pathname]);
-
-  if (perfil !== 'VENDEDOR') return <Navigate to="/fase1" replace />;
 
   const offline = !online || dados.status.offline;
 
@@ -54,28 +50,13 @@ export function Fase1Layout() {
         <div role="status" className={`sticky top-0 z-20 px-4 py-2 text-center text-xs font-medium ${offline ? 'bg-slate-700 text-slate-100' : 'bg-amber-500/20 text-amber-100'}`}>
           {offline
             ? `Sem conexão. Mostrando seus últimos dados${dados.status.sincronizadoEm ? ` (de ${hora(dados.status.sincronizadoEm)})` : ''}.`
-            : `Dados do ERP de ${hora(dados.status.sincronizadoEm!)}. A sincronização está atrasada — os números podem mudar.`}
+            : dados.status.sincronizadoEm
+              ? `Dados do ERP de ${hora(dados.status.sincronizadoEm)}. A sincronização está atrasada — os números podem mudar.`
+              : 'Ainda não recebemos dados de venda do ERP. Os números aparecem assim que a primeira sincronização terminar.'}
         </div>
       )}
 
-      {previewAdmin && (
-        <div className="bg-violet-600 px-4 py-2 text-white">
-          <div className="mx-auto flex w-full max-w-md items-center gap-2 text-xs md:max-w-2xl">
-            <span aria-hidden="true">👁</span>
-            <span className="min-w-0 flex-1 font-medium">Pré-visualização do Admin — você está vendo o app como a Ana vê.</span>
-            <button
-              onClick={() => {
-                voltarAoAdmin();
-                navegar('/fase1/admin');
-              }}
-              className="min-h-[36px] shrink-0 rounded-full bg-white px-3 font-semibold text-violet-700"
-            >
-              Voltar ao Admin
-            </button>
-          </div>
-        </div>
-      )}
-      <SeletorCenario />
+      {extraTopo}
 
       <main className="mx-auto w-full max-w-md px-4 pb-28 pt-5 md:max-w-2xl">
         <Outlet />

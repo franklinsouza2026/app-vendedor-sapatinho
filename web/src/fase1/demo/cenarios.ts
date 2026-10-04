@@ -40,8 +40,9 @@ import type {
 } from '../dominio/tipos';
 import { pct, plural, reais } from '../formato';
 import { proximoMarco } from '../dominio/estimativas';
-import { calcularNivel } from '../dominio/niveis';
-import { diasValidosRestantes, feriadoHoje, LIMITE_SYNC_MIN, metaDiariaVigente, minutosDesde, opcoesMetaDiaria } from '../dominio/admin';
+import { calcularNivel, NIVEIS_V1 } from '../dominio/niveis';
+import { LIMITE_SYNC_MIN, minutosDesde } from '../dominio/admin';
+import { diasValidosRestantes, feriadoHoje, metaDiariaVigente, opcoesMetaDiaria } from './calendarioDemo';
 import { type EstadoDemo, estadoInicial, type MotivoInelegivel } from './estado';
 
 export const EU = 'ana';
@@ -546,6 +547,7 @@ function finalizar(r: Rascunho): Fase1Dados {
   const moedasSaldo = r.moedas.saldo + creditos.reduce((a, c) => a + c.moedas, 0);
 
   const dados: Fase1Dados = {
+    nivel: { ...calcularNivel(xpTotal), niveis: NIVEIS_V1.map((n) => ({ nivel: n.nivel, nome: n.nome, xpMinimo: n.xpMinimo })) },
     agora: r.agora,
     vendedor: { id: EU, nome: cadEu.nome, primeiroNome: cadEu.nome.split(' ')[0], lojaId, empresa: 'Sapatinho de Luxo', admitidoEm: r.novo ? '2026-10-19' : cadEu.admitidoEm, novo: r.novo },
     lojas: estado.lojas.map((l) => ({ id: l.id, nome: l.nome })),
@@ -808,9 +810,9 @@ export const CENARIOS: Cenario[] = [
       r.feed.unshift({ id: 'fn', tipo: 'LOJA', quando: '2026-10-22T15:10:00', icone: '🏬', texto: 'Caruaru Shopping está a 31 pontos da liderança.', meu: true });
       r.celebracoes = [
         (d) => {
-          const linhas = [...d.rankings.loja.VENDAS].sort((a, b) => b.valor - a.valor);
+          const linhas = [...d.rankings.loja.VENDAS].sort((a, b) => (b.valor ?? 0) - (a.valor ?? 0));
           const segunda = d.pessoas.find((p) => p.id === linhas[1]?.pessoaId);
-          return { id: 'cel-n', tipo: 'PRIMEIRO_LUGAR', titulo: 'Você assumiu o 1º lugar da loja', detalhe: `${reais(d.mes.realizado.faturamento)} no mês${segunda ? ` — ${reais(linhas[0].valor - linhas[1].valor)} à frente de ${segunda.nome.split(' ')[0]}` : ''}.` };
+          return { id: 'cel-n', tipo: 'PRIMEIRO_LUGAR', titulo: 'Você assumiu o 1º lugar da loja', detalhe: `${reais(d.mes.realizado.faturamento)} no mês${segunda ? ` — ${reais((linhas[0].valor ?? 0) - (linhas[1].valor ?? 0))} à frente de ${segunda.nome.split(' ')[0]}` : ''}.` };
         },
       ];
     },

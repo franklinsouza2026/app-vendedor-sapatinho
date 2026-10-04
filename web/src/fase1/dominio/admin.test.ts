@@ -1,83 +1,52 @@
 import { describe, expect, it } from 'vitest';
-import { estadoInicial } from '../demo/estado';
-import { calcularPendencias, calcularProntidao, consistenciaMetasLoja, diasValidosDoMes, diasValidosRestantes, opcoesMetaDiaria, regrasEditaveis, statusAoPublicar, validarCampanha, validarMissao } from './admin';
+import { estadoAdminFixture } from '../admin/__testes__/estadoFixture';
+import { calcularPendencias, calcularProntidao, consistenciaMetasLoja, regrasEditaveis } from './admin';
 
-const AGORA = '2026-10-22T15:20:00';
-
-describe('calendário e meta diária', () => {
-  it('outubro/2026 sem domingos tem 27 dias válidos; restam 8 depois de 22/10', () => {
-    const e = estadoInicial();
-    expect(diasValidosDoMes('2026-10', e, 'caruaru')).toHaveLength(27);
-    expect(diasValidosRestantes(AGORA, e, 'caruaru')).toBe(8);
+describe('regras de exibição do Admin (estado real do servidor)', () => {
+  it('estado completo não gera pendência bloqueante', () => {
+    const e = estadoAdminFixture();
+    expect(calcularPendencias(e).filter((p) => p.bloqueiaPiloto)).toEqual([]);
   });
 
-  it('abrir aos domingos aumenta os dias válidos', () => {
-    const e = estadoInicial();
-    e.calendario.abreDomingo = true;
-    expect(diasValidosDoMes('2026-10', e, 'caruaru')).toHaveLength(31);
+  it('vendedor sem meta ou sem dias de trabalho bloqueia o piloto (D6/D10)', () => {
+    const e = estadoAdminFixture();
+    e.metas.individuais.v2 = { mensal: null, diasPrevistos: null, diaria: null };
+    const ids = calcularPendencias(e).map((p) => p.id);
+    expect(ids).toContain('sem-meta');
+    expect(ids).toContain('sem-dias');
+    expect(calcularProntidao(e).find((i) => i.area === 'Metas')?.situacao).toBe('BLOQUEIO');
   });
 
-  it('três regras de meta diária, calculadas lado a lado', () => {
-    const e = estadoInicial();
-    const op = opcoesMetaDiaria(e, 'ana', 'caruaru', AGORA, 21686);
-    expect(op.manual).toBe(2000);
-    expect(op.uniforme).toBe(Math.round(30000 / 27));
-    expect(op.diasValidos).toBe(Math.round((30000 - 21686) / 9));
-  });
-});
-
-describe('metas: consistência loja × individual', () => {
-  it('estado inicial é consistente nas três lojas', () => {
-    const e = estadoInicial();
-    for (const l of e.lojas) expect(consistenciaMetasLoja(e, l.id).diferenca).toBe(0);
-  });
-  it('mudar a meta individual gera diferença', () => {
-    const e = estadoInicial();
-    e.metas.individuais.ana.mensal = 32000;
-    expect(consistenciaMetasLoja(e, 'caruaru').diferenca).toBe(2000);
-  });
-});
-
-describe('pendências e prontidão', () => {
-  it('estado inicial: vendedora sem meta, vínculos, dado atrasado, campanha sem prêmio e Loja × Loja sem regra', () => {
-    const ids = calcularPendencias(estadoInicial(), AGORA).map((p) => p.id);
-    expect(ids).toEqual(expect.arrayContaining(['sem-meta', 'vinculos', 'sync-difusora', 'camp-premio-novembro-black', 'lxl']));
+  it('loja nunca sincronizada aponta para Integrações e bloqueia', () => {
+    const e = estadoAdminFixture({ lojas: [{ id: 'l1', nome: 'Caruaru', codigo: '01', status: 'ATIVA', ultimaSync: null, metaMes: null }] });
+    const p = calcularPendencias(e).find((x) => x.id === 'sync-l1');
+    expect(p?.rota).toBe('/admin/integracoes');
+    expect(p?.bloqueiaPiloto).toBe(true);
   });
 
-  it('resolver no Admin faz a pendência sumir', () => {
-    const e = estadoInicial();
-    e.metas.individuais.sofia.mensal = 0;
-    e.lojas.find((l) => l.id === 'difusora')!.ultimaSync = '2026-10-22T15:10:00';
-    const ids = calcularPendencias(e, AGORA).map((p) => p.id);
-    expect(ids).not.toContain('sync-difusora');
+  it('sync atrasado (> 90 min) bloqueia', () => {
+    const e = estadoAdminFixture();
+    e.lojas[0].ultimaSync = '2026-10-04T12:00:00.000Z';
+    expect(calcularPendencias(e).find((x) => x.id === 'sync-l1')?.texto).toMatch(/desatualizado/);
   });
 
-  it('prontidão aponta bloqueio enquanto houver pendência bloqueante', () => {
-    const itens = calcularProntidao(estadoInicial(), AGORA);
-    expect(itens.find((i) => i.area === 'Dados')!.situacao).toBe('BLOQUEIO');
-    expect(itens.find((i) => i.area === 'Gamificação')!.situacao).toBe('OK');
-  });
-});
-
-describe('validação antes de publicar e ciclo de vida', () => {
-  it('campanha sem prêmio e sem regras não publica — e diz exatamente o porquê', () => {
-    const e = estadoInicial();
-    const c = e.campanhas.find((x) => x.id === 'novembro-black')!;
-    const pendentes = validarCampanha(c, e).filter((v) => !v.ok);
-    expect(pendentes.map((p) => p.rotulo)).toEqual(expect.arrayContaining(['Premiação', 'Regras']));
-    expect(pendentes.find((p) => p.rotulo === 'Premiação')!.problema).toContain('Meta batida');
+  it('consistência da meta da loja compara com a soma individual', () => {
+    const e = estadoAdminFixture();
+    expect(consistenciaMetasLoja(e, 'l1').diferenca).toBe(0);
+    e.lojas[0].metaMes = 50000;
+    expect(consistenciaMetasLoja(e, 'l1').diferenca).toBe(10000);
   });
 
-  it('missão de produto sem produto não publica', () => {
-    const e = estadoInicial();
-    const m = { ...e.missoes.find((x) => x.id === 'm-produto')!, produtos: [] };
-    expect(validarMissao(m, e).find((v) => v.rotulo === 'Produtos')!.ok).toBe(false);
+  it('indicador sem fonte ligado ao vendedor bloqueia a prontidão', () => {
+    const e = estadoAdminFixture();
+    e.indicadores.CONVERSAO = { ativo: true, fonte: 'SEM_FONTE', nota: '' };
+    expect(calcularProntidao(e).find((i) => i.area === 'Indicadores')?.situacao).toBe('BLOQUEIO');
   });
 
-  it('regra crítica só é editável em rascunho/programada; publicar no futuro programa', () => {
+  it('regras críticas só são editáveis antes do início', () => {
     expect(regrasEditaveis('RASCUNHO')).toBe(true);
+    expect(regrasEditaveis('PROGRAMADA')).toBe(true);
     expect(regrasEditaveis('ATIVA')).toBe(false);
-    expect(statusAoPublicar('2026-11-01T00:00:00', AGORA)).toBe('PROGRAMADA');
-    expect(statusAoPublicar('2026-10-22T09:00:00', AGORA)).toBe('ATIVA');
+    expect(regrasEditaveis('ENCERRADA')).toBe(false);
   });
 });

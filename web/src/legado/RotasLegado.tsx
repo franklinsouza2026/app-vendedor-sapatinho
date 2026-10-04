@@ -1,0 +1,220 @@
+import { Route, Routes } from 'react-router-dom';
+import { RequireAuth } from '../auth/RequireAuth';
+import { Layout } from '../components/Layout';
+import { Login } from '../screens/Login';
+import { Home } from '../screens/Home';
+import { Metas } from '../screens/Metas';
+import { Ranking } from '../screens/Ranking';
+import { Carteira } from '../screens/Carteira';
+import { Badges } from '../screens/Badges';
+import { Perfil } from '../screens/Perfil';
+import { MeusGanhos } from '../screens/MeusGanhos';
+import { Coach } from '../screens/Coach';
+import { Treinador } from '../screens/Treinador';
+import { Simulador } from '../screens/Simulador';
+import { Academia } from '../screens/Academia';
+import { Evoluir } from '../screens/Evoluir';
+import { Universidade } from '../screens/Universidade';
+import { Revisao } from '../screens/Revisao';
+import { Equipe } from '../screens/Equipe';
+import { Missoes } from '../screens/Missoes';
+import { Ativacao } from '../screens/Ativacao';
+import { AlterarSenha } from '../screens/AlterarSenha';
+import { AdminUsuarios } from '../screens/admin/AdminUsuarios';
+import { AdminUsuarioDetalhe } from '../screens/admin/AdminUsuarioDetalhe';
+import { AdminNovoVendedor } from '../screens/admin/AdminNovoVendedor';
+import { AdminIA } from '../screens/admin/AdminIA';
+import { AdminTreinamento } from '../screens/admin/AdminTreinamento';
+import { AdminUniversidade } from '../screens/admin/AdminUniversidade';
+import { Competicoes } from '../screens/Competicoes';
+import { AdminGamificacao } from '../screens/admin/AdminGamificacao';
+import { AdminEngajamento } from '../screens/admin/AdminEngajamento';
+import { Pendencias } from '../screens/Pendencias';
+import { AdminEstrutura } from '../screens/admin/AdminEstrutura';
+import { AdminMetas } from '../screens/admin/AdminMetas';
+import { ReuniaoDoDia } from '../screens/ReuniaoDoDia';
+import { AdminAlertasGerenciais } from '../screens/admin/AdminAlertasGerenciais';
+
+
+/**
+ * App ANTERIOR à Fase 1 (Conselheiro, Treinador, Simulador, Universidade,
+ * Academia, painel do gerente…). Fora do piloto: só é carregado quando o build
+ * recebe VITE_MODULOS_LEGADOS=true (desenvolvimento/regressão) — num build de
+ * piloto este módulo nem entra no bundle. Nada foi apagado.
+ */
+export default function RotasLegado() {
+  return (
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/ativacao" element={<Ativacao />} />
+              {/* Admin Foundation (Fatia 7.5A) — desktop-first, fora do Layout do
+                  vendedor (sem bottom nav), só acessível pra papel ADMIN. */}
+              <Route
+                path="/admin/usuarios"
+                element={
+                  <RequireAuth papeis={['ADMIN']}>
+                    <AdminUsuarios />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/admin/usuarios/novo"
+                element={
+                  <RequireAuth papeis={['ADMIN']}>
+                    <AdminNovoVendedor />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/admin/usuarios/:id"
+                element={
+                  <RequireAuth papeis={['ADMIN']}>
+                    <AdminUsuarioDetalhe />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/admin/ai"
+                element={
+                  <RequireAuth papeis={['ADMIN']}>
+                    <AdminIA />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/admin/treinamento"
+                element={
+                  <RequireAuth papeis={['ADMIN']}>
+                    <AdminTreinamento />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/admin/estrutura"
+                element={
+                  <RequireAuth papeis={['ADMIN']}>
+                    <AdminEstrutura />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/admin/metas"
+                element={
+                  <RequireAuth papeis={['ADMIN']}>
+                    <AdminMetas />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/admin/universidade"
+                element={
+                  <RequireAuth papeis={['ADMIN']}>
+                    <AdminUniversidade />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/admin/gamificacao"
+                element={
+                  <RequireAuth papeis={['ADMIN']}>
+                    <AdminGamificacao />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/admin/engajamento"
+                element={
+                  <RequireAuth papeis={['ADMIN']}>
+                    <AdminEngajamento />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/admin/gerencial"
+                element={
+                  <RequireAuth papeis={['ADMIN']}>
+                    <AdminAlertasGerenciais />
+                  </RequireAuth>
+                }
+              />
+              {/* Coach fica fora do Layout (sem bottom nav) — tela de chat ocupa a
+                  altura inteira, com input fixo embaixo; bottom nav junto quebraria
+                  esse layout. */}
+              <Route
+                path="/coach"
+                element={
+                  <RequireAuth>
+                    <Coach />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/treinador"
+                element={
+                  <RequireAuth>
+                    <Treinador />
+                  </RequireAuth>
+                }
+              />
+              {/* Simulador também fica fora do Layout — mesma razão do Coach/Treinador:
+                  a tela de sessão ocupa a altura inteira, com input fixo embaixo. */}
+              <Route
+                path="/simulador"
+                element={
+                  <RequireAuth>
+                    <Simulador />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                element={
+                  <RequireAuth>
+                    <Layout />
+                  </RequireAuth>
+                }
+              >
+                <Route path="/" element={<Home />} />
+                <Route path="/metas" element={<Metas />} />
+                <Route path="/ranking" element={<Ranking />} />
+                <Route path="/moedas" element={<Carteira />} />
+                <Route path="/conquistas" element={<Badges />} />
+                <Route path="/perfil" element={<Perfil />} />
+                <Route path="/ganhos" element={<MeusGanhos />} />
+                <Route path="/perfil/senha" element={<AlterarSenha />} />
+                <Route path="/academia" element={<Academia />} />
+                <Route path="/evoluir" element={<Evoluir />} />
+                <Route path="/missoes" element={<Missoes />} />
+                <Route path="/universidade" element={<Universidade />} />
+                <Route path="/universidade/revisao" element={<Revisao />} />
+                <Route path="/competicoes" element={<Competicoes />} />
+                {/* Telas exclusivas do gerente (Fatia 9.7): o backend já barrava
+                    (403), mas sem `papeis=` aqui o vendedor via a tela carregar e
+                    só depois quebrar. Agora é redirecionado antes de renderizar. */}
+                <Route
+                  path="/equipe"
+                  element={
+                    <RequireAuth papeis={['GERENTE']}>
+                      <Equipe />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/gerente/pendencias"
+                  element={
+                    <RequireAuth papeis={['GERENTE']}>
+                      <Pendencias />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/gerente/reuniao-do-dia"
+                  element={
+                    <RequireAuth papeis={['GERENTE']}>
+                      <ReuniaoDoDia />
+                    </RequireAuth>
+                  }
+                />
+              </Route>
+            </Routes>
+  );
+}

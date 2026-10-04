@@ -41,15 +41,14 @@ export function Ativacao() {
       return;
     }
 
-    const lojaEscolhida = lojas?.find((l) => l.id === lojaId);
-    if (!lojaEscolhida?.codigoErp) {
+    if (!lojas?.some((l) => l.id === lojaId)) {
       setErro('Loja inválida.');
       return;
     }
 
     setEnviando(true);
     try {
-      const resultado = await ativarConta({ codigoErpLoja: lojaEscolhida.codigoErp, cpf, token, senha });
+      const resultado = await ativarConta({ lojaId, cpf, token, senha });
       await adotarToken(resultado.token);
       navigate('/', { replace: true });
     } catch (err) {

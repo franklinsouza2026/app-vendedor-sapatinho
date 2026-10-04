@@ -94,17 +94,32 @@ export interface PosicaoCalculada<T> {
   variacao: number | null; // positivo = subiu
 }
 
+/**
+ * Posições do ranking. Com dado do servidor, posição, empate e distância JÁ vêm
+ * calculados (D9 — o app não decide posição). Sem `posicao` (só dado legado de
+ * demonstração), ordena pelo valor como antes.
+ */
 export function ordenarRanking(linhas: LinhaRankingBruta[]): PosicaoCalculada<LinhaRankingBruta>[] {
-  const ordenadas = [...linhas].sort((a, b) => b.valor - a.valor);
+  if (linhas.every((l) => typeof l.posicao === 'number')) {
+    return [...linhas]
+      .sort((a, b) => a.posicao! - b.posicao!)
+      .map((linha) => ({ linha, posicao: linha.posicao!, distanciaAcima: linha.distanciaAcima ?? null, variacao: linha.posicaoAnterior === null ? null : linha.posicaoAnterior - linha.posicao! }));
+  }
+  const ordenadas = [...linhas].sort((a, b) => (b.valor ?? 0) - (a.valor ?? 0));
   return ordenadas.map((linha, i) => ({
     linha,
     posicao: i + 1,
-    distanciaAcima: i === 0 ? null : ordenadas[i - 1].valor - linha.valor,
+    distanciaAcima: i === 0 || ordenadas[i - 1].valor === null || linha.valor === null ? null : ordenadas[i - 1].valor! - linha.valor,
     variacao: linha.posicaoAnterior === null ? null : linha.posicaoAnterior - (i + 1),
   }));
 }
 
 export function ordenarRankingLojas(linhas: LinhaRankingLoja[]): PosicaoCalculada<LinhaRankingLoja>[] {
+  if (linhas.every((l) => typeof l.posicao === 'number')) {
+    return [...linhas]
+      .sort((a, b) => a.posicao! - b.posicao!)
+      .map((linha) => ({ linha, posicao: linha.posicao!, distanciaAcima: linha.distanciaAcima ?? null, variacao: linha.posicaoAnterior === null ? null : linha.posicaoAnterior - linha.posicao! }));
+  }
   const ordenadas = [...linhas].sort((a, b) => b.pontos - a.pontos);
   return ordenadas.map((linha, i) => ({
     linha,

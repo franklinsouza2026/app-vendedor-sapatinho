@@ -17,7 +17,7 @@ import { montarParaVoce } from './learning-path.service';
 
 /** Lê as rotas REAIS declaradas em `web/src/App.tsx` — fonte de verdade do que existe. */
 function rotasDeclaradasNoFrontend(): string[] {
-  const appTsx = readFileSync(join(__dirname, '../../web/src/App.tsx'), 'utf8');
+  const appTsx = readFileSync(join(__dirname, '../../web/src/legado/RotasLegado.tsx'), 'utf8');
   return [...appTsx.matchAll(/path="([^"]+)"/g)].map((m) => m[1]);
 }
 
@@ -33,7 +33,7 @@ function rotaExiste(href: string, rotas: string[]): boolean {
 }
 
 describe('montarParaVoce — próxima ação do vendedor', () => {
-  it('REGRESSÃO: TODO href emitido aponta pra uma rota que existe de verdade no App.tsx', async () => {
+  it('REGRESSÃO: TODO href emitido aponta pra uma rota que existe de verdade nas rotas legadas (legado/RotasLegado.tsx)', async () => {
     const { vendedor } = await criarFixtureEmpresa();
     const rotas = rotasDeclaradasNoFrontend();
     expect(rotas.length).toBeGreaterThan(10); // sanidade: o arquivo foi lido mesmo
@@ -50,7 +50,7 @@ describe('montarParaVoce — próxima ação do vendedor', () => {
     expect(itens.length).toBeGreaterThan(0);
 
     for (const item of itens) {
-      expect(rotaExiste(item.href, rotas), `href "${item.href}" (item ${item.tipo}) não existe em App.tsx`).toBe(true);
+      expect(rotaExiste(item.href, rotas), `href "${item.href}" (item ${item.tipo}) não existe em RotasLegado.tsx`).toBe(true);
     }
   });
 

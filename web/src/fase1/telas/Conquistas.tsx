@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useFase1 } from '../demo/Fase1Contexto';
+import { useFase1 } from '../contexto';
 import type { Conquista } from '../dominio/tipos';
 import { Abas, AvisoProvisorio, BarraSimples, CabecalhoTela, Pilula, Vazio } from '../componentes/ui';
 import { dataCurta } from '../formato';
@@ -14,7 +14,7 @@ export function Conquistas() {
   const lista = aba === 'feitas' ? feitas : proximas;
   return (
     <Fase1Pagina carregando="Carregando conquistas...">
-      <CabecalhoTela titulo="Conquistas" subtitulo={`${feitas.length} de ${dados.conquistas.length} conquistadas`} voltar="/fase1/perfil" />
+      <CabecalhoTela titulo="Conquistas" subtitulo={`${feitas.length} de ${dados.conquistas.length} conquistadas`} voltar="/perfil" />
       <Abas<'feitas' | 'proximas'>
         rotulo="Conquistas"
         ativa={aba}

@@ -9,7 +9,16 @@ import { Papel } from '../types';
  * Mandar alguém pra uma tela não concede permissão nenhuma — se o papel não
  * puder ver aquilo, a API responde 403 do mesmo jeito.
  */
+/** Módulos anteriores à Fase 1 ligados neste build (só para regressão/desenvolvimento). */
+export const MODULOS_LEGADOS = import.meta.env.VITE_MODULOS_LEGADOS === 'true';
+
 export function rotaInicialPara(papel: Papel): string {
+  // Fase 1 (piloto): VENDEDOR e ADMIN. Outros papéis não têm experiência no piloto.
+  if (!MODULOS_LEGADOS) {
+    if (papel === 'ADMIN') return '/admin';
+    if (papel === 'VENDEDOR') return '/inicio';
+    return '/sem-acesso';
+  }
   // ADMIN tem shell próprio (desktop-first, fora do Layout mobile do vendedor).
   if (papel === 'ADMIN') return '/admin/usuarios';
   // PLATFORM_ADMIN governa conhecimento GLOBAL pelo backend e ainda não tem

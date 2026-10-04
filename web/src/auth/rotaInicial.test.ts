@@ -4,13 +4,14 @@ import { describe, expect, it } from 'vitest';
 import { rotaInicialPara } from './rotaInicial';
 
 describe('rotaInicialPara', () => {
-  it('ADMIN vai pro painel administrativo, nunca pra Home de vendedor', () => {
-    expect(rotaInicialPara('ADMIN')).toBe('/admin/usuarios');
+  it('Fase 1: ADMIN vai para a central do Admin, nunca para a Home de vendedor', () => {
+    expect(rotaInicialPara('ADMIN')).toBe('/admin');
   });
 
-  it('GERENTE e VENDEDOR vão pra "/", que já resolve a Home certa por papel', () => {
-    expect(rotaInicialPara('GERENTE')).toBe('/');
-    expect(rotaInicialPara('VENDEDOR')).toBe('/');
+  it('Fase 1: VENDEDOR vai para o Início; papéis fora do piloto vão para /sem-acesso', () => {
+    expect(rotaInicialPara('VENDEDOR')).toBe('/inicio');
+    expect(rotaInicialPara('GERENTE')).toBe('/sem-acesso');
+    expect(rotaInicialPara('PLATFORM_ADMIN')).toBe('/sem-acesso');
   });
 
   it('nunca devolve rota vazia (evita Navigate pra lugar nenhum)', () => {

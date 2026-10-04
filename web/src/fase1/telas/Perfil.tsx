@@ -1,6 +1,5 @@
-import { Link, useNavigate } from 'react-router-dom';
-import { useFase1 } from '../demo/Fase1Contexto';
-import { calcularNivel } from '../dominio/niveis';
+import { Link } from 'react-router-dom';
+import { useFase1 } from '../contexto';
 import { Avatar, BarraSimples, CabecalhoTela, Painel } from '../componentes/ui';
 import { inteiro, mesCurto, plural } from '../formato';
 import { Fase1Pagina } from './Fase1Pagina';
@@ -8,8 +7,7 @@ import { Reconhecimentos as ListaReconhecimentos } from './Feed';
 
 export function Perfil() {
   const { dados, sair } = useFase1();
-  const navegar = useNavigate();
-  const nivel = calcularNivel(dados.xp.total);
+  const nivel = dados.nivel;
   const loja = dados.lojas.find((l) => l.id === dados.vendedor.lojaId)!;
   const conquistadas = dados.conquistas.filter((c) => c.conquistadaEm).length;
   const recordePerto = dados.recordes.find((r) => r.atual !== null && r.atual < r.valor && r.atual / r.valor >= 0.8);
@@ -27,7 +25,7 @@ export function Perfil() {
         </div>
       </header>
 
-      <Link to="/fase1/progresso" className="block">
+      <Link to="/progresso" className="block">
         <Painel destaque className="active:opacity-90">
           <div className="flex items-baseline justify-between">
             <p className="text-lg font-bold text-white">⭐ {nivel.nome}</p>
@@ -43,7 +41,7 @@ export function Perfil() {
       </Link>
 
       <div className="grid grid-cols-2 gap-3">
-        <Link to="/fase1/moedas" className="block rounded-2xl border border-slate-700/60 bg-surface p-3 active:opacity-90">
+        <Link to="/moedas" className="block rounded-2xl border border-slate-700/60 bg-surface p-3 active:opacity-90">
           <p className="text-xs text-slate-400">VendaCoins</p>
           <p className="text-2xl font-bold text-amber-200">🪙 {inteiro(dados.moedas.saldo)}</p>
         </Link>
@@ -56,20 +54,18 @@ export function Perfil() {
       <p className="-mt-2 text-xs text-slate-400">Sequência = {dados.sequencia.criterio}. Abrir o app não conta.</p>
 
       <nav aria-label="Seu histórico" className="flex flex-col gap-2">
-        <ItemMenu para="/fase1/conquistas" icone="🏅" titulo="Conquistas" detalhe={`${conquistadas} de ${dados.conquistas.length}`} />
-        <ItemMenu para="/fase1/recordes" icone="🚀" titulo="Meus recordes" detalhe={recordePerto ? `perto de bater: ${recordePerto.titulo.toLowerCase()}` : `${dados.recordes.length} marcas`} />
-        <ItemMenu para="/fase1/reconhecimentos" icone="💛" titulo="Reconhecimentos" detalhe={plural(dados.reconhecimentos.length, 'mensagem', 'mensagens')} />
-        <ItemMenu para="/fase1/feed" icone="📰" titulo="Acontecendo agora" detalhe="novidades das corridas" />
+        <ItemMenu para="/conquistas" icone="🏅" titulo="Conquistas" detalhe={`${conquistadas} de ${dados.conquistas.length}`} />
+        <ItemMenu para="/recordes" icone="🚀" titulo="Meus recordes" detalhe={recordePerto ? `perto de bater: ${recordePerto.titulo.toLowerCase()}` : `${dados.recordes.length} marcas`} />
+        <ItemMenu para="/reconhecimentos" icone="💛" titulo="Reconhecimentos" detalhe={plural(dados.reconhecimentos.length, 'mensagem', 'mensagens')} />
+        <ItemMenu para="/feed" icone="📰" titulo="Acontecendo agora" detalhe="novidades das corridas" />
+        <ItemMenu para="/perfil/senha" icone="🔒" titulo="Alterar senha" detalhe="encerra suas outras sessões" />
       </nav>
 
       <button
-        onClick={() => {
-          sair();
-          navegar('/fase1');
-        }}
+        onClick={() => sair()}
         className="mt-2 min-h-[48px] rounded-full border border-slate-700 font-medium text-slate-300 active:opacity-80"
       >
-        Sair da demonstração
+        Sair
       </button>
     </Fase1Pagina>
   );
@@ -95,7 +91,7 @@ function ItemMenu({ para, icone, titulo, detalhe }: { para: string; icone: strin
 export function PaginaReconhecimentos() {
   return (
     <Fase1Pagina carregando="Carregando reconhecimentos...">
-      <CabecalhoTela titulo="Reconhecimentos" subtitulo="Mensagens da empresa sobre o seu trabalho." voltar="/fase1/perfil" />
+      <CabecalhoTela titulo="Reconhecimentos" subtitulo="Mensagens da empresa sobre o seu trabalho." voltar="/perfil" />
       <ListaReconhecimentos />
     </Fase1Pagina>
   );

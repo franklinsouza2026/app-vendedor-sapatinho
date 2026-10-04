@@ -6,7 +6,7 @@
  */
 import { ReactNode, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useFase1 } from '../demo/Fase1Contexto';
+import { useFase1 } from '../contexto';
 import type { Fase1Dados, Metrica } from '../dominio/tipos';
 import { falta, paresEstimados, percentual, projecaoMes, vendasEstimadas, vendasPorDia, UNIDADE_METRICA } from '../dominio/estimativas';
 import { rankingCalculado } from '../dominio/alvos';
@@ -205,7 +205,7 @@ function GradeIndicadores({ dados, periodo }: { dados: Fase1Dados; periodo: 'hoj
           contexto="% da meta vs. mesmo período de setembro"
         />
       )}
-      {periodo === 'mes' && ind.SCORE && score && <Indicador rotulo="Score Geral" valor={inteiro(score.linha.valor)} contexto={`${score.posicao}º lugar na loja`} />}
+      {periodo === 'mes' && ind.SCORE && score && score.linha.valor !== null && <Indicador rotulo="Score Geral" valor={inteiro(score.linha.valor)} contexto={`${score.posicao}º lugar na loja`} />}
     </div>
   );
 }
@@ -319,8 +319,11 @@ function Comparar() {
 function LinhaComparacao({ dados, escopo, metrica }: { dados: Fase1Dados; escopo: 'loja' | 'geral'; metrica: Metrica }) {
   const linhas = rankingCalculado(dados, escopo, metrica);
   const eu = linhas.find((l) => l.linha.pessoaId === dados.vendedor.id);
-  if (!eu) return null;
-  const media = linhas.reduce((a, l) => a + l.linha.valor, 0) / linhas.length;
+  if (!eu || eu.linha.valor === null) return null;
+  // Média calculada no SERVIDOR (o app não tem o valor financeiro dos colegas);
+  // sem média disponível (grupo pequeno demais para não expor ninguém), não compara.
+  const media = dados.rankings.medias ? dados.rankings.medias[escopo][metrica] : linhas.every((l) => l.linha.valor !== null) ? linhas.reduce((a, l) => a + (l.linha.valor ?? 0), 0) / linhas.length : null;
+  if (media === null || media === undefined) return null;
   const acima = eu.linha.valor >= media;
   const u = UNIDADE_METRICA[metrica];
   const diferenca = Math.abs(eu.linha.valor - media);

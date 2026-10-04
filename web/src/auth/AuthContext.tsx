@@ -7,7 +7,7 @@ interface AuthContextValue {
   sessao: SessaoAtual | null;
   carregando: boolean;
   erroSessao: string | null;
-  login: (codigoErpLoja: string, matriculaErp: string, senha: string) => Promise<void>;
+  login: (lojaId: string, matriculaErp: string, senha: string) => Promise<void>;
   adotarToken: (token: string) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -60,9 +60,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     reidratar();
   }, []);
 
-  async function login(codigoErpLoja: string, matriculaErp: string, senha: string) {
+  async function login(lojaId: string, matriculaErp: string, senha: string) {
     setErroSessao(null);
-    const { token } = await apiLogin(codigoErpLoja, matriculaErp, senha);
+    const { token } = await apiLogin(lojaId, matriculaErp, senha);
     setToken(token);
     const atual = await buscarSessaoAtual();
     setSessao(atual);

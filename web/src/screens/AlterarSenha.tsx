@@ -1,5 +1,6 @@
 import { FormEvent, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../auth/AuthContext';
 import { alterarSenha } from '../api/auth';
 import { ApiError } from '../api/client';
 import { Card } from '../components/Card';
@@ -11,6 +12,8 @@ export function AlterarSenha() {
   const [erro, setErro] = useState<string | null>(null);
   const [sucesso, setSucesso] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  const { logout } = useAuth();
+  const navegar = useNavigate();
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -29,6 +32,9 @@ export function AlterarSenha() {
       setSenhaAtual('');
       setNovaSenha('');
       setConfirmarSenha('');
+      // Trocar a senha encerra TODAS as sessões (inclusive esta) — entra de novo com a nova senha.
+      await logout();
+      navegar('/login', { replace: true, state: { aviso: 'Senha alterada. Entre com a nova senha.' } });
     } catch (err) {
       if (err instanceof ApiError && err.type === 'senha_atual_incorreta') {
         setErro('Senha atual incorreta.');

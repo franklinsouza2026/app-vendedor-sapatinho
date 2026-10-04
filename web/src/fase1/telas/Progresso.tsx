@@ -2,15 +2,14 @@
  * XP e níveis. XP = progressão/status (nunca vira dinheiro). A curva e os
  * nomes de nível são os do backend atual (Bronze → Elite), sem renomear.
  */
-import { useFase1 } from '../demo/Fase1Contexto';
-import { calcularNivel, NIVEIS_V1 } from '../dominio/niveis';
+import { useFase1 } from '../contexto';
 import { BarraSimples, CabecalhoTela, Painel, TituloSecao } from '../componentes/ui';
 import { dataCurta, inteiro } from '../formato';
 import { Fase1Pagina } from './Fase1Pagina';
 
 export function Progresso() {
   const { dados } = useFase1();
-  const nivel = calcularNivel(dados.xp.total);
+  const nivel = dados.nivel;
   const porOrigem = Object.entries(
     dados.xp.historico.reduce<Record<string, number>>((acc, e) => {
       const chave = e.origem.startsWith('Missão') ? 'Missões' : e.origem.includes('meta') || e.origem.includes('Meta') ? 'Metas' : e.origem.startsWith('Sequência') ? 'Consistência' : e.origem.startsWith('Melhora') ? 'Evolução' : 'Outros';
@@ -21,7 +20,7 @@ export function Progresso() {
 
   return (
     <Fase1Pagina carregando="Carregando seu progresso...">
-      <CabecalhoTela titulo="XP e nível" subtitulo="Sua progressão no Vendedor IA." voltar="/fase1/perfil" />
+      <CabecalhoTela titulo="XP e nível" subtitulo="Sua progressão no Vendedor IA." voltar="/perfil" />
 
       <Painel destaque rotulo="Nível atual">
         <p className="text-xs font-semibold uppercase tracking-wider text-slate-300">Nível {nivel.nivel}</p>
@@ -48,7 +47,7 @@ export function Progresso() {
           <span id="niveis">Trilha de níveis</span>
         </TituloSecao>
         <ol className="flex flex-col gap-1.5">
-          {NIVEIS_V1.map((n) => {
+          {dados.nivel.niveis.map((n) => {
             const atual = n.nivel === nivel.nivel;
             const passou = n.nivel < nivel.nivel;
             return (

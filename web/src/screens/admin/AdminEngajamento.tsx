@@ -38,6 +38,16 @@ const dataBr = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
 const plural = (n: number, um: string, varios = `${um}s`) => `${n} ${n === 1 ? um : varios}`;
 
 export function AdminEngajamento() {
+  return (
+    <div className="mx-auto flex max-w-6xl flex-col gap-5 p-6">
+      <AdminNav />
+      <PainelDeEngajamento linkRecompensa="/admin/gamificacao?aba=recompensa" />
+    </div>
+  );
+}
+
+/** Conteúdo do painel de engajamento — reaproveitado pela central do Admin da Fase 1 ("Uso do piloto"). */
+export function PainelDeEngajamento({ linkRecompensa }: { linkRecompensa: string }) {
   const [periodo, setPeriodo] = useState<PeriodoEngajamento>('SEMANA_ATUAL');
   const [de, setDe] = useState('');
   const [ate, setAte] = useState('');
@@ -55,15 +65,14 @@ export function AdminEngajamento() {
   );
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-5 p-6">
-      <AdminNav />
+    <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-white">Engajamento</h1>
           <p className="text-sm text-slate-400">Quem está usando o app. Acesso mede adoção — não mede resultado de vendas.</p>
         </div>
         {config.dados && (
-          <Link to="/admin/gamificacao?aba=recompensa" className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300 hover:text-white">
+          <Link to={linkRecompensa} className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300 hover:text-white">
             Recompensa diária: {config.dados.ativo ? `ligada (+${config.dados.xp} XP · +${config.dados.moedas} VendaCoins)` : 'desligada'} →
           </Link>
         )}

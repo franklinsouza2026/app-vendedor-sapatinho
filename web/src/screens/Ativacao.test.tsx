@@ -46,7 +46,7 @@ describe('Ativacao', () => {
 
     await waitFor(() =>
       expect(authApi.ativarConta).toHaveBeenCalledWith({
-        codigoErpLoja: 'LOJA001',
+        lojaId: 'loja-1',
         cpf: '111.444.777-35',
         token: 'token-abc',
         senha: 'senhaNova123',

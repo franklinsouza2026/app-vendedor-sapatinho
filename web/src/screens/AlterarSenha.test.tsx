@@ -1,27 +1,39 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { AuthProvider } from '../auth/AuthContext';
 import { AlterarSenha } from './AlterarSenha';
 import { ApiError } from '../api/client';
 import * as authApi from '../api/auth';
 
 vi.mock('../api/auth');
 
+function TelaLogin() {
+  const estado = useLocation().state as { aviso?: string } | null;
+  return <p>Tela de login: {estado?.aviso}</p>;
+}
+
 function renderTela() {
   return render(
-    <MemoryRouter>
-      <AlterarSenha />
+    <MemoryRouter initialEntries={['/perfil/senha']}>
+      <AuthProvider>
+        <Routes>
+          <Route path="/perfil/senha" element={<AlterarSenha />} />
+          <Route path="/login" element={<TelaLogin />} />
+        </Routes>
+      </AuthProvider>
     </MemoryRouter>
   );
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.clear();
 });
 
 describe('AlterarSenha', () => {
-  it('troca a senha com sucesso e limpa o formulário', async () => {
+  it('troca a senha, encerra a sessão (todas as sessões antigas caem) e volta ao login com aviso', async () => {
     const user = userEvent.setup();
     vi.mocked(authApi.alterarSenha).mockResolvedValue(undefined);
 
@@ -33,8 +45,7 @@ describe('AlterarSenha', () => {
     await user.click(screen.getByRole('button', { name: 'Salvar nova senha' }));
 
     expect(authApi.alterarSenha).toHaveBeenCalledWith('antiga123', 'novaSenha123');
-    expect(await screen.findByText('Senha alterada com sucesso.')).toBeInTheDocument();
-    expect(screen.getByLabelText('Senha atual')).toHaveValue('');
+    expect(await screen.findByText(/Tela de login: Senha alterada. Entre com a nova senha./)).toBeInTheDocument();
   });
 
   it('bloqueia quando a confirmação não bate, sem chamar a API', async () => {

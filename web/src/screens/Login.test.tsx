@@ -35,7 +35,7 @@ describe('Login', () => {
     expect(screen.queryByText('LOJA001')).not.toBeInTheDocument();
   });
 
-  it('envia o codigoErp da loja selecionada (não o id interno) ao fazer login', async () => {
+  it('envia a loja selecionada pelo id (sem ambiguidade entre empresas) ao fazer login', async () => {
     vi.mocked(authApi.login).mockResolvedValue({ token: 'token-fake' });
     vi.mocked(authApi.buscarSessaoAtual).mockResolvedValue({
       vendedor: { id: 'v1', nome: 'Vendedor Teste', papel: 'VENDEDOR' },
@@ -52,7 +52,7 @@ describe('Login', () => {
     await user.click(screen.getByRole('button', { name: 'Entrar' }));
 
     await waitFor(() => {
-      expect(authApi.login).toHaveBeenCalledWith('LOJA001', 'VEND001', 'senha123');
+      expect(authApi.login).toHaveBeenCalledWith('loja-1', 'VEND001', 'senha123');
     });
   });
 
@@ -83,6 +83,6 @@ describe('Login', () => {
     await user.type(screen.getByLabelText('Senha'), 'vendedor123');
     await user.click(screen.getByRole('button', { name: 'Entrar' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Muitas tentativas de login. Aguarde um instante e tente de novo.');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Muitas tentativas de login. Aguarde alguns minutos e tente de novo.');
   });
 });

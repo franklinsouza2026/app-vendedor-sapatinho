@@ -122,7 +122,8 @@ function rotaTransicao(caminho: string, executar: typeof bloquearVendedor) {
     requireAuth('ADMIN'),
     asyncHandler(async (req, res) => {
       try {
-        const resultado = await executar(req.params.id, req.auth!.empresaId, req.auth!.vendedorId);
+        const motivo = typeof req.body?.motivo === 'string' ? req.body.motivo.trim() : undefined;
+        const resultado = await executar(req.params.id, req.auth!.empresaId, req.auth!.vendedorId, undefined, motivo || undefined);
         res.json(resultado);
       } catch (err) {
         tratarErro(err, res);
@@ -136,7 +137,7 @@ rotaTransicao('desbloquear', desbloquearVendedor);
 rotaTransicao('desligar', desligarVendedor);
 rotaTransicao('reativar', reativarVendedor);
 
-const realocarSchema = z.object({ novaLojaId: z.string().uuid() });
+const realocarSchema = z.object({ novaLojaId: z.string().uuid(), motivo: z.string().max(300).optional() });
 
 adminRouter.post(
   '/admin/vendedores/:id/realocar',
@@ -145,7 +146,7 @@ adminRouter.post(
     const parsed = realocarSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'dados inválidos' });
     try {
-      const resultado = await realocarVendedor(req.params.id, parsed.data.novaLojaId, req.auth!.empresaId, req.auth!.vendedorId);
+      const resultado = await realocarVendedor(req.params.id, parsed.data.novaLojaId, req.auth!.empresaId, req.auth!.vendedorId, parsed.data.motivo);
       res.json(resultado);
     } catch (err) {
       tratarErro(err, res);

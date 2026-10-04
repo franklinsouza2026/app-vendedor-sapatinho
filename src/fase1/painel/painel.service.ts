@@ -9,7 +9,7 @@ import { timezoneDaEmpresa } from '../../tempo/empresa';
 import { listarFeed } from '../../competicoes/feed.service';
 import { calcularDiasRestantes } from '../metas.service';
 import { obterConfigFase1, Metrica } from '../config.service';
-import { rankingLojas, rankingsPorMetrica, visaoRankingEmpresa } from '../ranking/ranking.service';
+import { rankingLojas, rankingsPorMetrica, valorDaMetrica, visaoRankingEmpresa } from '../ranking/ranking.service';
 import { fecharRankingDoMes } from '../ranking/fechamento-mensal.service';
 import { missoesDoVendedor } from '../missoes/missoes.service';
 import { competicoesDoVendedor } from '../competicoes/competicoes.service';
@@ -133,6 +133,21 @@ export async function montarPainel(vendedorId: string, agora = new Date()) {
   if (!indicadores.TICKET) referencia = { ...referencia, ticketMedio: null };
   if (!indicadores.PA || !indicadores.PARES) referencia = { ...referencia, pa: null };
 
+  // Médias para "Você × média" — no servidor. Métrica financeira só com ≥ 3
+  // colegas no grupo: com menos, a média revelaria o valor de quem está ao lado.
+  const METRICAS_TODAS: Metrica[] = ['SCORE', 'VENDAS', 'PERCENTUAL_META', 'EVOLUCAO', 'PA', 'TICKET', 'CONSISTENCIA'];
+  const FINANCEIRA: Partial<Record<Metrica, boolean>> = { VENDAS: true, TICKET: true };
+  const mediaDe = (ids: string[], m: Metrica) => {
+    const valores = ids.map((id) => visao.agora.get(id)).filter(Boolean).map((e) => valorDaMetrica(e!, m)).filter((v): v is number => v !== null);
+    const colegas = ids.filter((id) => id !== vendedorId).length;
+    if (!valores.length || (FINANCEIRA[m] && colegas < 3)) return null;
+    return Math.round((valores.reduce((a, b) => a + b, 0) / valores.length) * 100) / 100;
+  };
+  const medias = {
+    loja: Object.fromEntries(METRICAS_TODAS.map((m) => [m, mediaDe(daLoja, m)])) as Record<Metrica, number | null>,
+    geral: Object.fromEntries(METRICAS_TODAS.map((m) => [m, mediaDe(elegiveisIds, m)])) as Record<Metrica, number | null>,
+  };
+
   const pctComparavel = eu.anterior.metaMensal ? (eu.anterior.faturamento / eu.anterior.metaMensal) * 100 : 0;
   return {
     agora: agora.toISOString(),
@@ -143,7 +158,7 @@ export async function montarPainel(vendedorId: string, agora = new Date()) {
     hoje: { meta: eu.metaDiaria, realizado: realizado(eu.hoje) },
     mes: { meta: eu.metaMensal, realizado: realizado(eu.mes), diasTrabalhoRestantes: calcularDiasRestantes(eu.diasPrevistos, trabalhadosAteOntem), diasTrabalhados: eu.mes.diasTrabalhados },
     referencia,
-    rankings: { loja: rankingsPorMetrica(visao, daLoja, vendedorId), geral: rankingsPorMetrica(visao, elegiveisIds, vendedorId), lojas: rankingLojas(visao, lojas.map((l) => l.id)) },
+    rankings: { loja: rankingsPorMetrica(visao, daLoja, vendedorId), geral: rankingsPorMetrica(visao, elegiveisIds, vendedorId), lojas: rankingLojas(visao, lojas.map((l) => l.id)), medias },
     xp: extrato.xp,
     nivel: detalharNivel(extrato.xp.total),
     moedas: extrato.moedas,

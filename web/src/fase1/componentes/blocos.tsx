@@ -244,7 +244,7 @@ export function MinhaCorrida({ dados }: { dados: Fase1Dados }) {
     <Painel rotulo="Sua posição">
       <div className="mb-3 flex items-baseline justify-between gap-2">
         <h2 className="text-sm font-bold text-white">Sua posição · {emReais ? 'vendas do mês' : UNIDADE_METRICA[metrica].rotulo}</h2>
-        <Link to="/fase1/ranking" className="-my-3 inline-flex min-h-[44px] shrink-0 items-center text-sm font-medium text-accentSoft">
+        <Link to="/ranking" className="-my-3 inline-flex min-h-[44px] shrink-0 items-center text-sm font-medium text-accentSoft">
           Ver ranking
         </Link>
       </div>

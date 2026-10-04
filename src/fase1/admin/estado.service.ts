@@ -19,6 +19,7 @@ import { getRegraAtiva, REGUA_V1 } from '../../gamificacao/regras.service';
 import { detalharNivel, NIVEL_XP_V1 } from '../../gamificacao/niveis';
 import { diaLocal } from '../../tempo/dia';
 import { extratoDoVendedor } from '../painel/extrato.service';
+import { TEMPLATES_FEED } from '../../competicoes/feed.service';
 
 const STATUS: Record<StatusConta, 'ATIVO' | 'PENDENTE' | 'BLOQUEADO' | 'DESLIGADO'> = { ACTIVE: 'ATIVO', PENDING_ACTIVATION: 'PENDENTE', BLOCKED: 'BLOQUEADO', OFFBOARDED: 'DESLIGADO' };
 
@@ -204,10 +205,19 @@ export async function montarEstadoAdmin(empresaId: string, agora = new Date()) {
     }),
   };
 
+  // Prévia do feed da empresa (todas as lojas) — o que os vendedores estão vendo.
+  const eventosFeed = await prisma.feedEvent.findMany({ where: { empresaId, revogadoEm: null }, orderBy: { createdAt: 'desc' }, take: 30 });
+  const feedRecente = eventosFeed.map((e) => {
+    const sujeito = e.subjectId ? nomePorId.get(e.subjectId)?.split(' ')[0] : null;
+    const msg = (TEMPLATES_FEED[e.eventType] ?? (() => e.eventType))(e.templateData as Record<string, unknown>);
+    return { id: e.id, eventType: e.eventType, quando: e.createdAt.toISOString(), texto: sujeito ? `${sujeito} ${msg}` : msg, lojaId: e.lojaId };
+  });
+
   return {
     agora: agora.toISOString(),
     empresa: { id: empresa.id, nome: empresa.nome, timezone: tz },
     desempenho,
+    feedRecente,
     lojaXLoja: rankingLojas(visao, lojas.filter((l) => l.ativa).map((l) => l.id)),
     gamificacao,
     mes,

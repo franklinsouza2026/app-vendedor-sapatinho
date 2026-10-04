@@ -21,19 +21,19 @@ export function preAutorizarVendedor(dados: { lojaId: string; matriculaErp: stri
   });
 }
 
-function transicao(id: string, acao: 'bloquear' | 'desbloquear' | 'desligar' | 'reativar') {
-  return apiFetch<{ id: string; statusAnterior: StatusConta; statusNovo: StatusConta }>(`/admin/vendedores/${id}/${acao}`, { method: 'POST' });
+function transicao(id: string, acao: 'bloquear' | 'desbloquear' | 'desligar' | 'reativar', motivo?: string) {
+  return apiFetch<{ id: string; statusAnterior: StatusConta; statusNovo: StatusConta }>(`/admin/vendedores/${id}/${acao}`, { method: 'POST', body: JSON.stringify(motivo ? { motivo } : {}) });
 }
 
-export const bloquearVendedor = (id: string) => transicao(id, 'bloquear');
-export const desbloquearVendedor = (id: string) => transicao(id, 'desbloquear');
-export const desligarVendedor = (id: string) => transicao(id, 'desligar');
-export const reativarVendedor = (id: string) => transicao(id, 'reativar');
+export const bloquearVendedor = (id: string, motivo?: string) => transicao(id, 'bloquear', motivo);
+export const desbloquearVendedor = (id: string, motivo?: string) => transicao(id, 'desbloquear', motivo);
+export const desligarVendedor = (id: string, motivo?: string) => transicao(id, 'desligar', motivo);
+export const reativarVendedor = (id: string, motivo?: string) => transicao(id, 'reativar', motivo);
 
-export function realocarVendedor(id: string, novaLojaId: string) {
+export function realocarVendedor(id: string, novaLojaId: string, motivo?: string) {
   return apiFetch<{ id: string; lojaAnteriorId: string; lojaNovaId: string }>(`/admin/vendedores/${id}/realocar`, {
     method: 'POST',
-    body: JSON.stringify({ novaLojaId }),
+    body: JSON.stringify({ novaLojaId, ...(motivo ? { motivo } : {}) }),
   });
 }
 

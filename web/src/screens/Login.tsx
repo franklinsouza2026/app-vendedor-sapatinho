@@ -1,12 +1,11 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { rotaInicialPara } from '../auth/rotaInicial';
 import { listarLojas } from '../api/auth';
 import { ApiError } from '../api/client';
 import { Loja } from '../types';
 import { LoadingState } from '../components/LoadingState';
-import { FASE1_DEMO_HABILITADA } from '../fase1/flags';
 
 export function Login() {
   const { sessao, erroSessao, login } = useAuth();
@@ -16,6 +15,7 @@ export function Login() {
   const [senha, setSenha] = useState('');
   const [erro, setErro] = useState<string | null>(erroSessao);
   const [enviando, setEnviando] = useState(false);
+  const aviso = (useLocation().state as { aviso?: string } | null)?.aviso ?? null;
 
   useEffect(() => {
     listarLojas()
@@ -33,13 +33,12 @@ export function Login() {
     e.preventDefault();
     setErro(null);
     setEnviando(true);
-    const lojaEscolhida = lojas?.find((l) => l.id === lojaId);
     try {
-      if (!lojaEscolhida?.codigoErp) throw new Error('loja inválida');
-      await login(lojaEscolhida.codigoErp, matricula.trim(), senha);
+      if (!lojas?.some((l) => l.id === lojaId)) throw new Error('loja inválida');
+      await login(lojaId, matricula.trim(), senha);
     } catch (err) {
       if (err instanceof ApiError && err.status === 429) {
-        setErro('Muitas tentativas de login. Aguarde um instante e tente de novo.');
+        setErro('Muitas tentativas de login. Aguarde alguns minutos e tente de novo.');
       } else {
         setErro(err instanceof ApiError ? 'Matrícula, senha ou loja incorretos.' : 'Não foi possível entrar. Tente de novo.');
       }
@@ -52,6 +51,12 @@ export function Login() {
     <div className="mx-auto flex min-h-full w-full max-w-md flex-col justify-center px-6 py-12">
       <h1 className="mb-1 text-3xl font-bold text-white">Vendedor IA</h1>
       <p className="mb-8 text-slate-400">Sua meta, seu ranking, sua evolução — todo dia.</p>
+
+      {aviso && (
+        <p role="status" className="mb-4 rounded-lg bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
+          {aviso}
+        </p>
+      )}
 
       {lojas === null && <LoadingState texto="Carregando lojas..." />}
 
@@ -113,12 +118,9 @@ export function Login() {
         </form>
       )}
 
-      {/* Atalho para a homologação visual da Fase 1 — só existe em dev ou com VITE_FASE1_DEMO=true. */}
-      {FASE1_DEMO_HABILITADA && (
-        <Link to="/fase1" className="mt-8 inline-flex min-h-[44px] items-center justify-center rounded-lg border border-dashed border-sky-400/50 text-sm text-sky-200">
-          🧪 Abrir demonstração da Fase 1 (dados simulados)
-        </Link>
-      )}
+      <Link to="/ativacao" className="mt-8 inline-flex min-h-[44px] items-center justify-center text-sm text-accentSoft">
+        Primeiro acesso? Ative sua conta
+      </Link>
     </div>
   );
 }

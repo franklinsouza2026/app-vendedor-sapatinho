@@ -1,15 +1,17 @@
 /**
  * Operação: Visão geral, Prontidão do piloto, Saúde dos dados, Auditoria e
- * Uso do piloto. Pendências e prontidão são CALCULADAS do estado — resolver
- * algo no Admin faz a pendência sumir na hora.
+ * Uso do piloto — tudo com dado REAL. Pendências e prontidão são calculadas do
+ * estado vindo do servidor: resolver algo no Admin faz a pendência sumir.
  */
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useFase1 } from '../demo/Fase1Contexto';
-import { AGORA_DEMO } from '../demo/estado';
+import { useApi } from '../../utils/useApi';
+import { PainelDeEngajamento } from '../../screens/admin/AdminEngajamento';
 import { calcularPendencias, calcularProntidao, consistenciaMetasLoja, LIMITE_SYNC_MIN, minutosDesde, vendedoresAtivos, type SituacaoProntidao } from '../dominio/admin';
-import { dataCurta, hora, inteiro } from '../formato';
-import { AvisoSimulacao, Bloco, Botao, INPUT, Kpi, LinkBotao, Selo, TabelaResponsiva, TituloPagina } from './ui';
+import { dataCurta, hora, inteiro, reais } from '../formato';
+import { buscarSaude, sincronizarAgora, type EstadoSaude } from './api';
+import { useAdmin } from './AdminDados';
+import { Bloco, Botao, Feedback, INPUT, Kpi, LinkBotao, Selo, TabelaResponsiva, TituloPagina } from './ui';
 
 const ICONE_SITUACAO: Record<SituacaoProntidao, { icone: string; texto: string; cor: string }> = {
   OK: { icone: '✓', texto: 'Pronto', cor: 'text-emerald-300' },
@@ -17,9 +19,16 @@ const ICONE_SITUACAO: Record<SituacaoProntidao, { icone: string; texto: string; 
   BLOQUEIO: { icone: '⛔', texto: 'Bloqueia o piloto', cor: 'text-rose-300' },
 };
 
-function idadeSync(iso: string): { texto: string; tom: 'ok' | 'aviso' | 'erro'; icone: string } {
-  const min = minutosDesde(iso, AGORA_DEMO);
-  const texto = min < 60 ? `há ${min} min` : `há ${Math.floor(min / 60)} h ${min % 60 ? `${min % 60} min` : ''}`.trim();
+const VISUAL_SAUDE: Record<EstadoSaude, { icone: string; texto: string; tom: 'ok' | 'aviso' | 'erro' }> = {
+  OPERACIONAL: { icone: '🟢', texto: 'Operacional', tom: 'ok' },
+  ATENCAO: { icone: '🟡', texto: 'Atenção', tom: 'aviso' },
+  FALHA: { icone: '🔴', texto: 'Falha', tom: 'erro' },
+};
+
+export function idadeSync(iso: string | null, agoraIso: string): { texto: string; tom: 'ok' | 'aviso' | 'erro'; icone: string } {
+  if (!iso) return { texto: 'nunca sincronizou', tom: 'erro', icone: '🔴' };
+  const min = minutosDesde(iso, agoraIso);
+  const texto = min < 60 ? `há ${Math.max(0, min)} min` : `há ${Math.floor(min / 60)} h ${min % 60 ? `${min % 60} min` : ''}`.trim();
   if (min > LIMITE_SYNC_MIN) return { texto, tom: 'erro', icone: '🔴' };
   if (min > 60) return { texto, tom: 'aviso', icone: '🟡' };
   return { texto, tom: 'ok', icone: '🟢' };
@@ -28,14 +37,17 @@ function idadeSync(iso: string): { texto: string; tom: 'ok' | 'aviso' | 'erro'; 
 // ================================================================== visão geral
 
 export function VisaoGeral() {
-  const { estado } = useFase1();
-  const pend = calcularPendencias(estado, AGORA_DEMO);
-  const pront = calcularProntidao(estado, AGORA_DEMO);
+  const { estado } = useAdmin();
+  const pend = calcularPendencias(estado);
+  const pront = calcularProntidao(estado);
   const ok = pront.filter((p) => p.situacao === 'OK').length;
   const bloqueios = pront.filter((p) => p.situacao === 'BLOQUEIO').length;
   const ativos = vendedoresAtivos(estado);
-  const comMeta = estado.vendedores.filter((v) => v.status !== 'DESLIGADO' && estado.metas.individuais[v.id]?.mensal);
-  const semMeta = estado.vendedores.filter((v) => v.status !== 'DESLIGADO' && !estado.metas.individuais[v.id]?.mensal);
+  const naoDesligados = estado.vendedores.filter((v) => v.status !== 'DESLIGADO');
+  const comMeta = naoDesligados.filter((v) => estado.metas.individuais[v.id]?.mensal);
+  const semMeta = naoDesligados.filter((v) => !estado.metas.individuais[v.id]?.mensal);
+  const vendasHoje = estado.desempenho.reduce((a, d) => a + d.hoje.faturamento, 0);
+  const vendasMes = estado.desempenho.reduce((a, d) => a + d.mes.faturamento, 0);
 
   return (
     <>
@@ -44,15 +56,15 @@ export function VisaoGeral() {
         descricao="O sistema está pronto para os vendedores usarem hoje?"
         acoes={
           <>
-            <LinkBotao para="/fase1/admin/campanhas/nova" tipo="primario">
+            <LinkBotao para="/admin/campanhas/nova" tipo="primario">
               + Nova campanha
             </LinkBotao>
-            <LinkBotao para="/fase1/admin/missoes/nova">+ Nova missão</LinkBotao>
+            <LinkBotao para="/admin/missoes/nova">+ Nova missão</LinkBotao>
           </>
         }
       />
 
-      <Link to="/fase1/admin/prontidao" className="block rounded-2xl border border-slate-700/60 bg-gradient-to-r from-surface to-accent/10 p-4 active:opacity-90">
+      <Link to="/admin/prontidao" className="block rounded-2xl border border-slate-700/60 bg-gradient-to-r from-surface to-accent/10 p-4 active:opacity-90">
         <p className="text-xs font-semibold uppercase tracking-wider text-slate-300">Prontidão da Fase 1</p>
         <p className="mt-1 text-3xl font-extrabold text-white">
           {Math.round((ok / pront.length) * 100)}% pronto <span className="text-base font-medium text-slate-400">· {ok} de {pront.length} áreas</span>
@@ -61,13 +73,15 @@ export function VisaoGeral() {
       </Link>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Kpi rotulo="Lojas ativas" valor={estado.lojas.filter((l) => l.status === 'ATIVA').length} para="/fase1/admin/lojas" />
-        <Kpi rotulo="Vendedores ativos" valor={ativos.length} detalhe={`${estado.vendedores.length} cadastrados`} para="/fase1/admin/vendedores" />
-        <Kpi rotulo="Com meta" valor={comMeta.length} tom="ok" para="/fase1/admin/metas" />
-        <Kpi rotulo="Sem meta" valor={semMeta.length} tom={semMeta.length ? 'aviso' : 'ok'} para="/fase1/admin/metas" />
-        <Kpi rotulo="Campanhas ativas" valor={estado.campanhas.filter((c) => c.status === 'ATIVA').length} detalhe={`${estado.campanhas.filter((c) => c.status === 'RASCUNHO').length} em rascunho`} para="/fase1/admin/campanhas" />
-        <Kpi rotulo="Missões ativas" valor={estado.missoes.filter((m) => m.status === 'ATIVA').length} para="/fase1/admin/missoes" />
-        <Kpi rotulo="Competições ativas" valor={estado.competicoes.filter((c) => c.status === 'ATIVA').length} para="/fase1/admin/competicoes" />
+        <Kpi rotulo="Vendas hoje" valor={reais(vendasHoje)} detalhe="todas as lojas" />
+        <Kpi rotulo="Vendas no mês" valor={reais(vendasMes)} />
+        <Kpi rotulo="Lojas ativas" valor={estado.lojas.filter((l) => l.status === 'ATIVA').length} para="/admin/lojas" />
+        <Kpi rotulo="Vendedores ativos" valor={ativos.length} detalhe={`${estado.vendedores.length} cadastrados`} para="/admin/vendedores" />
+        <Kpi rotulo="Com meta" valor={comMeta.length} tom="ok" para="/admin/metas" />
+        <Kpi rotulo="Sem meta" valor={semMeta.length} tom={semMeta.length ? 'aviso' : 'ok'} para="/admin/metas" />
+        <Kpi rotulo="Campanhas ativas" valor={estado.campanhas.filter((c) => c.status === 'ATIVA').length} detalhe={`${estado.campanhas.filter((c) => c.status === 'RASCUNHO').length} em rascunho`} para="/admin/campanhas" />
+        <Kpi rotulo="Missões ativas" valor={estado.missoes.filter((m) => m.status === 'ATIVA').length} para="/admin/missoes" />
+        <Kpi rotulo="Competições ativas" valor={estado.competicoes.filter((c) => c.status === 'ATIVA').length} para="/admin/competicoes" />
         <Kpi rotulo="Pendências" valor={pend.length} tom={pend.some((p) => p.bloqueiaPiloto) ? 'erro' : pend.length ? 'aviso' : 'ok'} />
       </div>
 
@@ -97,32 +111,38 @@ export function VisaoGeral() {
             </ul>
           )}
         </Bloco>
-        <Bloco titulo="Saúde dos dados" acao={<Link to="/fase1/admin/saude" className="text-sm text-accentSoft">Detalhes →</Link>}>
+        <Bloco titulo="Saúde dos dados" acao={<Link to="/admin/saude" className="text-sm text-accentSoft">Detalhes →</Link>}>
           <ul className="flex flex-col gap-2">
-            {estado.lojas.map((l) => {
-              const s = idadeSync(l.ultimaSync);
-              return (
-                <li key={l.id} className="flex items-center justify-between rounded-xl bg-slate-800/70 px-3 py-2 text-sm">
-                  <span className="text-slate-200">
-                    <span aria-hidden="true">{s.icone} </span>
-                    {l.nome}
-                  </span>
-                  <Selo tom={s.tom}>atualizado {s.texto}</Selo>
-                </li>
-              );
-            })}
+            {estado.lojas
+              .filter((l) => l.status === 'ATIVA')
+              .map((l) => {
+                const s = idadeSync(l.ultimaSync, estado.agora);
+                return (
+                  <li key={l.id} className="flex items-center justify-between rounded-xl bg-slate-800/70 px-3 py-2 text-sm">
+                    <span className="text-slate-200">
+                      <span aria-hidden="true">{s.icone} </span>
+                      {l.nome}
+                    </span>
+                    <Selo tom={s.tom}>{l.ultimaSync ? `atualizado ${s.texto}` : s.texto}</Selo>
+                  </li>
+                );
+              })}
           </ul>
         </Bloco>
       </div>
 
-      <Bloco titulo="Últimas ações" acao={<Link to="/fase1/admin/auditoria" className="text-sm text-accentSoft">Auditoria →</Link>}>
-        <ul className="divide-y divide-slate-800 text-sm">
-          {estado.auditoria.slice(0, 4).map((a) => (
-            <li key={a.id} className="py-2 text-slate-300">
-              <strong className="text-white">{a.acao}</strong> · {a.entidade} <span className="text-xs text-slate-400">· {dataCurta(a.quando)} {hora(a.quando)}</span>
-            </li>
-          ))}
-        </ul>
+      <Bloco titulo="Últimas ações" acao={<Link to="/admin/auditoria" className="text-sm text-accentSoft">Auditoria →</Link>}>
+        {estado.auditoria.length === 0 ? (
+          <p className="text-sm text-slate-400">Nenhuma ação registrada ainda.</p>
+        ) : (
+          <ul className="divide-y divide-slate-800 text-sm">
+            {estado.auditoria.slice(0, 4).map((a) => (
+              <li key={a.id} className="py-2 text-slate-300">
+                <strong className="text-white">{a.acao}</strong> · {a.entidade} <span className="text-xs text-slate-400">· {dataCurta(a.quando)} {hora(a.quando)} · {a.usuario}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </Bloco>
     </>
   );
@@ -131,8 +151,8 @@ export function VisaoGeral() {
 // ================================================================== prontidão
 
 export function Prontidao() {
-  const { estado } = useFase1();
-  const itens = calcularProntidao(estado, AGORA_DEMO);
+  const { estado } = useAdmin();
+  const itens = calcularProntidao(estado);
   const ok = itens.filter((i) => i.situacao === 'OK').length;
   const bloqueios = itens.filter((i) => i.situacao === 'BLOQUEIO');
   return (
@@ -172,61 +192,94 @@ export function Prontidao() {
 // ================================================================== saúde dos dados
 
 export function SaudeDados() {
-  const { estado, alterar } = useFase1();
-  const vinculos = estado.vendedores.filter((v) => v.vinculoErp === 'PENDENTE' && v.status !== 'DESLIGADO');
+  const { estado, executar } = useAdmin();
+  const saude = useApi(() => buscarSaude(), []);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const vinculos = estado.vendedores.filter((v) => v.vinculoErp === 'PENDENTE' && v.status === 'ATIVO');
   const semMeta = estado.vendedores.filter((v) => v.status !== 'DESLIGADO' && !estado.metas.individuais[v.id]?.mensal);
-  const inconsistencias = estado.lojas.map((l) => ({ l, c: consistenciaMetasLoja(estado, l.id) })).filter((x) => x.c.diferenca !== 0);
+  const inconsistencias = estado.lojas.map((l) => ({ l, c: consistenciaMetasLoja(estado, l.id) })).filter((x) => x.c.metaLoja !== null && x.c.diferenca !== 0);
 
-  function simularSync(lojaId: string, minutosAtras: number, acao: string) {
-    const loja = estado.lojas.find((l) => l.id === lojaId)!;
-    const novo = new Date(new Date(AGORA_DEMO).getTime() - minutosAtras * 60000);
-    const iso = `${novo.getFullYear()}-${String(novo.getMonth() + 1).padStart(2, '0')}-${String(novo.getDate()).padStart(2, '0')}T${String(novo.getHours()).padStart(2, '0')}:${String(novo.getMinutes()).padStart(2, '0')}:00`;
-    alterar((e) => {
-      e.lojas.find((l) => l.id === lojaId)!.ultimaSync = iso;
-    }, { acao, entidade: `Loja ${loja.nome}`, antes: hora(loja.ultimaSync), depois: hora(iso) });
+  async function sincronizar(id: string) {
+    const erro = await executar(() => sincronizarAgora(id));
+    setFeedback(erro ?? 'Sincronização solicitada. Os números chegam em instantes.');
+    setTimeout(() => saude.recarregar(), 4000);
   }
 
+  const s = saude.dados;
   return (
     <>
-      <TituloPagina titulo="Saúde dos dados" descricao={`O ERP sincroniza de hora em hora. Acima de ${LIMITE_SYNC_MIN} min sem sync, o vendedor vê o aviso de dado atrasado e a loja vira pendência.`} />
-      <Bloco titulo="Sincronização por loja">
-        <ul className="flex flex-col gap-2">
-          {estado.lojas.map((l) => {
-            const s = idadeSync(l.ultimaSync);
-            return (
-              <li key={l.id} className="flex flex-col gap-2 rounded-xl bg-slate-800/70 p-3 sm:flex-row sm:items-center sm:justify-between">
-                <span className="text-sm">
-                  <span aria-hidden="true">{s.icone} </span>
-                  <strong className="text-white">{l.nome}</strong>
-                  <span className="text-slate-400"> — último sync {hora(l.ultimaSync)} · {s.texto}</span>
-                </span>
-                <span className="flex gap-2">
-                  <Botao onClick={() => simularSync(l.id, 2, 'Simulou sync do ERP')}>Simular sync agora</Botao>
-                  <Botao tipo="fantasma" onClick={() => simularSync(l.id, 200, 'Simulou atraso de sync')}>
-                    Simular atraso
-                  </Botao>
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-        <div className="mt-3">
-          <AvisoSimulacao>“Simular atraso” em Caruaru Shopping faz o app da Ana mostrar o aviso de dado desatualizado (cenário B).</AvisoSimulacao>
-        </div>
-      </Bloco>
+      <TituloPagina titulo="Saúde dos dados" descricao={`Vendas chegam do ERP pela integração. Acima de ${LIMITE_SYNC_MIN} min sem sincronizar, o vendedor vê o aviso de dado atrasado e a loja vira pendência.`} acoes={<Botao onClick={() => saude.recarregar()}>Atualizar</Botao>} />
+      <Feedback texto={feedback} />
+      {saude.carregando && !s && <p className="text-sm text-slate-400">Verificando…</p>}
+      {saude.erro && <p className="text-sm text-rose-300">Não foi possível verificar a saúde agora.</p>}
+      {s && (
+        <>
+          <div className={`rounded-2xl border p-4 ${s.geral.estado === 'OPERACIONAL' ? 'border-emerald-500/40 bg-emerald-500/5' : s.geral.estado === 'ATENCAO' ? 'border-amber-500/40 bg-amber-500/5' : 'border-rose-500/40 bg-rose-500/5'}`} role="status">
+            <p className="text-2xl font-extrabold text-white">
+              {VISUAL_SAUDE[s.geral.estado].icone} {VISUAL_SAUDE[s.geral.estado].texto}
+            </p>
+            <p className="mt-1 text-sm text-slate-200">{s.geral.motivo}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <Kpi rotulo="Última sincronização" valor={s.ultimaSyncSucessoEm ? hora(s.ultimaSyncSucessoEm) : '—'} detalhe={s.ultimaSyncSucessoEm ? dataCurta(s.ultimaSyncSucessoEm) : 'nunca'} tom={VISUAL_SAUDE[s.geral.estado].tom} />
+            <Kpi rotulo="Última venda recebida" valor={s.ultimaVendaEm ? hora(s.ultimaVendaEm) : '—'} detalhe={s.ultimaVendaEm ? dataCurta(s.ultimaVendaEm) : 'nenhuma ainda'} />
+            <Kpi rotulo="Processador de tarefas" valor={`${VISUAL_SAUDE[s.worker.estado].icone} ${VISUAL_SAUDE[s.worker.estado].texto}`} detalhe={s.worker.motivo} tom={VISUAL_SAUDE[s.worker.estado].tom} />
+            <Kpi rotulo="Fila" valor={s.fila.aguardando !== undefined ? `${inteiro(s.fila.aguardando)} aguardando` : '—'} detalhe={s.fila.motivo} tom={VISUAL_SAUDE[s.fila.estado].tom} />
+          </div>
+          {s.integracoes.length === 0 && (
+            <Bloco titulo="Integração">
+              <p className="text-sm text-amber-200">Nenhuma integração de vendas configurada. Sem ela o app não recebe vendas.</p>
+              <div className="mt-2">
+                <LinkBotao para="/admin/integracoes" tipo="primario">
+                  Configurar integração →
+                </LinkBotao>
+              </div>
+            </Bloco>
+          )}
+          {s.integracoes.map((i) => (
+            <Bloco key={i.id} titulo={`Integração ${i.provedor}`} acao={i.status === 'ATIVA' ? <Botao onClick={() => void sincronizar(i.id)}>Sincronizar agora</Botao> : undefined}>
+              <p className="text-sm">
+                <Selo tom={VISUAL_SAUDE[i.estado].tom}>
+                  {VISUAL_SAUDE[i.estado].icone} {VISUAL_SAUDE[i.estado].texto}
+                </Selo>{' '}
+                <span className="text-slate-300">{i.motivo}</span>
+              </p>
+              <p className="mt-2 text-xs text-slate-400">
+                Lojas vinculadas: {i.lojasVinculadas.map((l) => `${l.nome} (${l.codigoExterno})`).join(', ') || 'nenhuma'} · erros nas últimas 24 h: {i.errosUltimas24h}
+              </p>
+              <TabelaResponsiva
+                legenda={`Últimas sincronizações ${i.provedor}`}
+                linhas={i.execucoes}
+                chave={(e) => e.id}
+                vazio="Nenhuma sincronização ainda."
+                colunas={[
+                  { titulo: 'Quando', celula: (e) => `${dataCurta(e.iniciadaEm)} ${hora(e.iniciadaEm)}` },
+                  { titulo: 'Situação', celula: (e) => <Selo tom={e.status === 'SUCESSO' ? 'ok' : e.status === 'ERRO' ? 'erro' : 'aviso'}>{e.status === 'SUCESSO' ? 'Sucesso' : e.status === 'ERRO' ? 'Erro' : 'Em andamento'}</Selo> },
+                  { titulo: 'Eventos', celula: (e) => inteiro(e.eventosRecebidos), alinhar: 'direita' },
+                  { titulo: 'Vendas novas', celula: (e) => inteiro(e.vendasNovas), alinhar: 'direita' },
+                  { titulo: 'Ajustes', celula: (e) => inteiro(e.ajustesNovos), alinhar: 'direita' },
+                  { titulo: 'Ignorados', celula: (e) => inteiro(e.ignorados), alinhar: 'direita' },
+                  { titulo: 'Detalhe', celula: (e) => e.erro ?? '—' },
+                ]}
+              />
+            </Bloco>
+          ))}
+          {s.lojasSemVinculo.length > 0 && <p className="text-sm text-amber-200">⚠️ Lojas ativas sem vínculo com nenhuma integração: {s.lojasSemVinculo.join(', ')}.</p>}
+        </>
+      )}
       <div className="grid gap-4 md:grid-cols-3">
         <Kpi rotulo="Vendedores ativos" valor={vendedoresAtivos(estado).length} />
-        <Kpi rotulo="Vínculos ERP pendentes" valor={vinculos.length} tom={vinculos.length ? 'aviso' : 'ok'} detalhe={vinculos.map((v) => v.nome.split(' ')[0]).join(', ') || 'todos verificados'} para="/fase1/admin/vendedores" />
-        <Kpi rotulo="Sem meta" valor={semMeta.length} tom={semMeta.length ? 'aviso' : 'ok'} detalhe={semMeta.map((v) => v.nome.split(' ')[0]).join(', ') || 'todos com meta'} para="/fase1/admin/metas" />
+        <Kpi rotulo="Sem venda recebida do ERP" valor={vinculos.length} tom={vinculos.length ? 'aviso' : 'ok'} detalhe={vinculos.map((v) => v.nome.split(' ')[0]).join(', ') || 'todos já com venda'} para="/admin/vendedores" />
+        <Kpi rotulo="Sem meta" valor={semMeta.length} tom={semMeta.length ? 'aviso' : 'ok'} detalhe={semMeta.map((v) => v.nome.split(' ')[0]).join(', ') || 'todos com meta'} para="/admin/metas" />
       </div>
       <Bloco titulo="Inconsistências">
         {inconsistencias.length === 0 ? (
-          <p className="text-sm text-emerald-200">✓ Soma das metas individuais confere com a meta de cada loja.</p>
+          <p className="text-sm text-emerald-200">✓ Soma das metas individuais confere com a meta de cada loja (onde a meta da loja foi cadastrada).</p>
         ) : (
           <ul className="text-sm text-amber-200">
             {inconsistencias.map(({ l, c }) => (
               <li key={l.id}>
-                ⚠️ {l.nome}: metas individuais somam R$ {inteiro(c.soma)}, meta da loja é R$ {inteiro(c.metaLoja)}.
+                ⚠️ {l.nome}: metas individuais somam {reais(c.soma)}, meta da loja é {reais(c.metaLoja ?? 0)}.
               </li>
             ))}
           </ul>
@@ -239,7 +292,7 @@ export function SaudeDados() {
 // ================================================================== auditoria
 
 export function Auditoria() {
-  const { estado } = useFase1();
+  const { estado } = useAdmin();
   const [busca, setBusca] = useState('');
   const termo = busca.trim().toLowerCase();
   const linhas = estado.auditoria.filter((a) => !termo || `${a.acao} ${a.entidade} ${a.usuario} ${a.motivo ?? ''}`.toLowerCase().includes(termo));
@@ -271,52 +324,11 @@ export function Auditoria() {
 
 // ================================================================== uso do piloto
 
-const USO = {
-  abriramHoje: 12,
-  abriramSemana: 15,
-  telas: [
-    { nome: 'Meta do dia (Home)', pct: 100 },
-    { nome: 'Ranking', pct: 87 },
-    { nome: 'Missões', pct: 73 },
-    { nome: 'Competições', pct: 53 },
-    { nome: 'Conquistas', pct: 40 },
-  ],
-  missoesConcluidas: 31,
-  diasMediosPorSemana: 5.2,
-};
-
 export function Analytics() {
-  const { estado } = useFase1();
-  const ativos = vendedoresAtivos(estado).length;
   return (
     <>
-      <TituloPagina titulo="Uso do piloto" descricao="Os vendedores estão usando o produto? Números agregados por loja — sem rastrear pessoa a pessoa." />
-      <AvisoSimulacao>Números simulados. No piloto real virão de eventos de uso anônimos e agregados (decisão de privacidade pendente).</AvisoSimulacao>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Kpi rotulo="Vendedores ativos" valor={ativos} />
-        <Kpi rotulo="Abriram hoje" valor={USO.abriramHoje} detalhe={`${Math.round((USO.abriramHoje / ativos) * 100)}% dos ativos`} tom="ok" />
-        <Kpi rotulo="Abriram na semana" valor={USO.abriramSemana} detalhe={`${Math.round((USO.abriramSemana / ativos) * 100)}% dos ativos`} tom="ok" />
-        <Kpi rotulo="Retorno médio" valor={`${USO.diasMediosPorSemana.toLocaleString('pt-BR')} dias`} detalhe="por semana" />
-      </div>
-      <Bloco titulo="Quantos vendedores visualizaram cada área (semana)">
-        <ul className="flex flex-col gap-3">
-          {USO.telas.map((t) => (
-            <li key={t.nome}>
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-200">{t.nome}</span>
-                <span className="font-semibold text-white">{t.pct}%</span>
-              </div>
-              <div className="mt-1 h-2 rounded-full bg-slate-700" aria-hidden="true">
-                <div className="h-2 rounded-full bg-accentSoft" style={{ width: `${t.pct}%` }} />
-              </div>
-            </li>
-          ))}
-        </ul>
-      </Bloco>
-      <div className="grid gap-3 md:grid-cols-2">
-        <Kpi rotulo="Missões concluídas na semana" valor={USO.missoesConcluidas} />
-        <Kpi rotulo="Competições acessadas" valor="53%" detalhe="dos ativos abriram ao menos uma" />
-      </div>
+      <TituloPagina titulo="Uso do piloto" descricao="Os vendedores estão usando o produto? Acesso mede adoção — não mede resultado de vendas." />
+      <PainelDeEngajamento linkRecompensa="/admin/acesso-diario" />
     </>
   );
 }

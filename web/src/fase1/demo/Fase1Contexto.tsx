@@ -1,188 +1,114 @@
 /**
- * Estado da demonstração:
- *  - perfil escolhido na entrada (vendedor/admin) e modo "pré-visualização do Admin";
- *  - cenário ativo e fila de celebrações;
- *  - ESTADO DO ADMIN (persistente): o que o Admin configura chega à vendedora.
+ * Provedor de DEMONSTRAÇÃO das telas da vendedora — usado SOMENTE em testes
+ * de interface (cenários fixos A…X). Implementa o mesmo contrato do provedor
+ * real (`ContextoFase1`) e nunca é importado pelo app de produção.
  *
- * Nada aqui conversa com a API nem com o AuthContext real.
+ * O "mundo demo" (estado.ts) é uma fixture: não fala com a API.
  */
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import type { Celebracao, Fase1Dados } from '../dominio/tipos';
+import { ContextoFase1, type ValorFase1 } from '../contexto';
+import type { Celebracao, Missao } from '../dominio/tipos';
 import { buscarCenario, CENARIO_PADRAO, type Cenario, montarCenario } from './cenarios';
-import { AGORA_DEMO, carregarEstado, type EstadoDemo, estadoInicial, limparEstadoSalvo, novoId, salvarEstado } from './estado';
+import { type EstadoDemo, estadoInicial } from './estado';
+import { SeletorCenario } from './SeletorCenario';
 
-export type PerfilDemo = 'VENDEDOR' | 'ADMIN';
-
-export interface RegistroAuditoria {
-  acao: string;
-  entidade: string;
-  antes?: string | null;
-  depois?: string | null;
-  motivo?: string | null;
-}
-
-interface Fase1ContextoValor {
-  perfil: PerfilDemo | null;
-  entrar: (perfil: PerfilDemo) => void;
-  sair: () => void;
-  /** Admin abrindo o app da vendedora para conferir o que configurou. */
-  previewAdmin: boolean;
-  verComoVendedor: () => void;
-  voltarAoAdmin: () => void;
+interface ValorDemo {
   cenario: Cenario;
   trocarCenario: (id: string) => void;
-  dados: Fase1Dados;
-  estado: EstadoDemo;
-  /** Toda alteração do Admin passa por aqui: aplica, registra na auditoria e persiste. */
-  alterar: (mutacao: (e: EstadoDemo) => void, registro: RegistroAuditoria | null) => void;
-  restaurarDemo: () => void;
-  celebracaoAtual: Celebracao | null;
   celebrar: (c: Celebracao) => void;
-  fecharCelebracao: () => void;
-  versaoCarga: number;
-  tentarDeNovo: () => void;
 }
 
-const Contexto = createContext<Fase1ContextoValor | null>(null);
+const ContextoDemo = createContext<ValorDemo | null>(null);
 
-const CHAVE_PERFIL = 'vendedor-ia:fase1:perfil';
-const CHAVE_PREVIEW = 'vendedor-ia:fase1:preview';
-const CHAVE_CENARIO = 'vendedor-ia:fase1:cenario';
-const CHAVE_CELEBRADO = 'vendedor-ia:fase1:celebrado';
+export function useDemo(): ValorDemo {
+  const ctx = useContext(ContextoDemo);
+  if (!ctx) throw new Error('useDemo precisa estar dentro de <ProvedorDemoVendedor>');
+  return ctx;
+}
 
-function ler(chave: string): string | null {
+const CHAVE_CELEBRADO = 'vendedor-ia:demo:celebrado';
+
+function jaCelebrado(id: string): boolean {
   try {
-    return sessionStorage.getItem(chave);
+    return sessionStorage.getItem(`${CHAVE_CELEBRADO}:${id}`) === '1';
   } catch {
-    return null;
+    return false;
   }
 }
 
-function gravar(chave: string, valor: string | null) {
-  try {
-    if (valor === null) sessionStorage.removeItem(chave);
-    else sessionStorage.setItem(chave, valor);
-  } catch {
-    // sem storage a demo funciona igual, só não lembra entre recarregamentos
-  }
-}
-
-function cenarioInicial(): string {
-  const daUrl = new URLSearchParams(window.location.search).get('cenario');
-  return (daUrl ?? ler(CHAVE_CENARIO) ?? CENARIO_PADRAO).toUpperCase();
-}
-
-export function Fase1Provider({ children }: { children: ReactNode }) {
-  const [perfil, setPerfil] = useState<PerfilDemo | null>(() => {
-    const p = ler(CHAVE_PERFIL);
-    return p === 'VENDEDOR' || p === 'ADMIN' ? p : null;
-  });
-  const [previewAdmin, setPreviewAdmin] = useState(() => ler(CHAVE_PREVIEW) === '1');
-  const [cenarioId, setCenarioId] = useState(cenarioInicial);
-  const [estado, setEstado] = useState<EstadoDemo>(carregarEstado);
+export function ProvedorDemoVendedor({ cenarioInicial = CENARIO_PADRAO, children }: { cenarioInicial?: string; children: ReactNode }) {
+  const [cenarioId, setCenarioId] = useState(cenarioInicial.toUpperCase());
+  const [estado, setEstado] = useState<EstadoDemo>(estadoInicial);
   const [fila, setFila] = useState<Celebracao[]>([]);
   const [versaoCarga, setVersaoCarga] = useState(0);
+  const [carga, setCarga] = useState<ValorFase1['carga']>('pronto');
 
   const cenario = buscarCenario(cenarioId);
   const dados = useMemo(() => montarCenario(cenario.id, estado), [cenario.id, estado]);
 
+  useEffect(() => {
+    setFila(jaCelebrado(cenario.id) ? [] : montarCenario(cenario.id, estado).celebracoes);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cenario.id, versaoCarga]);
+
+  // Ciclo de carga simulado (normal, lento, erro) conforme o cenário.
+  useEffect(() => {
+    if (cenario.carga === 'normal') return setCarga('pronto');
+    setCarga('carregando');
+    const t = setTimeout(() => setCarga(cenario.carga === 'erro' ? 'erro' : 'pronto'), cenario.carga === 'erro' ? 900 : 2500);
+    return () => clearTimeout(t);
+  }, [cenario.carga, versaoCarga]);
+
+  const celebrar = useCallback((c: Celebracao) => setFila((f) => [...f, c]), []);
   const trocarCenario = useCallback((id: string) => {
-    gravar(CHAVE_CENARIO, id);
-    gravar(`${CHAVE_CELEBRADO}:${id}`, null); // escolher o cenário de novo = rever a celebração
+    try {
+      sessionStorage.removeItem(`${CHAVE_CELEBRADO}:${id}`);
+    } catch {
+      // ignora
+    }
     setCenarioId(id);
     setVersaoCarga((v) => v + 1);
   }, []);
 
-  // Celebrações do cenário entram na fila uma vez por seleção — recarregar não repete.
-  useEffect(() => {
-    // Usa o estado do Admin vigente: o texto da celebração reflete a meta configurada.
-    setFila(ler(`${CHAVE_CELEBRADO}:${cenario.id}`) ? [] : montarCenario(cenario.id, estado).celebracoes);
-  }, [cenario.id, versaoCarga]);
+  /** "Simular venda": progresso e crédito como lançamentos do ledger simulado. */
+  const simularMissao = useCallback(
+    (m: Missao) => {
+      const chave = `${cenario.id}:${m.id}`;
+      const conclui = m.progresso + 1 >= m.alvo;
+      setEstado((atual) => {
+        const novo = structuredClone(atual);
+        novo.simulacao.progresso[chave] = (novo.simulacao.progresso[chave] ?? 0) + 1;
+        if (conclui) novo.simulacao.creditos.unshift({ id: `${chave}:${novo.simulacao.creditos.length + 1}`, quando: dados.agora, origem: `Missão “${m.titulo}”`, xp: m.recompensa.xp, moedas: m.recompensa.moedas });
+        return novo;
+      });
+      if (conclui) celebrar({ id: `sim-${chave}`, tipo: 'MISSAO', titulo: 'Missão concluída!', detalhe: `${m.titulo} — objetivo atingido.`, recompensa: m.recompensa });
+    },
+    [cenario.id, dados.agora, celebrar]
+  );
 
-  const alterar = useCallback((mutacao: (e: EstadoDemo) => void, registro: RegistroAuditoria | null) => {
-    setEstado((atual) => {
-      const novo = structuredClone(atual);
-      mutacao(novo);
-      if (registro) {
-        novo.auditoria.unshift({ id: novoId('aud'), quando: AGORA_DEMO, usuario: 'admin@sapatinho', acao: registro.acao, entidade: registro.entidade, antes: registro.antes ?? null, depois: registro.depois ?? null, motivo: registro.motivo ?? null });
-      }
-      salvarEstado(novo);
-      return novo;
-    });
-  }, []);
-
-  const valor: Fase1ContextoValor = {
-    perfil,
-    entrar: (p) => {
-      gravar(CHAVE_PERFIL, p);
-      gravar(CHAVE_PREVIEW, null);
-      setPreviewAdmin(false);
-      setPerfil(p);
-    },
-    sair: () => {
-      gravar(CHAVE_PERFIL, null);
-      gravar(CHAVE_PREVIEW, null);
-      setPreviewAdmin(false);
-      setPerfil(null);
-    },
-    previewAdmin,
-    verComoVendedor: () => {
-      gravar(CHAVE_PERFIL, 'VENDEDOR');
-      gravar(CHAVE_PREVIEW, '1');
-      setPreviewAdmin(true);
-      setPerfil('VENDEDOR');
-    },
-    voltarAoAdmin: () => {
-      gravar(CHAVE_PERFIL, 'ADMIN');
-      gravar(CHAVE_PREVIEW, null);
-      setPreviewAdmin(false);
-      setPerfil('ADMIN');
-    },
-    cenario,
-    trocarCenario,
+  const demo: ValorDemo = { cenario, trocarCenario, celebrar };
+  const valor: ValorFase1 = {
     dados,
-    estado,
-    alterar,
-    restaurarDemo: () => {
-      limparEstadoSalvo();
-      setEstado(estadoInicial());
-    },
+    carga,
+    tentarDeNovo: () => setVersaoCarga((v) => v + 1),
+    sair: () => undefined,
     celebracaoAtual: fila[0] ?? null,
-    celebrar: (c) => setFila((f) => [...f, c]),
     fecharCelebracao: () => {
-      gravar(`${CHAVE_CELEBRADO}:${cenario.id}`, '1');
+      try {
+        sessionStorage.setItem(`${CHAVE_CELEBRADO}:${cenario.id}`, '1');
+      } catch {
+        // ignora
+      }
       setFila((f) => f.slice(1));
     },
-    versaoCarga,
-    tentarDeNovo: () => setVersaoCarga((v) => v + 1),
+    celebrar,
+    simularMissao,
+    extraTopo: <SeletorCenario />,
   };
 
-  return <Contexto.Provider value={valor}>{children}</Contexto.Provider>;
-}
-
-export function useFase1() {
-  const ctx = useContext(Contexto);
-  if (!ctx) throw new Error('useFase1 precisa estar dentro de <Fase1Provider>');
-  return ctx;
-}
-
-/**
- * Simula o ciclo de carga de uma tela conforme o cenário (normal, lento, erro).
- * Quando a API real entrar, este hook vira o `useApi` de sempre.
- */
-export function useCargaSimulada(): 'carregando' | 'erro' | 'pronto' {
-  const { cenario, versaoCarga } = useFase1();
-  const [estado, setEstado] = useState<'carregando' | 'erro' | 'pronto'>(cenario.carga === 'normal' ? 'pronto' : 'carregando');
-
-  useEffect(() => {
-    if (cenario.carga === 'normal') {
-      setEstado('pronto');
-      return;
-    }
-    setEstado('carregando');
-    const t = setTimeout(() => setEstado(cenario.carga === 'erro' ? 'erro' : 'pronto'), cenario.carga === 'erro' ? 900 : 2500);
-    return () => clearTimeout(t);
-  }, [cenario.carga, versaoCarga]);
-
-  return estado;
+  return (
+    <ContextoDemo.Provider value={demo}>
+      <ContextoFase1.Provider value={valor}>{children}</ContextoFase1.Provider>
+    </ContextoDemo.Provider>
+  );
 }

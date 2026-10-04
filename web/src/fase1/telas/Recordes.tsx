@@ -1,4 +1,4 @@
-import { useFase1 } from '../demo/Fase1Contexto';
+import { useFase1 } from '../contexto';
 import type { Recorde } from '../dominio/tipos';
 import { BarraSimples, CabecalhoTela, Painel, Vazio } from '../componentes/ui';
 import { dataCurta, decimal, pct, plural, reais } from '../formato';
@@ -24,7 +24,7 @@ export function Recordes() {
   const hoje = dados.agora.slice(0, 10);
   return (
     <Fase1Pagina carregando="Carregando seus recordes...">
-      <CabecalhoTela titulo="Meus recordes" subtitulo="Você contra você mesma." voltar="/fase1/perfil" />
+      <CabecalhoTela titulo="Meus recordes" subtitulo="Você contra você mesma." voltar="/perfil" />
       {dados.recordes.length === 0 ? (
         <Vazio icone="🚀" titulo="Seus recordes começam agora" texto="Cada dia e cada mês que você fecha vira uma marca para superar." />
       ) : (

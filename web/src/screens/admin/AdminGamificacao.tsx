@@ -61,7 +61,7 @@ export function AdminGamificacao() {
  * evolução e não se gasta; VendaCoins é moeda. Desligada: o acesso continua
  * sendo registrado, só não há XP/VendaCoins.
  */
-function AbaRecompensaDiaria() {
+export function AbaRecompensaDiaria() {
   const { dados, carregando, recarregar } = useApi(() => buscarConfigRecompensa(), []);
   const [form, setForm] = useState<{ ativo: boolean; xp: string; moedas: string } | null>(null);
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);

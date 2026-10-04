@@ -87,7 +87,8 @@ async function transicionarStatus(
   id: string,
   empresaId: string,
   actorId: string,
-  lojaIdRestrita?: string
+  lojaIdRestrita?: string,
+  motivo?: string
 ) {
   // Um Admin bloqueando/desligando a PRÓPRIA conta se auto-tranca: requireAuth
   // rejeita o JWT dele no request seguinte (mesmo que fosse pra desfazer),
@@ -117,20 +118,20 @@ async function transicionarStatus(
     acao: regra.acao,
     actorId,
     targetId: id,
-    metadata: { estadoAnterior: vendedor.status, estadoNovo: regra.para },
+    metadata: { estadoAnterior: vendedor.status, estadoNovo: regra.para, antes: vendedor.status, depois: regra.para, ...(motivo ? { motivo: motivo.slice(0, 300) } : {}) },
   });
 
   return { id, statusAnterior: vendedor.status, statusNovo: regra.para };
 }
 
-export const bloquearVendedor = (id: string, empresaId: string, actorId: string, lojaIdRestrita?: string) =>
-  transicionarStatus('bloquear', id, empresaId, actorId, lojaIdRestrita);
-export const desbloquearVendedor = (id: string, empresaId: string, actorId: string, lojaIdRestrita?: string) =>
-  transicionarStatus('desbloquear', id, empresaId, actorId, lojaIdRestrita);
-export const desligarVendedor = (id: string, empresaId: string, actorId: string, lojaIdRestrita?: string) =>
-  transicionarStatus('desligar', id, empresaId, actorId, lojaIdRestrita);
-export const reativarVendedor = (id: string, empresaId: string, actorId: string, lojaIdRestrita?: string) =>
-  transicionarStatus('reativar', id, empresaId, actorId, lojaIdRestrita);
+export const bloquearVendedor = (id: string, empresaId: string, actorId: string, lojaIdRestrita?: string, motivo?: string) =>
+  transicionarStatus('bloquear', id, empresaId, actorId, lojaIdRestrita, motivo);
+export const desbloquearVendedor = (id: string, empresaId: string, actorId: string, lojaIdRestrita?: string, motivo?: string) =>
+  transicionarStatus('desbloquear', id, empresaId, actorId, lojaIdRestrita, motivo);
+export const desligarVendedor = (id: string, empresaId: string, actorId: string, lojaIdRestrita?: string, motivo?: string) =>
+  transicionarStatus('desligar', id, empresaId, actorId, lojaIdRestrita, motivo);
+export const reativarVendedor = (id: string, empresaId: string, actorId: string, lojaIdRestrita?: string, motivo?: string) =>
+  transicionarStatus('reativar', id, empresaId, actorId, lojaIdRestrita, motivo);
 
 /**
  * Realocação (Fatia 9.6, seção 11) — só ADMIN muda a loja de um vendedor/
@@ -141,7 +142,7 @@ export const reativarVendedor = (id: string, empresaId: string, actorId: string,
  * `matriculaErp` (é reaproveitada como identificador visível na nova loja);
  * colisão de matrícula na loja de destino é um 409 claro, nunca um "silêncio".
  */
-export async function realocarVendedor(id: string, novaLojaId: string, empresaId: string, actorId: string) {
+export async function realocarVendedor(id: string, novaLojaId: string, empresaId: string, actorId: string, motivo?: string) {
   const vendedor = await buscarVendedorNoEscopo(id, empresaId);
 
   const novaLoja = await prisma.loja.findUnique({ where: { id: novaLojaId } });
@@ -171,7 +172,7 @@ export async function realocarVendedor(id: string, novaLojaId: string, empresaId
     acao: 'USER_RELOCATED',
     actorId,
     targetId: id,
-    metadata: { lojaAnteriorId, lojaNovaId: novaLojaId },
+    metadata: { lojaAnteriorId, lojaNovaId: novaLojaId, antes: lojaAnteriorId, depois: novaLojaId, ...(motivo ? { motivo: motivo.slice(0, 300) } : {}) },
   });
 
   return { id, lojaAnteriorId, lojaNovaId: novaLojaId };

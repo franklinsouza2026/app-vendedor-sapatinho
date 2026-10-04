@@ -8,7 +8,7 @@
  */
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useFase1 } from '../demo/Fase1Contexto';
+import { useFase1 } from '../contexto';
 import type { Fase1Dados, LinhaRankingBruta, Metrica } from '../dominio/tipos';
 import { UNIDADE_METRICA, vendasEstimadas, type PosicaoCalculada } from '../dominio/estimativas';
 import { primeiroNome, rankingCalculado, rankingLojasCalculado } from '../dominio/alvos';
@@ -95,7 +95,7 @@ function SuaPosicao({ dados, eu, total, acima, metrica, escopo }: { dados: Fase1
           </p>
         </div>
         <div className="text-right">
-          <p className="text-lg font-bold text-white">{valorMetrica(metrica, eu.linha.valor)}</p>
+          <p className="text-lg font-bold text-white">{eu.linha.valor !== null ? valorMetrica(metrica, eu.linha.valor) : '—'}</p>
           <Variacao valor={eu.variacao} />
         </div>
       </div>
@@ -162,7 +162,7 @@ function ListaRanking({ dados, linhas, metrica, escopo }: { dados: Fase1Dados; l
                 </p>
               </div>
               <span className="shrink-0 text-right text-sm font-semibold text-slate-200">
-                {ocultaValor && !souEu ? (
+                {(ocultaValor && !souEu) || l.linha.valor === null ? (
                   <span>
                     <span aria-hidden="true">R$ •••</span>
                     <span className="sr-only">valor oculto</span>
