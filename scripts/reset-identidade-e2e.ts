@@ -4,6 +4,9 @@
 // eventos de auditoria associados, e garante que VEND002 volte pro estado
 // ACTIVE (usado pelo E2E de bloqueio). Roda só contra dev, nunca produção.
 import { PrismaClient } from '@prisma/client';
+import { exigirBancoDescartavel } from './guarda-banco';
+
+exigirBancoDescartavel('reset-identidade-e2e.ts');
 
 const prisma = new PrismaClient();
 

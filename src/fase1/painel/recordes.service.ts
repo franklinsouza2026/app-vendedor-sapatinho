@@ -28,7 +28,7 @@ export async function recordesDoVendedor(vendedorId: string, tz: string, agora: 
   const hojeFat = serie.find((d) => d.dia === hoje)?.faturamento ?? 0;
   if (fechados.length) {
     const melhor = fechados.reduce((a, b) => (b.faturamento > a.faturamento ? b : a));
-    recordes.push({ tipo: 'MELHOR_DIA', titulo: 'Melhor dia', unidade: 'reais', valor: melhor.faturamento, quando: melhor.dia, atual: hojeFat });
+    recordes.push({ tipo: 'MELHOR_DIA', titulo: 'Melhor dia', unidade: 'reais', valor: melhor.faturamento, quando: melhor.dia, atual: Math.round(hojeFat * 100) / 100 });
   }
 
   const porMes = new Map<string, { fat: number; vendas: number; pares: number }>();
@@ -40,7 +40,7 @@ export async function recordesDoVendedor(vendedorId: string, tz: string, agora: 
   const mesesFechados = [...porMes.entries()].filter(([m, x]) => m < mesAtual && x.vendas > 0);
   if (mesesFechados.length) {
     const [mes, x] = mesesFechados.reduce((a, b) => (b[1].fat > a[1].fat ? b : a));
-    recordes.push({ tipo: 'MELHOR_MES', titulo: 'Melhor mês', unidade: 'reais', valor: Math.round(x.fat * 100) / 100, quando: ultimoDiaDoMes(mes), atual: porMes.get(mesAtual)?.fat ?? 0 });
+    recordes.push({ tipo: 'MELHOR_MES', titulo: 'Melhor mês', unidade: 'reais', valor: Math.round(x.fat * 100) / 100, quando: ultimoDiaDoMes(mes), atual: Math.round((porMes.get(mesAtual)?.fat ?? 0) * 100) / 100 });
     const [mesPa, xPa] = mesesFechados.reduce((a, b) => (b[1].pares / b[1].vendas > a[1].pares / a[1].vendas ? b : a));
     recordes.push({ tipo: 'MELHOR_PA', titulo: 'Melhor PA no mês', unidade: 'pa', valor: Math.round((xPa.pares / xPa.vendas) * 100) / 100, quando: ultimoDiaDoMes(mesPa), atual: null });
 

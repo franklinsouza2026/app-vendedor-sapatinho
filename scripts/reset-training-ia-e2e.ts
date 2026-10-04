@@ -4,6 +4,9 @@
 // achados de governança somem em cascata via FK). Roda só contra dev, nunca
 // contra produção.
 import { PrismaClient } from '@prisma/client';
+import { exigirBancoDescartavel } from './guarda-banco';
+
+exigirBancoDescartavel('reset-training-ia-e2e.ts');
 
 const prisma = new PrismaClient();
 

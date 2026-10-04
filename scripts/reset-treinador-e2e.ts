@@ -3,6 +3,9 @@
 // execução no mesmo dia contra o banco de dev compartilhado encontraria
 // histórico de uma rodada anterior. Roda só contra dev, nunca contra produção.
 import { PrismaClient } from '@prisma/client';
+import { exigirBancoDescartavel } from './guarda-banco';
+
+exigirBancoDescartavel('reset-treinador-e2e.ts');
 
 const prisma = new PrismaClient();
 

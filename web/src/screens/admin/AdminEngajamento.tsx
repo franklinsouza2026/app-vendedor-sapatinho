@@ -41,13 +41,15 @@ export function AdminEngajamento() {
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-5 p-6">
       <AdminNav />
-      <PainelDeEngajamento linkRecompensa="/admin/gamificacao?aba=recompensa" />
+      <PainelDeEngajamento linkRecompensa="/admin/gamificacao?aba=recompensa" tituloPrincipal />
     </div>
   );
 }
 
 /** Conteúdo do painel de engajamento — reaproveitado pela central do Admin da Fase 1 ("Uso do piloto"). */
-export function PainelDeEngajamento({ linkRecompensa }: { linkRecompensa: string }) {
+export function PainelDeEngajamento({ linkRecompensa, tituloPrincipal = false }: { linkRecompensa: string; tituloPrincipal?: boolean }) {
+  // Embutido em outra página (que já tem o h1), o título vira h2.
+  const Titulo = tituloPrincipal ? 'h1' : 'h2';
   const [periodo, setPeriodo] = useState<PeriodoEngajamento>('SEMANA_ATUAL');
   const [de, setDe] = useState('');
   const [ate, setAte] = useState('');
@@ -68,7 +70,7 @@ export function PainelDeEngajamento({ linkRecompensa }: { linkRecompensa: string
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-white">Engajamento</h1>
+          <Titulo className="text-2xl font-semibold text-white">Engajamento</Titulo>
           <p className="text-sm text-slate-400">Quem está usando o app. Acesso mede adoção — não mede resultado de vendas.</p>
         </div>
         {config.dados && (

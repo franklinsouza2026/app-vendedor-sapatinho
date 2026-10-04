@@ -13,6 +13,9 @@
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../src/db';
 import { diaLocal, paraDate, somarDias } from '../src/engajamento/dia';
+import { proibirEmProducao } from './guarda-banco';
+
+proibirEmProducao('seed-engajamento-demo.ts (dados de demonstração)');
 
 async function main() {
   const url = process.env.DATABASE_URL ?? '';

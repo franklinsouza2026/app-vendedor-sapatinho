@@ -16,6 +16,9 @@
 // nunca mexe no estado editorial de um card que já tenha avançado.
 import { prisma } from '../src/db';
 import { ESCOLA_DO_PILOTO, PILOTO_HABITOS } from '../src/conhecimento/piloto-habitos';
+import { proibirEmProducao } from './guarda-banco';
+
+proibirEmProducao('seed-piloto-habitos.ts (dados de demonstração)');
 
 async function main() {
   const escola = await prisma.escolaUniversidade.findUnique({ where: { code: ESCOLA_DO_PILOTO } });

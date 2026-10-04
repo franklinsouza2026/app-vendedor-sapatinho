@@ -3,6 +3,9 @@
 // "e2e-"), e participações de VEND001/VEND002/GER001. Roda só contra dev,
 // nunca contra produção.
 import { PrismaClient } from '@prisma/client';
+import { exigirBancoDescartavel } from './guarda-banco';
+
+exigirBancoDescartavel('reset-competicoes-e2e.ts');
 
 const prisma = new PrismaClient();
 

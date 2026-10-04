@@ -4,6 +4,9 @@
 // rodada anterior (índice único parcial impede uma nova). Roda só contra
 // dev, nunca contra produção.
 import { PrismaClient } from '@prisma/client';
+import { exigirBancoDescartavel } from './guarda-banco';
+
+exigirBancoDescartavel('reset-simulador-e2e.ts');
 
 const prisma = new PrismaClient();
 

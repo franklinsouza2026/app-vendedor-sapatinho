@@ -8,6 +8,9 @@
 // Sem isso, uma segunda execução no mesmo dia/semana encontraria a missão já
 // COMPLETED da rodada anterior. Roda só contra dev, nunca contra produção.
 import { PrismaClient } from '@prisma/client';
+import { exigirBancoDescartavel } from './guarda-banco';
+
+exigirBancoDescartavel('reset-missoes-e2e.ts');
 
 const prisma = new PrismaClient();
 

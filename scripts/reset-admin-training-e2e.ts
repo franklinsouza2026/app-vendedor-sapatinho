@@ -5,6 +5,9 @@
 // sem isso, uma segunda execução encontraria conteúdo já PUBLISHED da
 // rodada anterior. Roda só contra dev, nunca contra produção.
 import { PrismaClient } from '@prisma/client';
+import { exigirBancoDescartavel } from './guarda-banco';
+
+exigirBancoDescartavel('reset-admin-training-e2e.ts');
 
 const prisma = new PrismaClient();
 

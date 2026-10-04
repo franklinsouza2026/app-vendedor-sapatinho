@@ -3,6 +3,9 @@
 // credencial configurada e com MOCK ativo, sem acumular estado de rodadas
 // anteriores. Roda só contra dev, nunca produção.
 import { PrismaClient } from '@prisma/client';
+import { exigirBancoDescartavel } from './guarda-banco';
+
+exigirBancoDescartavel('reset-admin-ia-e2e.ts');
 
 const prisma = new PrismaClient();
 

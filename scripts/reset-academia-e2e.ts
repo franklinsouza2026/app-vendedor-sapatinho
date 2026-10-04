@@ -3,6 +3,9 @@
 // no mesmo dia encontraria a aula já COMPLETED da rodada anterior. Roda só
 // contra dev, nunca contra produção.
 import { PrismaClient } from '@prisma/client';
+import { exigirBancoDescartavel } from './guarda-banco';
+
+exigirBancoDescartavel('reset-academia-e2e.ts');
 
 const prisma = new PrismaClient();
 

@@ -18,3 +18,5 @@ test-results
 /web/playwright.config.js
 /web/playwright.config.d.ts
 backups/
+.e2e/
+/web/dist-e2e/

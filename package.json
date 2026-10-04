@@ -29,7 +29,9 @@
     "reset:universidade-e2e": "tsx scripts/reset-universidade-e2e.ts",
     "reset:competicoes-e2e": "tsx scripts/reset-competicoes-e2e.ts",
     "test": "vitest run",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "e2e:fase1:preparar": "tsx scripts/e2e-fase1/preparar.ts",
+    "e2e:fase1": "npm run e2e:fase1:preparar && cd web && npx playwright test -c playwright.fase1.config.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.122.0",

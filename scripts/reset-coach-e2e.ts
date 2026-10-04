@@ -12,6 +12,9 @@
 // que espera progresso parcial. Fixar aqui garante determinismo independente
 // de quanto tempo o worker já rodou no dia.
 import { PrismaClient } from '@prisma/client';
+import { exigirBancoDescartavel } from './guarda-banco';
+
+exigirBancoDescartavel('reset-coach-e2e.ts');
 
 const prisma = new PrismaClient();
 

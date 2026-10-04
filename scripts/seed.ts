@@ -10,6 +10,9 @@ import { seedEstruturaMandamentos } from '../src/academia/mandamentos.service';
 import { seedCompetenciasV1 } from '../src/universidade/competency.service';
 import { seedEscolasV1 } from '../src/universidade/schools.service';
 import { env } from '../src/config';
+import { proibirEmProducao } from './guarda-banco';
+
+proibirEmProducao('seed.ts (dados de demonstração)');
 
 const prisma = new PrismaClient();
 

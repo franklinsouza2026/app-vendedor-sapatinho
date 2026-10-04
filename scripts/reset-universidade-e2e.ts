@@ -6,6 +6,9 @@ import { PrismaClient } from '@prisma/client';
 import { seedCompetenciasV1 } from '../src/universidade/competency.service';
 import { seedConteudoAcademia } from '../src/academia/content-seed';
 import { seedCenariosSimulador } from '../src/simulador/scenario-seed';
+import { exigirBancoDescartavel } from './guarda-banco';
+
+exigirBancoDescartavel('reset-universidade-e2e.ts');
 
 const prisma = new PrismaClient();
 
