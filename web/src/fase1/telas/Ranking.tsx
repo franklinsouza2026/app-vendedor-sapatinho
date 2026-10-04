@@ -12,8 +12,8 @@ import { useFase1 } from '../contexto';
 import type { Fase1Dados, LinhaRankingBruta, Metrica } from '../dominio/tipos';
 import { UNIDADE_METRICA, vendasEstimadas, type PosicaoCalculada } from '../dominio/estimativas';
 import { primeiroNome, rankingCalculado, rankingLojasCalculado } from '../dominio/alvos';
-import { Abas, AvisoProvisorio, Avatar, CabecalhoTela, Medalha, Painel, Variacao, Vazio } from '../componentes/ui';
-import { distanciaMetrica, inteiro, plural, valorMetrica } from '../formato';
+import { Abas, Avatar, CabecalhoTela, Medalha, Painel, Variacao, Vazio } from '../componentes/ui';
+import { distanciaMetrica, inteiro, nomeDoMes, plural, valorMetrica } from '../formato';
 import { Fase1Pagina } from './Fase1Pagina';
 
 type Escopo = 'loja' | 'geral' | 'lojas';
@@ -28,7 +28,7 @@ export function Ranking() {
 
   return (
     <Fase1Pagina carregando="Carregando ranking...">
-      <CabecalhoTela titulo="Ranking" subtitulo="Outubro · acumulado do mês" />
+      <CabecalhoTela titulo="Ranking" subtitulo={`${nomeDoMes(dados.agora)} · acumulado do mês`} />
       <Abas<Escopo>
         rotulo="Tipo de ranking"
         ativa={escopo}
@@ -36,7 +36,8 @@ export function Ranking() {
         abas={[
           { id: 'loja', rotulo: 'Minha loja' },
           { id: 'geral', rotulo: 'Geral' },
-          { id: 'lojas', rotulo: 'Loja × Loja' },
+          // Loja × Loja só aparece quando a administração ativou a disputa.
+          ...(dados.rankings.lojasFormula === null ? [] : [{ id: 'lojas' as const, rotulo: 'Loja × Loja' }]),
         ]}
       />
       {escopo === 'lojas' ? <LojaXLoja /> : <RankingPessoas escopo={escopo} metrica={metrica} onMetrica={setMetrica} />}
@@ -74,7 +75,7 @@ function RankingPessoas({ escopo, metrica, onMetrica }: { escopo: 'loja' | 'gera
       {eu ? (
         <SuaPosicao dados={dados} eu={eu} total={linhas.length} metrica={metrica} acima={linhas[eu.posicao - 2] ?? null} escopo={escopo} />
       ) : (
-        !dados.elegibilidade.elegivel && <AvisoProvisorio>Você está fora do ranking neste período. {dados.elegibilidade.motivo}</AvisoProvisorio>
+        !dados.elegibilidade.elegivel && <p className="rounded-xl border border-slate-700 bg-slate-800/60 px-3 py-2 text-xs text-slate-300">Você está fora do ranking neste período. {dados.elegibilidade.motivo}</p>
       )}
 
       <ListaRanking dados={dados} linhas={linhas} metrica={metrica} escopo={escopo} />
@@ -185,26 +186,36 @@ function ListaRanking({ dados, linhas, metrica, escopo }: { dados: Fase1Dados; l
   );
 }
 
+const EXPLICA_FORMULA: Record<'PCT_META_COLETIVA' | 'MEDIA_SCORE' | 'EVOLUCAO_COLETIVA', string> = {
+  PCT_META_COLETIVA: 'Pontos = % da meta do mês da loja inteira (soma das vendas ÷ soma das metas da equipe).',
+  MEDIA_SCORE: 'Pontos = média do score do mês das vendedoras da loja.',
+  EVOLUCAO_COLETIVA: 'Pontos = evolução da loja em relação ao mês passado, no mesmo ponto do mês.',
+};
+
 function LojaXLoja() {
   const { dados } = useFase1();
   if (!dados.status.rankingDisponivel) {
     return <Vazio icone="⏳" titulo="Ranking entre lojas indisponível" texto="Volta no próximo sync do ERP." />;
   }
   const linhas = rankingLojasCalculado(dados);
-  const minha = linhas.find((l) => l.linha.lojaId === dados.vendedor.lojaId)!;
+  if (linhas.length === 0) {
+    return <Vazio icone="🏬" titulo="Disputa entre lojas ainda não começou" texto="Quando a administração ativar o Loja × Loja, a classificação aparece aqui." />;
+  }
+  const minha = linhas.find((l) => l.linha.lojaId === dados.vendedor.lojaId);
   const lider = linhas[0];
   const segunda = linhas[1];
-  const lojaNome = (id: string) => dados.lojas.find((l) => l.id === id)!.nome;
+  const lojaNome = (id: string) => dados.lojas.find((l) => l.id === id)?.nome ?? 'Loja';
 
   return (
     <>
+      {minha ? (
       <Painel destaque rotulo="Sua loja">
         <p className="text-xs font-semibold uppercase tracking-wider text-slate-300">{lojaNome(minha.linha.lojaId)}</p>
         <p className="text-4xl font-extrabold text-white">
           {minha.posicao} <span className="text-base font-medium text-slate-400">de {linhas.length} lojas</span>
         </p>
         {minha.posicao === 1 ? (
-          <p className="mt-2 text-sm text-emerald-300">🏆 Sua loja lidera com {plural(minha.linha.pontos - segunda.linha.pontos, 'ponto')} de vantagem.</p>
+          <p className="mt-2 text-sm text-emerald-300">{segunda ? `🏆 Sua loja lidera com ${plural(Math.round((minha.linha.pontos - segunda.linha.pontos) * 10) / 10, 'ponto')} de vantagem.` : '🏆 Sua loja lidera.'}</p>
         ) : (
           <p className="mt-2 text-sm text-slate-200">
             Faltam <strong className="text-white">{plural(minha.distanciaAcima ?? 0, 'ponto')}</strong> para sua loja {minha.posicao === 2 ? 'assumir a liderança' : `alcançar ${lojaNome(linhas[minha.posicao - 2].linha.lojaId)}`}.
@@ -212,6 +223,9 @@ function LojaXLoja() {
         )}
         <p className="mt-1 text-xs text-slate-400">Líder: {lojaNome(lider.linha.lojaId)} · {inteiro(lider.linha.pontos)} pts</p>
       </Painel>
+      ) : (
+        <p className="rounded-xl border border-slate-700 bg-slate-800/60 px-3 py-2 text-sm text-slate-300">Sua loja não está nesta disputa.</p>
+      )}
 
       <Painel className="!p-0" rotulo="Classificação das lojas">
         <ol className="divide-y divide-slate-700/60">
@@ -233,7 +247,7 @@ function LojaXLoja() {
           })}
         </ol>
       </Painel>
-      <AvisoProvisorio>Pontos ilustrativos. A fórmula do score entre lojas (média? soma? % da meta coletiva?) será decidida na etapa de backend.</AvisoProvisorio>
+      <p className="text-xs text-slate-400">{EXPLICA_FORMULA[dados.rankings.lojasFormula ?? 'PCT_META_COLETIVA']}</p>
     </>
   );
 }

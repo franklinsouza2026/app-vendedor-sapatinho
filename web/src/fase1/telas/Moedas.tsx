@@ -4,7 +4,7 @@
  * não de tela. O ledger real não é tocado.
  */
 import { useFase1 } from '../contexto';
-import { AvisoProvisorio, CabecalhoTela, Painel, TituloSecao, Vazio } from '../componentes/ui';
+import { CabecalhoTela, Painel, TituloSecao, Vazio } from '../componentes/ui';
 import { dataCurta, inteiro } from '../formato';
 import { Fase1Pagina } from './Fase1Pagina';
 
@@ -71,7 +71,7 @@ export function Moedas() {
           ))}
         </ul>
         <div className="mt-3">
-          <AvisoProvisorio>Vitrine ilustrativa. Catálogo, preços em VendaCoins e regras de resgate ainda não existem — nenhuma conversão em dinheiro está prevista.</AvisoProvisorio>
+          <p className="text-xs text-slate-400">A troca de VendaCoins por recompensas ainda não está disponível. VendaCoins não têm valor em dinheiro.</p>
         </div>
       </section>
     </Fase1Pagina>

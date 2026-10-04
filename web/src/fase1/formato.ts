@@ -117,6 +117,12 @@ export function dataCurta(iso: string): string {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
+/** "Outubro" a partir de um instante ISO (data local do aparelho = fuso da loja). */
+export function nomeDoMes(iso: string): string {
+  const m = MESES[lerData(iso).getMonth()];
+  return m.charAt(0).toUpperCase() + m.slice(1);
+}
+
 export function mesCurto(anoMes: string): string {
   const [ano, mes] = anoMes.split('-').map(Number);
   return `${MESES_CURTOS[mes - 1]}/${String(ano).slice(2)}`;

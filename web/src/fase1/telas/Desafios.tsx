@@ -12,7 +12,7 @@ import { useFase1 } from '../contexto';
 import type { Competicao, Fase1Dados } from '../dominio/tipos';
 import { faltaMissao } from '../dominio/alvos';
 import { CardMissao } from '../componentes/blocos';
-import { Abas, AvisoProvisorio, CabecalhoTela, Medalha, Painel, Pilula, Vazio } from '../componentes/ui';
+import { Abas, CabecalhoTela, Medalha, Painel, Pilula, Vazio } from '../componentes/ui';
 import { dataCurta, decimal, inteiro, periodo, plural, tempoRestante } from '../formato';
 import { Fase1Pagina } from './Fase1Pagina';
 
@@ -85,7 +85,6 @@ function Missoes() {
           ))}
         </section>
       )}
-      <AvisoProvisorio>Missões de venda são protótipo de UX. O motor atual só gera missões de treinamento — critérios de venda (categoria, produto, PA) dependem de backend.</AvisoProvisorio>
     </>
   );
 }
@@ -354,7 +353,6 @@ function CampanhaAba() {
           ))}
         </section>
       )}
-      <AvisoProvisorio>“Campanha” ainda não existe como entidade no backend (hoje há Temporada + Competições). Política de premiação a definir.</AvisoProvisorio>
     </>
   );
 }

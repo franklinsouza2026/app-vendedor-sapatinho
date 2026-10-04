@@ -11,7 +11,7 @@ import type { Fase1Dados, Metrica } from '../dominio/tipos';
 import { falta, paresEstimados, percentual, projecaoMes, vendasEstimadas, vendasPorDia, UNIDADE_METRICA } from '../dominio/estimativas';
 import { rankingCalculado } from '../dominio/alvos';
 import { CardMetaHoje, CorridaMes, NotaTicket } from '../componentes/blocos';
-import { Abas, AvisoProvisorio, CabecalhoTela, Painel, Tendencia, Vazio } from '../componentes/ui';
+import { Abas, CabecalhoTela, Painel, Tendencia, Vazio } from '../componentes/ui';
 import { decimal, distanciaMetrica, inteiro, mesCurto, pct, plural, reais, valorMetrica } from '../formato';
 import { Fase1Pagina } from './Fase1Pagina';
 
@@ -128,7 +128,7 @@ function PlanoMes({ dados }: { dados: Fase1Dados }) {
             : `Para bater a meta, o ritmo precisa subir de ${reais(mediaDiaria)} para ${reais(reaisPorDia)} por dia.`}
         </p>
       )}
-      {diasTrabalhoRestantes !== null && <AvisoProvisorio>Dias de trabalho vêm do calendário operacional configurado pelo Admin (domingos e feriados). Escala individual ainda não existe — decisão pendente.</AvisoProvisorio>}
+      {diasTrabalhoRestantes !== null && <p className="mt-2 text-xs text-slate-400">Dias de trabalho: os previstos para você neste mês, definidos pela administração.</p>}
     </Painel>
   );
 }

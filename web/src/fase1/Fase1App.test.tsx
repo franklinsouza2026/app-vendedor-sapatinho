@@ -113,11 +113,11 @@ describe('Fase 1 — vendedora', () => {
     expect(minha).not.toHaveTextContent('R$');
   });
 
-  it('loja quase #1 (N): loja em 2º a 31 pontos da liderança, com aviso de regra provisória', async () => {
+  it('loja quase #1 (N): loja em 2º a 31 pontos da liderança, com a fórmula da disputa explicada', async () => {
     abrir('/ranking?escopo=lojas', 'N');
     const card = await screen.findByRole('region', { name: 'Sua loja' });
     expect(card).toHaveTextContent('Faltam 31 pontos para sua loja assumir a liderança');
-    expect(screen.getByText(/fórmula do score entre lojas/)).toBeInTheDocument();
+    expect(screen.getByText(/Pontos = % da meta do mês da loja inteira/)).toBeInTheDocument();
   });
 
   it('abas são navegáveis por teclado (setas)', async () => {

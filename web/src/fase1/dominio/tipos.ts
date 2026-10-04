@@ -252,6 +252,8 @@ export interface Fase1Dados {
     loja: Record<Metrica, LinhaRankingBruta[]>;
     geral: Record<Metrica, LinhaRankingBruta[]>;
     lojas: LinhaRankingLoja[];
+    /** Fórmula do Loja × Loja definida pelo Admin; null = disputa entre lojas desligada. */
+    lojasFormula?: 'PCT_META_COLETIVA' | 'MEDIA_SCORE' | 'EVOLUCAO_COLETIVA' | null;
     /** Médias calculadas no servidor (null = grupo pequeno demais para mostrar sem expor colegas). */
     medias?: { loja: Record<Metrica, number | null>; geral: Record<Metrica, number | null> };
   };

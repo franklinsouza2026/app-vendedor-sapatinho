@@ -158,7 +158,7 @@ export async function montarPainel(vendedorId: string, agora = new Date()) {
     hoje: { meta: eu.metaDiaria, realizado: realizado(eu.hoje) },
     mes: { meta: eu.metaMensal, realizado: realizado(eu.mes), diasTrabalhoRestantes: calcularDiasRestantes(eu.diasPrevistos, trabalhadosAteOntem), diasTrabalhados: eu.mes.diasTrabalhados },
     referencia,
-    rankings: { loja: rankingsPorMetrica(visao, daLoja, vendedorId), geral: rankingsPorMetrica(visao, elegiveisIds, vendedorId), lojas: rankingLojas(visao, lojas.map((l) => l.id)), medias },
+    rankings: { loja: rankingsPorMetrica(visao, daLoja, vendedorId), geral: rankingsPorMetrica(visao, elegiveisIds, vendedorId), lojas: rankingLojas(visao, lojas.map((l) => l.id)), lojasFormula: visao.config.lojaXLoja.ativo ? visao.config.lojaXLoja.formula : null, medias },
     xp: extrato.xp,
     nivel: detalharNivel(extrato.xp.total),
     moedas: extrato.moedas,

@@ -50,6 +50,8 @@ test('Admin desktop — telas da central abrem sem erro de console', async ({ pa
   for (const rota of ['/admin', '/admin/vendedores', '/admin/lojas', '/admin/metas', '/admin/rankings', '/admin/indicadores', '/admin/campanhas', '/admin/missoes', '/admin/competicoes', '/admin/premiacoes', '/admin/xp', '/admin/vendacoins', '/admin/conquistas', '/admin/reconhecimentos', '/admin/feed', '/admin/saude', '/admin/auditoria', '/admin/prontidao', '/admin/analytics', '/admin/integracoes', '/admin/acesso-diario']) {
     await page.goto(rota);
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    const texto = await page.locator('main').innerText();
+    expect(texto, `${rota}: texto de protótipo`).not.toMatch(/protótipo|ilustrativ|será decidid|decisão pendente|ver como vendedora|🧪/i);
   }
   expect(erros).toEqual([]);
 });

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useFase1 } from '../contexto';
 import type { Conquista } from '../dominio/tipos';
-import { Abas, AvisoProvisorio, BarraSimples, CabecalhoTela, Pilula, Vazio } from '../componentes/ui';
+import { Abas, BarraSimples, CabecalhoTela, Pilula, Vazio } from '../componentes/ui';
 import { dataCurta } from '../formato';
 import { Fase1Pagina } from './Fase1Pagina';
 
@@ -33,7 +33,6 @@ export function Conquistas() {
           ))}
         </ul>
       )}
-      <AvisoProvisorio>Badges marcadas “proposta” ainda não existem no catálogo do backend (badges.service.ts).</AvisoProvisorio>
     </Fase1Pagina>
   );
 }
