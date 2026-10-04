@@ -56,6 +56,11 @@ export async function avaliarFairness(competition: Competition, participantType:
     return { elegivel: true };
   }
 
+  // Fase 1: elegibilidade da competição da central do Admin = vendedor ativo e
+  // elegível ao ranking (filtrado na inscrição). Não exige histórico de
+  // baseline nem dias de StreakChecagem — o cálculo é das vendas do período.
+  if (competition.tipoExibicao !== null) return { elegivel: true };
+
   const diasAtivos = diasAtivosPreCalculado ?? (await diasAtivosNoPeriodo(participantId, competition.startsAt, fimJanela));
   const minimo = competition.minDiasAtivos ?? MINIMO_DIAS_ATIVOS_PADRAO;
   if (diasAtivos < minimo) return { elegivel: false, motivo: `precisa de ao menos ${minimo} dia(s) ativo(s) no período (tem ${diasAtivos})` };

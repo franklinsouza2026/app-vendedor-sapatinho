@@ -103,6 +103,8 @@ export async function criarIndicador(
  * teste agora é um ADMIN no banco.
  */
 export async function tokenPara(claims: { vendedorId: string; empresaId: string; lojaId: string; papel: Papel }) {
-  await prisma.vendedor.update({ where: { id: claims.vendedorId }, data: { papel: claims.papel } });
-  return assinarToken(claims);
+  // Emite como o LOGIN emite (Fase 1, T5): com a versão de sessão vigente —
+  // um token "novo" depois de bloqueio/reativação é um login novo.
+  const v = await prisma.vendedor.update({ where: { id: claims.vendedorId }, data: { papel: claims.papel }, select: { sessaoVersao: true } });
+  return assinarToken({ ...claims, sv: v.sessaoVersao });
 }

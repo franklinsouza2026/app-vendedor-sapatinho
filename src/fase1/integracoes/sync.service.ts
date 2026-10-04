@@ -9,6 +9,8 @@ import { adapterDoProvedor, ErroIntegracao, PROVEDORES_SO_DESENVOLVIMENTO } from
 import { ingerirEventos } from '../vendas/ingestao.service';
 import { reconciliarVendedor } from '../reconciliacao/motor';
 import { credencialEmClaro } from './integracoes.service';
+// Registra o reconciliador de missões governadas no motor (efeito colateral do import).
+import '../missoes/missoes.service';
 
 const log = createLogger('fase1:sync');
 

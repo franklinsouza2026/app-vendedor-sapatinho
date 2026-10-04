@@ -7,6 +7,9 @@ import { loginRateLimit } from '../middlewares/ratelimit';
 import { asyncHandler } from '../middlewares/async-handler';
 import { alterarSenha, ativarConta } from '../identidade/ativacao.service';
 import { IdentidadeError } from '../identidade/erros';
+import { resolverLojaDeLogin } from '../identidade/loja-login';
+import { estaBloqueado, limparFalhas, MAX_TENTATIVAS, registrarFalha } from '../identidade/bloqueio-login';
+import { registrarEventoAuditoria } from '../identidade/auditoria.service';
 
 export const authRouter = Router();
 
@@ -18,8 +21,13 @@ export const authRouter = Router();
 // multi-loja lógico, não multi-tenant de infra). Sem esse filtro, listaria
 // lojas (e codigoErp, usado como parte do login) de outras empresas-cliente
 // caso este banco algum dia hospede mais de uma.
-authRouter.get('/lojas', async (_req, res) => {
-  const empresa = await prisma.empresa.findFirst({ orderBy: { createdAt: 'asc' } });
+authRouter.get('/lojas', async (req, res) => {
+  // Multiempresa (Fase 1, D8): com UMA empresa no banco, lista as lojas dela;
+  // com várias, o app precisa dizer qual (`?empresa=<id>`, configurado no
+  // build do app da empresa) — nunca lista lojas de todas as empresas.
+  const pedida = typeof req.query.empresa === 'string' && /^[0-9a-f-]{36}$/i.test(req.query.empresa) ? req.query.empresa : null;
+  const empresas = pedida ? await prisma.empresa.findMany({ where: { id: pedida }, take: 1 }) : await prisma.empresa.findMany({ take: 2, orderBy: { createdAt: 'asc' } });
+  const empresa = empresas.length === 1 ? empresas[0] : null;
   const lojas = empresa
     ? await prisma.loja.findMany({
         // Loja inativa (Fatia 9.7) não aparece no formulário de login — ninguém
@@ -60,11 +68,14 @@ authRouter.get('/auth/me', requireAuth(), async (req, res) => {
   });
 });
 
-const loginSchema = z.object({
-  codigoErpLoja: z.string().min(1),
-  matriculaErp: z.string().min(1),
-  senha: z.string().min(1),
-});
+const loginSchema = z
+  .object({
+    lojaId: z.string().uuid().optional(),
+    codigoErpLoja: z.string().min(1).optional(),
+    matriculaErp: z.string().min(1).max(64),
+    senha: z.string().min(1).max(200),
+  })
+  .refine((d) => d.lojaId || d.codigoErpLoja, { message: 'loja obrigatória' });
 
 authRouter.post('/auth/login', loginRateLimit, async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
@@ -72,13 +83,18 @@ authRouter.post('/auth/login', loginRateLimit, async (req, res) => {
     return res.status(400).json({ error: 'dados de login inválidos' });
   }
 
-  const { codigoErpLoja, matriculaErp, senha } = parsed.data;
+  const { matriculaErp, senha } = parsed.data;
 
-  // `ativa` também aqui, não só no dropdown de /lojas (Fatia 9.7): o código da
-  // loja pode ser digitado direto, então filtrar só na listagem seria esconder
-  // no frontend. Erro genérico — nunca revela que a loja existe mas está inativa.
-  const loja = await prisma.loja.findFirst({ where: { codigoErp: codigoErpLoja, ativa: true } });
+  // `ativa` também aqui, não só no dropdown de /lojas (Fatia 9.7). Loja por
+  // UUID ou por código ERP INEQUÍVOCO (nunca escolhe entre empresas).
+  // Erro genérico — nunca revela que a loja existe mas está inativa.
+  const loja = await resolverLojaDeLogin(parsed.data);
   if (!loja) return res.status(401).json({ error: 'credenciais inválidas' });
+
+  // Bloqueio por conta (5 erros em 15 min), independente do IP.
+  if (await estaBloqueado(loja.id, matriculaErp)) {
+    return res.status(429).json({ error: 'muitas tentativas — aguarde 15 minutos e tente de novo', type: 'login_bloqueado' });
+  }
 
   const vendedor = await prisma.vendedor.findUnique({
     where: { lojaId_matriculaErp: { lojaId: loja.id, matriculaErp } },
@@ -88,17 +104,24 @@ authRouter.post('/auth/login', loginRateLimit, async (req, res) => {
   // "BLOCKED" e "OFFBOARDED": nunca dar ao atacante um jeito de distinguir
   // esses casos por diferença de resposta (seção 61/62 da fonte de verdade).
   if (!vendedor || vendedor.status !== 'ACTIVE' || !vendedor.senhaHash) {
+    await registrarFalha(loja.id, matriculaErp);
     return res.status(401).json({ error: 'credenciais inválidas' });
   }
 
   const senhaOk = await bcrypt.compare(senha, vendedor.senhaHash);
-  if (!senhaOk) return res.status(401).json({ error: 'credenciais inválidas' });
+  if (!senhaOk) {
+    const falhas = await registrarFalha(loja.id, matriculaErp);
+    if (falhas === MAX_TENTATIVAS) await registrarEventoAuditoria({ empresaId: vendedor.empresaId, acao: 'LOGIN_LOCKED', targetId: vendedor.id });
+    return res.status(401).json({ error: 'credenciais inválidas' });
+  }
+  await limparFalhas(loja.id, matriculaErp);
 
   const token = assinarToken({
     vendedorId: vendedor.id,
     empresaId: vendedor.empresaId,
     lojaId: vendedor.lojaId,
     papel: vendedor.papel,
+    sv: vendedor.sessaoVersao,
   });
 
   res.json({ token, vendedor: { id: vendedor.id, nome: vendedor.nome, papel: vendedor.papel } });
@@ -110,7 +133,8 @@ authRouter.post('/auth/login', loginRateLimit, async (req, res) => {
 // com o mesmo limitador do login: mesmo risco de força bruta contra um
 // CPF/token de baixa entropia.
 const ativacaoSchema = z.object({
-  codigoErpLoja: z.string().min(1),
+  lojaId: z.string().uuid().optional(),
+  codigoErpLoja: z.string().min(1).optional(),
   cpf: z.string().min(1),
   token: z.string().min(1),
   senha: z.string().min(8),

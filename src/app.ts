@@ -30,6 +30,8 @@ import { competicoesManagerRouter } from './routes/competicoes-manager';
 import { competicoesAdminRouter } from './routes/competicoes-admin';
 import { managerPanelRouter } from './routes/manager-panel';
 import { managerPanelAdminRouter } from './routes/manager-panel-admin';
+import { fase1VendedorRouter } from './fase1/rotas/vendedor.routes';
+import { fase1AdminRouter } from './fase1/rotas/admin.routes';
 import { apiRateLimit } from './middlewares/ratelimit';
 import { errorHandler } from './middlewares/error-handler';
 
@@ -64,27 +66,44 @@ app.use(apiRateLimit);
 
 app.use(healthRouter);
 app.use(authRouter);
-app.use(metasRouter);
-app.use(gamificacaoRouter);
+
+// ---- Fase 1 — Performance & Game (sempre montado): painel do vendedor,
+// central do Admin, check-in de acesso, pessoas/lojas/auditoria.
+app.use(fase1VendedorRouter);
+app.use(fase1AdminRouter);
 app.use(engajamentoRouter);
-app.use(coachRouter);
-app.use(treinadorRouter);
-app.use(playbookRouter);
-app.use(simuladorRouter);
-app.use(academiaRouter);
-app.use(missoesRouter);
 app.use(adminRouter);
-app.use(adminMetasRouter);
-app.use(adminAiRouter);
-app.use(adminTrainingRouter);
-app.use(adminTrainingAiRouter);
-app.use(universidadeSellerRouter);
-app.use(universidadeManagerRouter);
-app.use(universidadeAdminRouter);
-app.use(competicoesSellerRouter);
-app.use(competicoesManagerRouter);
-app.use(competicoesAdminRouter);
-app.use(managerPanelRouter);
-app.use(managerPanelAdminRouter);
+
+// ---- Módulos FORA da Fase 1 (Conselheiro, Treinador, Simulador, Academia,
+// Universidade, painel do gerente, IA do Admin). No piloto NÃO são montados:
+// esconder no app não basta — a API também não os expõe (deny by default).
+if (env.MODULOS_LEGADOS_ATIVOS) {
+  // Superfícies anteriores à Fase 1 que a experiência homologada substitui
+  // (metas diárias manuais, ranking/carteira antigos, missões automáticas,
+  // competições/temporadas legadas). Continuam testadas para regressão.
+  app.use(metasRouter);
+  app.use(gamificacaoRouter);
+  app.use(missoesRouter);
+  app.use(adminMetasRouter);
+  app.use(competicoesSellerRouter);
+  app.use(competicoesManagerRouter);
+  app.use(competicoesAdminRouter);
+  app.use(coachRouter);
+  app.use(treinadorRouter);
+  app.use(playbookRouter);
+  app.use(simuladorRouter);
+  app.use(academiaRouter);
+  app.use(adminAiRouter);
+  app.use(adminTrainingRouter);
+  app.use(adminTrainingAiRouter);
+  app.use(universidadeSellerRouter);
+  app.use(universidadeManagerRouter);
+  app.use(universidadeAdminRouter);
+  app.use(managerPanelRouter);
+  app.use(managerPanelAdminRouter);
+}
+
+// Rota inexistente → 404 JSON (nunca HTML do Express com detalhe de stack).
+app.use((_req, res) => res.status(404).json({ error: 'não encontrado' }));
 
 app.use(errorHandler);

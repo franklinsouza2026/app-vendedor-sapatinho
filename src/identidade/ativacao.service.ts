@@ -4,6 +4,7 @@
 // autocadastro aberto: só quem já foi pré-autorizado pelo Admin consegue
 // ativar uma conta.
 import { randomBytes, createHash } from 'node:crypto';
+import { resolverLojaDeLogin } from './loja-login';
 import bcrypt from 'bcryptjs';
 import { prisma } from '../db';
 import { env } from '../config';
@@ -88,11 +89,11 @@ function isViolacaoUnicidade(err: unknown, campos: string[]): boolean {
   return campos.every((c) => alvo.includes(c));
 }
 
-export async function ativarConta(params: { codigoErpLoja: string; cpf: string; token: string; senha: string }) {
+export async function ativarConta(params: { lojaId?: string; codigoErpLoja?: string; cpf: string; token: string; senha: string }) {
   const erroGenerico = () => new IdentidadeError(400, 'ativacao_invalida', 'dados de ativação inválidos ou token expirado');
 
   // Loja inativa não ativa conta (Fatia 9.7) — mesmo motivo do login.
-  const loja = await prisma.loja.findFirst({ where: { codigoErp: params.codigoErpLoja, ativa: true } });
+  const loja = await resolverLojaDeLogin(params);
   if (!loja) throw erroGenerico();
 
   const cpfNormalizado = normalizarCpf(params.cpf);
@@ -134,6 +135,7 @@ export async function ativarConta(params: { codigoErpLoja: string; cpf: string; 
     empresaId: vendedor.empresaId,
     lojaId: vendedor.lojaId,
     papel: vendedor.papel,
+    sv: vendedor.sessaoVersao,
   });
 
   return { token, vendedor: { id: vendedor.id, nome: vendedor.nome, papel: vendedor.papel } };
@@ -183,7 +185,7 @@ export async function reemitirAcesso(params: { vendedorId: string; empresaId: st
     }),
     prisma.vendedor.update({
       where: { id: vendedor.id },
-      data: { senhaHash: null, status: 'PENDING_ACTIVATION' },
+      data: { senhaHash: null, status: 'PENDING_ACTIVATION', sessaoVersao: { increment: 1 } },
     }),
     prisma.activationToken.create({
       data: { vendedorId: vendedor.id, tokenHash: hashToken(tokenBruto), expiresAt },
@@ -210,7 +212,8 @@ export async function alterarSenha(vendedorId: string, senhaAtual: string, novaS
   if (!senhaOk) throw new IdentidadeError(401, 'senha_atual_incorreta', 'senha atual incorreta');
 
   const senhaHash = await bcrypt.hash(novaSenha, 10);
-  await prisma.vendedor.update({ where: { id: vendedorId }, data: { senhaHash } });
+  // Trocar a senha encerra TODAS as outras sessões (token roubado deixa de valer).
+  await prisma.vendedor.update({ where: { id: vendedorId }, data: { senhaHash, sessaoVersao: { increment: 1 } } });
 
   await registrarEventoAuditoria({
     empresaId: vendedor.empresaId,

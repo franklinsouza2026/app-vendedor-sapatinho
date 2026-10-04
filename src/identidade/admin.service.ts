@@ -105,7 +105,8 @@ async function transicionarStatus(
   // pro segundo, mesmo padrão de concorrência das Fatias 4-7.
   const resultado = await prisma.vendedor.updateMany({
     where: { id, status: { in: regra.de } },
-    data: { status: regra.para },
+    // Nova versão de sessão: bloquear/desligar derruba tokens abertos na hora.
+    data: { status: regra.para, sessaoVersao: { increment: 1 } },
   });
   if (resultado.count !== 1) {
     throw new IdentidadeError(409, 'transicao_invalida', `vendedor não está em um estado válido para "${transicao}" (estado atual: ${vendedor.status})`);
@@ -162,7 +163,8 @@ export async function realocarVendedor(id: string, novaLojaId: string, empresaId
   }
 
   const lojaAnteriorId = vendedor.lojaId;
-  await prisma.vendedor.update({ where: { id }, data: { lojaId: novaLojaId } });
+  // Transferência encerra as sessões abertas (o escopo de loja mudou).
+  await prisma.vendedor.update({ where: { id }, data: { lojaId: novaLojaId, sessaoVersao: { increment: 1 } } });
 
   await registrarEventoAuditoria({
     empresaId,

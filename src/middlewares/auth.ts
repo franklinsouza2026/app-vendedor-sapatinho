@@ -12,6 +12,8 @@ export interface AuthClaims {
   // duplicada aqui silenciosamente deixaria de aceitar um papel novo, e o
   // erro apareceria como "papel sem permissão" em vez de erro de tipo.
   papel: Papel;
+  /** Versão da sessão (Vendedor.sessaoVersao) no momento da emissão. */
+  sv?: number;
 }
 
 declare global {
@@ -24,7 +26,7 @@ declare global {
 }
 
 export function assinarToken(claims: AuthClaims): string {
-  return jwt.sign(claims, env.JWT_SECRET, { issuer: env.JWT_ISSUER, expiresIn: '12h' });
+  return jwt.sign({ ...claims, sv: claims.sv ?? 0 }, env.JWT_SECRET, { issuer: env.JWT_ISSUER, expiresIn: '12h' });
 }
 
 export function requireAuth(...papeisPermitidos: AuthClaims['papel'][]) {
@@ -50,7 +52,7 @@ export function requireAuth(...papeisPermitidos: AuthClaims['papel'][]) {
       // internos) uma consulta extra por request é um custo aceitável — a
       // alternativa (lista de revogação/JWT de vida curta) é over-engineering
       // pro tamanho atual do produto.
-      const vendedor = await prisma.vendedor.findUnique({ where: { id: claims.vendedorId }, select: { status: true, papel: true } });
+      const vendedor = await prisma.vendedor.findUnique({ where: { id: claims.vendedorId }, select: { status: true, papel: true, sessaoVersao: true, empresaId: true, lojaId: true } });
       if (!vendedor || vendedor.status !== 'ACTIVE') {
         return res.status(401).json({ error: 'sessão inválida' });
       }
@@ -73,7 +75,16 @@ export function requireAuth(...papeisPermitidos: AuthClaims['papel'][]) {
         return res.status(401).json({ error: 'sessão inválida' });
       }
 
-      req.auth = claims;
+      // Fase 1 (T4/T5): sessão versionada. Trocar senha, bloquear, desligar,
+      // reemitir acesso ou transferir de loja incrementa `sessaoVersao` — todo
+      // token emitido antes morre NA HORA, não em até 12h.
+      if ((claims.sv ?? 0) !== vendedor.sessaoVersao) {
+        return res.status(401).json({ error: 'sessão inválida' });
+      }
+
+      // Empresa e loja vêm do BANCO, nunca do token: uma transferência de loja
+      // nunca deixa um escopo antigo valendo (auditoria §22 A3).
+      req.auth = { ...claims, empresaId: vendedor.empresaId, lojaId: vendedor.lojaId };
       next();
     } catch {
       return res.status(401).json({ error: 'token inválido ou expirado' });

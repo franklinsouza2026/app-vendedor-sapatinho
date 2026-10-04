@@ -36,7 +36,12 @@ describe('Bloqueio/desbloqueio de conta', () => {
     const desbloquear = await request(app).post(`/admin/vendedores/${vendedor.id}/desbloquear`).set('Authorization', `Bearer ${tokenAdmin}`);
     expect(desbloquear.status).toBe(200);
 
-    const restaurado = await request(app).get('/auth/me').set('Authorization', `Bearer ${tokenVendedor}`);
+    // Fase 1 (T5): bloquear ENCERRA as sessões — o token antigo continua morto
+    // mesmo depois do desbloqueio; o vendedor entra de novo com um login novo.
+    const tokenAntigo = await request(app).get('/auth/me').set('Authorization', `Bearer ${tokenVendedor}`);
+    expect(tokenAntigo.status).toBe(401);
+    const tokenNovo = await tokenPara({ vendedorId: vendedor.id, empresaId: empresa.id, lojaId: loja.id, papel: 'VENDEDOR' });
+    const restaurado = await request(app).get('/auth/me').set('Authorization', `Bearer ${tokenNovo}`);
     expect(restaurado.status).toBe(200);
   });
 

@@ -188,6 +188,14 @@ export async function calcularRankingCompetition(competitionId: string): Promise
  */
 export async function finalizarCompetition(id: string, actorId?: string, empresaId?: string) {
   const competicaoAntesDaCorrida = await buscarCompetition(id, empresaId);
+  // Fase 1: competição configurada pela central do Admin é calculada das VENDAS
+  // no período (src/fase1/competicoes) — mesmo ciclo, mesma tabela de resultado,
+  // mesma garantia de idempotência. Import dinâmico evita ciclo de módulos.
+  if (competicaoAntesDaCorrida.tipoExibicao !== null) {
+    const { finalizarCompeticaoFase1 } = await import('../fase1/competicoes/competicoes.service');
+    await finalizarCompeticaoFase1(id, actorId);
+    return listarResultadosCompetition(id);
+  }
   const ranking = await calcularRankingCompetition(id);
 
   const commitou = await prisma.$transaction(async (tx) => {

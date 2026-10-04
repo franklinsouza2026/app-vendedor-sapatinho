@@ -37,3 +37,22 @@ export function calcularNivel(xpTotal: number): NivelAtual {
     xpProximoNivel: proximo ? proximo.xpMinimo : null,
   };
 }
+
+/** Nível detalhado para a tela (Fase 1) — fonte ÚNICA: o app não recalcula. */
+export function detalharNivel(xpTotal: number) {
+  let idx = 0;
+  NIVEL_XP_V1.forEach((n, i) => {
+    if (xpTotal >= n.xpMinimo) idx = i;
+  });
+  const atual = NIVEL_XP_V1[idx];
+  const proximo = NIVEL_XP_V1[idx + 1] ?? null;
+  return {
+    nivel: atual.nivel,
+    nome: atual.nome,
+    xpInicioNivel: atual.xpMinimo,
+    proximo: proximo ? { nivel: proximo.nivel, nome: proximo.nome, xpMinimo: proximo.xpMinimo } : null,
+    faltaXp: proximo ? proximo.xpMinimo - xpTotal : null,
+    progresso: proximo ? ((xpTotal - atual.xpMinimo) / (proximo.xpMinimo - atual.xpMinimo)) * 100 : 100,
+    niveis: NIVEL_XP_V1.map((n) => ({ nivel: n.nivel, nome: n.nome, xpMinimo: n.xpMinimo })),
+  };
+}

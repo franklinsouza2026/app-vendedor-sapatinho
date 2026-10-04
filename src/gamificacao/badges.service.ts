@@ -32,7 +32,7 @@ export async function concederBadge(
   empresaId: string,
   lojaId: string,
   vendedorId: string,
-  codigoBadge: CodigoBadge,
+  codigoBadge: CodigoBadge | (string & Record<never, never>),
   idempotencyKey: string
 ) {
   const badge = await prisma.badge.findUnique({ where: { codigo: codigoBadge } });

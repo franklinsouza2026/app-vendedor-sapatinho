@@ -33,6 +33,18 @@ const CAMINHOS_REDACT = [
   '*.OPENAI_API_KEY',
   '*.GEMINI_API_KEY',
   '*.AI_SECRETS_ENCRYPTION_KEY',
+  // Fase 1 (T2) — credencial de integração ERP: nunca em log, nem cifrada.
+  '*.credencial',
+  '*.credencialCiphertext',
+  '*.credencialIv',
+  '*.credencialAuthTag',
+  '*.INTEGRATION_SECRETS_ENCRYPTION_KEY',
+  'req.body.credencial',
+  'req.body.senha',
+  'req.body.novaSenha',
+  'req.body.senhaAtual',
+  'req.body.cpf',
+  'req.body.token',
 ];
 
 export function createLogger(name: string) {
