@@ -1,7 +1,7 @@
 /**
  * Espelho da curva de níveis do backend (`src/gamificacao/niveis.ts`, v1).
- * Usado só para montar o mock — na conexão, nível/XP vêm de
- * GET /gamificacao/carteira e este arquivo deixa de ser necessário.
+ * Usado SÓ pelos cenários de demonstração (testes de interface). No app
+ * real o nível vem pronto do servidor em GET /app/painel (`dados.nivel`).
  * Os nomes NÃO foram alterados (Bronze → Elite).
  */
 export const NIVEIS_V1 = [

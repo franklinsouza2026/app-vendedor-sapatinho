@@ -2,8 +2,7 @@
  * Deriva da foto de dados tudo o que a tela precisa para responder
  * "onde estou / quanto falta / qual a minha próxima oportunidade".
  *
- * Nada aqui é escrito à mão no mock: mudou o dado, muda o texto. Isso garante
- * que, ao trocar o mock pelo backend, a UX continue coerente sozinha.
+ * Nada aqui é escrito à mão: mudou o dado do servidor, muda o texto.
  */
 import type { Alvo, Fase1Dados, Metrica, Missao } from './tipos';
 import { falta, ordenarRanking, ordenarRankingLojas, proximoMarco, UNIDADE_METRICA, vendasEstimadas, type PosicaoCalculada } from './estimativas';

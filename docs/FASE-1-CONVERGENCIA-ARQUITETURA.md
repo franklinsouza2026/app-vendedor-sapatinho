@@ -187,15 +187,51 @@ Recorde novo de **dia fechado** publica `RECORD_BROKEN` no feed (idempotente). S
 
 Também entram na saúde: fila acumulada e última venda recebida.
 
-## 11. Ambientes (T7)
+## 11. Ambientes (T7) — estado implementado
 
-- `NODE_ENV=production` exige:
-  - `CORS_ORIGINS`, `TRUST_PROXY_HOPS ≥ 1`;
-  - chaves de criptografia;
-  - `ERP_MODE ≠ controlado`;
-  - seed demo bloqueado.
-- Deploy: `docker compose` com serviço `migrate` (`prisma migrate deploy`) antes da API, Caddy com HTTPS e Postgres/Redis sem porta pública.
-- Seed separado:
-  - `seed:configuracao` é idempotente e sem pessoas;
-  - `seed` (demo) recusa produção.
-- E2E: banco próprio `app_vendedor_sapatinho_e2e`, API própria e Vite próprio. Nunca toca o banco de DEV.
+- `NODE_ENV=production` recusa subir sem `INTEGRATION_SECRETS_ENCRYPTION_KEY`,
+  com `JWT_SECRET = CPF_HASH_SECRET`, com `ERP_CONTROLADO_DIR`, com
+  `MODULOS_LEGADOS_ATIVOS=true`; a API também exige `CORS_ORIGINS` e
+  `TRUST_PROXY_HOPS ≥ 1`. O provedor MOCK é recusado pela API em produção.
+- Deploy: `docker compose` com job `migrate` (`prisma migrate deploy`) antes
+  de api/worker; Postgres e Redis sem porta no host; Redis `noeviction` + AOF.
+  Guia: `docs/FASE-1-DEPLOY.md`.
+- Provisionamento de empresa: `scripts/provisionar-empresa.ts` (empresa, 1ª loja,
+  1º Admin, régua v1, badges) — sem dado demo. O `seed` demo e os `seed-*`
+  recusam produção; os `reset-*` só rodam em banco `_e2e`/`_test` (ou com
+  `PERMITIR_RESET_BANCO_DEV=1`).
+- E2E: `npm run e2e:fase1` — banco `app_vendedor_sapatinho_e2e`, Redis db 3,
+  API :3020, worker, Vite :5183 e build de produção em :5184. Nunca toca o DEV.
+
+## 12. Mocks permitidos (e onde)
+
+| O quê | Onde | Por que não chega ao piloto |
+|---|---|---|
+| Adapter MOCK (vendas determinísticas `DEMO-*`) | `src/integracoes/erp/mock-adapter.ts` | API recusa criar/ativar MOCK com `NODE_ENV=production` |
+| Adapter CONTROLADO (arquivos JSON) | `src/integracoes/erp/controlado-adapter.ts` | exige `ERP_CONTROLADO_DIR`, proibido em produção |
+| Provedor de demonstração + cenários A–X | `web/src/fase1/demo/` | só importado por testes; ausente do bundle (verificado no `dist`) |
+| Seed demo (`ADM001`, `VEND001`…) | `scripts/seed*.ts` | recusa `NODE_ENV=production` |
+| Fixtures E2E (`E2E-*`) | `scripts/e2e-fase1/`, `web/e2e-fase1/` | só no banco `_e2e` |
+| `localStorage` | `real/ProvedorVendedor.tsx` | guarda só ids de celebração já exibidas (estado de UI, nunca dado de negócio) |
+
+## 13. Preparação para a Linx
+
+- Implementar `src/integracoes/erp/linx/linx-client.ts` (hoje lança
+  `ErroIntegracao`) devolvendo eventos do contrato `eventoErpSchema`
+  (VENDA, CANCELAMENTO, DEVOLUCAO com `idExterno` estável).
+- Credencial e URL já têm onde morar (Integrações, cifrada); lojas já se
+  vinculam por código externo; vendedores casam pela matrícula do ERP.
+- Ponto de atenção: o sync busca por janela de `ocorridoEm` (cursor − 30 min).
+  Se a Linx publicar vendas com atraso maior que isso, a consulta Linx deve
+  ser por data de alteração/integração, não pela data da venda.
+- Validar com dados reais: cancelamento/devolução parcial, vendas multi-par,
+  categorias (pares × acessórios) e identidade do vendedor por loja.
+
+## 14. Checkpoints (git)
+
+`4e0f25d` auditoria · `b46bd29` arquitetura · `f5ad829` backend green ·
+`2d53fd4` Admin/app convergidos · `a2765fe` relógio/fechamento ·
+`dab9e1c` E2E E1–E25 · `b08c35f` concorrência/tempo · `7e52ba3` Security Gate ·
+`1367c60` produção · `d53139a` resquícios do protótipo.
+Rollback de aplicação: checkout da tag anterior + rebuild (migrations aditivas);
+de dados: dump `pg_dump` antes de cada atualização (`docs/FASE-1-DEPLOY.md`).

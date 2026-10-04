@@ -4,8 +4,8 @@
  *   COMPETIÇÃO = disputa (eu contra outros, ou minha loja contra outras)
  *   CAMPANHA   = programa da empresa que agrupa vários mecanismos
  *
- * ⚠️ As missões de VENDA aqui são UX/mock: o motor de missões atual só
- * conhece missões de treinamento (actionType → Treinador/Academia...).
+ * Tudo vem do servidor (missões por template, competições e campanhas da
+ * Fase 1), com progresso calculado das vendas que entram pelo ERP Adapter.
  */
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useFase1 } from '../contexto';

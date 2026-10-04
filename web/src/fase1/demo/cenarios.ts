@@ -40,7 +40,7 @@ import type {
 } from '../dominio/tipos';
 import { pct, plural, reais } from '../formato';
 import { proximoMarco } from '../dominio/estimativas';
-import { calcularNivel, NIVEIS_V1 } from '../dominio/niveis';
+import { calcularNivel, NIVEIS_V1 } from './niveisDemo';
 import { LIMITE_SYNC_MIN, minutosDesde } from '../dominio/admin';
 import { diasValidosRestantes, feriadoHoje, metaDiariaVigente, opcoesMetaDiaria } from './calendarioDemo';
 import { type EstadoDemo, estadoInicial, type MotivoInelegivel } from './estado';

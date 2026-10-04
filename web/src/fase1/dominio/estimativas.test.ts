@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { falta, marcosAtingidos, ordenarRanking, paresEstimados, percentual, projecaoMes, proximoMarco, vendasEstimadas, vendasPorDia } from './estimativas';
-import { calcularNivel } from './niveis';
+import { calcularNivel } from '../demo/niveisDemo';
 import { priorizarAlvos, vocePerto } from './proximoAlvo';
 import type { Alvo } from './tipos';
 import { pct } from '../formato';

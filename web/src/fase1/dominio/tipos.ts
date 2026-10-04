@@ -7,7 +7,7 @@
  *
  * Valores DERIVADOS (percentual, falta, vendas estimadas, pares, ritmo,
  * distância no ranking) não ficam aqui: são calculados em `estimativas.ts`,
- * para que um mock nunca contradiga a si mesmo.
+ * para que o texto nunca contradiga o dado.
  */
 
 export type Metrica = 'SCORE' | 'VENDAS' | 'PERCENTUAL_META' | 'EVOLUCAO' | 'PA' | 'TICKET' | 'CONSISTENCIA';
@@ -238,7 +238,7 @@ export interface StatusDados {
 }
 
 export interface Fase1Dados {
-  /** "Agora" do cenário — fixo para a demonstração ser reprodutível. */
+  /** Instante de referência do servidor (fixo nos cenários de teste). */
   agora: string;
   vendedor: Pessoa & { primeiroNome: string; empresa: string; admitidoEm: string; novo: boolean };
   lojas: Loja[];

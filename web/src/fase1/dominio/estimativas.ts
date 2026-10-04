@@ -46,8 +46,8 @@ export function paresEstimados(vendas: number | null, pa: number | null): number
 
 /**
  * Vendas por dia de trabalho para cobrir o restante.
- * DECISÃO ABERTA: "dia de trabalho" depende de escala, que não existe no
- * backend hoje. O mock informa os dias; sem eles, não há ritmo.
+ * Os dias restantes vêm do servidor (dias de trabalho previstos do vendedor
+ * no mês, D6/D10); sem eles, não há ritmo.
  */
 export function vendasPorDia(vendas: number | null, diasRestantes: number | null): number | null {
   if (vendas === null || diasRestantes === null || diasRestantes <= 0) return null;
