@@ -221,7 +221,7 @@ Também entram na saúde: fila acumulada e última venda recebida.
   (VENDA, CANCELAMENTO, DEVOLUCAO com `idExterno` estável).
 - Credencial e URL já têm onde morar (Integrações, cifrada); lojas já se
   vinculam por código externo; vendedores casam pela matrícula do ERP.
-- Ponto de atenção: o sync busca por janela de `ocorridoEm` (cursor − 30 min).
+- **`LINX-INTEGRATION-DECISION`** (decidir só na integração Linx, com o contrato real em mãos): o sync busca por janela de `ocorridoEm` (cursor − 30 min).
   Se a Linx publicar vendas com atraso maior que isso, a consulta Linx deve
   ser por data de alteração/integração, não pela data da venda.
 - Validar com dados reais: cancelamento/devolução parcial, vendas multi-par,
@@ -233,5 +233,14 @@ Também entram na saúde: fila acumulada e última venda recebida.
 `2d53fd4` Admin/app convergidos · `a2765fe` relógio/fechamento ·
 `dab9e1c` E2E E1–E25 · `b08c35f` concorrência/tempo · `7e52ba3` Security Gate ·
 `1367c60` produção · `d53139a` resquícios do protótipo.
+`eac0716` celebração estornada + E2E campanha/tablet · `7297f20` PWA offline/deploy ·
+`99c761f` HTTPS/backup validados · tag **`restore/pre-linx-fase1`** = último
+estado homologado antes da integração Linx.
+
+Dívida técnica controlada (decisão: não fazer antes da Linx): vite 5→8,
+vitest 2→4, tailwind 3→4, react-router 6→7 — vulnerabilidades só em
+ferramentas de dev/build; no bundle, react-router moderada não explorável
+(sem navegação por destino vindo da URL, sem SSR).
+
 Rollback de aplicação: checkout da tag anterior + rebuild (migrations aditivas);
 de dados: dump `pg_dump` antes de cada atualização (`docs/FASE-1-DEPLOY.md`).
