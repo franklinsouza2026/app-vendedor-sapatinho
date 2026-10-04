@@ -122,7 +122,9 @@ export type AcaoAuditoria =
   | 'PDI_REVIEWED_BY_MANAGER'
   | 'MANAGER_BRIEF_GENERATED'
   | 'MANAGER_AI_ADVICE_REQUESTED'
-  | 'MANAGER_ALERT_CONFIG_UPDATED';
+  | 'MANAGER_ALERT_CONFIG_UPDATED'
+  // Engajamento — configuração da recompensa pelo primeiro acesso do dia.
+  | 'ENGAGEMENT_REWARD_CONFIG_UPDATED';
 
 export async function registrarEventoAuditoria(params: {
   empresaId: string;

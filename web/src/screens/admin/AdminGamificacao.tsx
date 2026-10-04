@@ -1,4 +1,6 @@
 import { FormEvent, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { buscarConfigRecompensa, salvarConfigRecompensa } from '../../api/engajamento';
 import { useApi } from '../../utils/useApi';
 import { AdminNav } from './AdminNav';
 import { LoadingState } from '../../components/LoadingState';
@@ -23,18 +25,24 @@ import {
 const LABEL_STATUS: Record<string, string> = { DRAFT: 'rascunho', SCHEDULED: 'agendada', ACTIVE: 'ativa', FINISHED: 'encerrada', CANCELLED: 'cancelada' };
 const METRICAS: TipoMetricaCompeticao[] = ['GOAL_ATTAINMENT', 'PERSONAL_IMPROVEMENT', 'SCORE_GERAL', 'PA', 'TICKET_MEDIO', 'TRAINING', 'MISSION_COMPLETION', 'CONSISTENCY'];
 
+type AbaGamificacao = 'seasons' | 'competicoes' | 'ligas' | 'recompensa';
+const ABAS_GAMIFICACAO: AbaGamificacao[] = ['seasons', 'competicoes', 'ligas', 'recompensa'];
+const ROTULO_ABA: Record<AbaGamificacao, string> = { seasons: 'Temporadas', competicoes: 'Competições', ligas: 'Ligas', recompensa: 'Recompensa por acesso diário' };
+
 export function AdminGamificacao() {
-  const [aba, setAba] = useState<'seasons' | 'competicoes' | 'ligas'>('seasons');
+  const [params, setParams] = useSearchParams();
+  const aba = (ABAS_GAMIFICACAO as string[]).includes(params.get('aba') ?? '') ? (params.get('aba') as AbaGamificacao) : 'seasons';
+  const setAba = (t: AbaGamificacao) => setParams({ aba: t }, { replace: true });
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6 p-6">
       <AdminNav />
-      <h1 className="text-2xl font-semibold text-white">Gamificação — Competições</h1>
+      <h1 className="text-2xl font-semibold text-white">Gamificação</h1>
 
-      <div className="flex gap-2 border-b border-slate-800 pb-2">
-        {(['seasons', 'competicoes', 'ligas'] as const).map((t) => (
+      <div className="flex flex-wrap gap-2 border-b border-slate-800 pb-2">
+        {ABAS_GAMIFICACAO.map((t) => (
           <button key={t} onClick={() => setAba(t)} className={`rounded-full px-3 py-1.5 text-sm font-medium ${aba === t ? 'bg-accent text-white' : 'bg-surface text-slate-400'}`}>
-            {t === 'seasons' ? 'Temporadas' : t === 'competicoes' ? 'Competições' : 'Ligas'}
+            {ROTULO_ABA[t]}
           </button>
         ))}
       </div>
@@ -42,7 +50,74 @@ export function AdminGamificacao() {
       {aba === 'seasons' && <AbaSeasons />}
       {aba === 'competicoes' && <AbaCompeticoes />}
       {aba === 'ligas' && <AbaLigas />}
+      {aba === 'recompensa' && <AbaRecompensaDiaria />}
     </div>
+  );
+}
+
+/**
+ * Recompensa pelo PRIMEIRO acesso do dia. Valores persistidos por empresa e
+ * auditados; o app do vendedor lê daqui (nada fixo no frontend). XP é
+ * evolução e não se gasta; VendaCoins é moeda. Desligada: o acesso continua
+ * sendo registrado, só não há XP/VendaCoins.
+ */
+function AbaRecompensaDiaria() {
+  const { dados, carregando, recarregar } = useApi(() => buscarConfigRecompensa(), []);
+  const [form, setForm] = useState<{ ativo: boolean; xp: string; moedas: string } | null>(null);
+  const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
+  const atual = form ?? (dados ? { ativo: dados.ativo, xp: String(dados.xp), moedas: String(dados.moedas) } : null);
+
+  if (carregando && !dados) return <LoadingState texto="Carregando configuração..." />;
+  if (!atual) return null;
+
+  async function salvar(e: FormEvent) {
+    e.preventDefault();
+    setMsg(null);
+    const xp = Number(atual!.xp);
+    const moedas = Number(atual!.moedas);
+    if (!Number.isInteger(xp) || !Number.isInteger(moedas) || xp < 0 || moedas < 0) {
+      setMsg({ tipo: 'erro', texto: 'XP e VendaCoins devem ser números inteiros, 0 ou maiores.' });
+      return;
+    }
+    try {
+      await salvarConfigRecompensa({ ativo: atual!.ativo, xp, moedas });
+      setForm(null);
+      recarregar();
+      setMsg({ tipo: 'ok', texto: 'Configuração salva. Vale a partir do próximo primeiro acesso do dia de cada vendedor.' });
+    } catch (err) {
+      setMsg({ tipo: 'erro', texto: err instanceof ApiError ? err.message : 'não foi possível salvar' });
+    }
+  }
+
+  return (
+    <form onSubmit={salvar} className="flex max-w-xl flex-col gap-4 rounded-lg border border-slate-800 p-4">
+      <p className="text-sm text-slate-400">Concedida no máximo 1 vez por vendedor por dia (garantido no servidor), no primeiro acesso do dia, no fuso da empresa.</p>
+      <label className="flex items-center gap-3 text-sm text-white">
+        <input type="checkbox" className="h-5 w-5 accent-amber-500" checked={atual.ativo} onChange={(e) => setForm({ ...atual, ativo: e.target.checked })} />
+        Recompensa diária {atual.ativo ? 'ATIVADA' : 'DESATIVADA'}
+      </label>
+      <div className="grid grid-cols-2 gap-3">
+        <label className="flex flex-col gap-1 text-sm text-slate-300">
+          XP por primeiro acesso do dia
+          <input type="number" min={0} step={1} className="rounded-lg bg-surface px-3 py-2 text-white" value={atual.xp} onChange={(e) => setForm({ ...atual, xp: e.target.value })} />
+        </label>
+        <label className="flex flex-col gap-1 text-sm text-slate-300">
+          VendaCoins por primeiro acesso do dia
+          <input type="number" min={0} step={1} className="rounded-lg bg-surface px-3 py-2 text-white" value={atual.moedas} onChange={(e) => setForm({ ...atual, moedas: e.target.value })} />
+        </label>
+      </div>
+      <p className="text-xs text-slate-500">O vendedor vê estes valores na Home antes e depois do check-in. Desligada, o acesso continua sendo registrado no painel de Engajamento.</p>
+      {msg && (
+        <p role={msg.tipo === 'erro' ? 'alert' : 'status'} className={`text-sm ${msg.tipo === 'erro' ? 'text-red-400' : 'text-emerald-300'}`}>
+          {msg.texto}
+        </p>
+      )}
+      <div>
+        <button type="submit" className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white">
+          Salvar recompensa diária
+        </button>
+      </div>
+    </form>
   );
 }
 

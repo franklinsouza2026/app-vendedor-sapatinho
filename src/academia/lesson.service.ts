@@ -10,6 +10,7 @@ import { concederRecompensaTreinamento, recompensaTreinamentoJaConcedida } from 
 import { createLogger } from '../utils/logger';
 import { gerarEvidenciaDeConclusao } from '../universidade/evidence.service';
 import { concluirItemPDIPorConteudo } from '../universidade/pdi.service';
+import { registrarEventoEngajamento } from '../engajamento/eventos.service';
 
 const log = createLogger('academia:aula');
 
@@ -112,6 +113,7 @@ export async function concluirAula(lessonId: string, vendedorId: string) {
       idempotencyKey,
     });
     log.info({ vendedorId, lessonId }, 'aula da Academia concluída — recompensa concedida (1ª vez)');
+    await registrarEventoEngajamento({ vendedorId, tipo: 'AULA_CONCLUIDA', referenciaTipo: 'ACADEMIA_AULA', referenciaId: lessonId });
 
     // Universidade (Fatia 7.5E) — evidência de competência (best-effort,
     // nunca bloqueia a conclusão) + progresso de PDI, só na 1ª conclusão

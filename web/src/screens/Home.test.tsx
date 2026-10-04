@@ -10,6 +10,7 @@ import * as gamificacaoApi from '../api/gamificacao';
 import * as missoesApi from '../api/missoes';
 import * as competicoesApi from '../api/competicoes';
 import * as managerPanelApi from '../api/managerPanel';
+import * as engajamentoApi from '../api/engajamento';
 
 vi.mock('../api/auth');
 vi.mock('../api/metas');
@@ -17,6 +18,8 @@ vi.mock('../api/gamificacao');
 vi.mock('../api/missoes');
 vi.mock('../api/competicoes');
 vi.mock('../api/managerPanel');
+// Engajamento é independente da meta: mockado para o teste nunca bater na API real.
+vi.mock('../api/engajamento');
 
 const SESSAO = {
   vendedor: { id: 'v1', nome: 'Ana Vendedora', papel: 'VENDEDOR' as const },
@@ -41,6 +44,7 @@ beforeEach(() => {
   });
   vi.mocked(missoesApi.buscarMissoesAtivas).mockResolvedValue({ missoes: [] });
   vi.mocked(competicoesApi.buscarTemporadaAtual).mockResolvedValue({ season: null });
+  vi.mocked(engajamentoApi.buscarMeuEngajamento).mockResolvedValue({ hoje: '2026-09-17', acessouHoje: true, recompensaHoje: null, config: { ativo: false, xp: 0, moedas: 0 }, streakAtual: 0, maiorStreak: 0, semana: { diasComAcesso: 1, diasValidos: 1, percentual: 100 } });
 });
 
 // Home só é montada atrás de RequireAuth na aplicação real (App.tsx) — nunca

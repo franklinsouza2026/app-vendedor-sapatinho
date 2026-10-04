@@ -22,6 +22,7 @@ import { concederRecompensaTreinamento } from '../gamificacao/treinamento.servic
 import { gerarEvidenciaDeSimulacao } from '../universidade/evidence.service';
 import { concluirItemPDIPorConteudo } from '../universidade/pdi.service';
 import { createLogger } from '../utils/logger';
+import { registrarEventoEngajamento } from '../engajamento/eventos.service';
 
 const log = createLogger('simulador:sessao');
 
@@ -306,6 +307,8 @@ async function finalizarEAvaliar(sessionId: string, motivo: string, apenasRetryA
       // outra chamada concorrente já encerrou — devolve o estado atual, sem reavaliar
       return prisma.simulationSession.findUniqueOrThrow({ where: { id: sessionId } });
     }
+    const encerrada = await prisma.simulationSession.findUniqueOrThrow({ where: { id: sessionId }, select: { vendedorId: true } });
+    await registrarEventoEngajamento({ vendedorId: encerrada.vendedorId, tipo: 'SIMULACAO_CONCLUIDA', referenciaTipo: 'SIMULATION_SESSION', referenciaId: sessionId, metadata: { motivo } });
   }
 
   const sessao = await prisma.simulationSession.findUniqueOrThrow({ where: { id: sessionId } });

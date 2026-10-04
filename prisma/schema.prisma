@@ -17,6 +17,12 @@ model Empresa {
   id        String   @id @default(uuid())
   nome      String
   createdAt DateTime @default(now())
+  // Fuso oficial da empresa (IANA). Fonte da verdade para "que dia é hoje"
+  // nas regras que dependem do DIA (check-in de acesso, frequência, streak de
+  // acesso). Padrão Brasília (UTC−3, sem horário de verão desde 2019) — o
+  // mesmo de Pernambuco. Módulos anteriores ainda usam o fuso do servidor
+  // (limitação registrada em docs/ENGAJAMENTO-E-CHECKIN.md).
+  timezone  String   @default("America/Sao_Paulo")
 
   lojas          Loja[]
   aiBudgetConfig AIBudgetConfig?
@@ -229,6 +235,13 @@ enum TipoEventoGamificacao {
   // model SeasonPointLedger). Bônus 0 por padrão (seção 26/95) até o negócio
   // definir valores.
   COMPETICAO
+  // Engajamento — recompensa pelo PRIMEIRO ACESSO do dia ao app (no máximo
+  // uma por vendedor por dia, garantido por AcessoDiario @@unique + chave de
+  // idempotência). NÃO confundir com CHECKIN_DIARIO, que é o check-in de
+  // HUMOR do Conselheiro e, pela Constituição do Conselheiro §12, nunca pode
+  // virar recompensa. Valores vêm de ConfigRecompensaAcesso (Admin), não da
+  // régua versionada.
+  ACESSO_DIARIO
 }
 
 // Régua de XP/moeda e pesos do Score Geral — versionados (nunca hardcoded
@@ -2773,10 +2786,10 @@ model KnowledgeCard {
 // scalar solto, sem FK — por isso comporta um ator que não é vendedor) e é ele
 // que amarra os eventos de auditoria da mesma pessoa entre execuções.
 model PlatformActor {
-  id String @id @default(uuid())
+  id        String   @id @default(uuid())
   // Nome real de quem autoriza. Nunca "SYSTEM", "CLI" ou nome de ferramenta:
   // o ponto inteiro é que exista um humano responsável.
-  nome      String @unique
+  nome      String   @unique
   ativo     Boolean  @default(true)
   createdAt DateTime @default(now())
 
@@ -2788,23 +2801,111 @@ model PlatformActor {
 // Auditoria de operação de PLATAFORMA — separada de `AuditEvent`, que é
 // auditoria de empresa e continua exatamente como está.
 model PlatformAuditEvent {
-  id      String @id @default(uuid())
-  actorId String
+  id          String   @id @default(uuid())
+  actorId     String
   // Nome no momento do ato: auditoria não pode mudar retroativamente se
   // alguém corrigir o cadastro depois.
-  actorName String
-  acao      String
+  actorName   String
+  acao        String
   // Que recurso foi tocado — genérico de propósito, porque autoridade de
   // plataforma não é só sobre conhecimento.
   recursoTipo String
   recursoId   String
   // Contexto mínimo do ato (transição, escopo, origem). Nunca conteúdo.
-  metadata  Json?
-  createdAt DateTime @default(now())
+  metadata    Json?
+  createdAt   DateTime @default(now())
 
   ator PlatformActor @relation(fields: [actorId], references: [id])
 
   @@index([recursoTipo, recursoId])
   @@index([actorId, createdAt])
   @@map("platform_audit_event")
+}
+
+// =====================================================================
+// ENGAJAMENTO — ACESSO DIÁRIO, CHECK-IN E EVENTOS
+// =====================================================================
+// Três conceitos separados de propósito (nunca derivar um do outro):
+//   ACESSO       = abriu o app no dia (AcessoDiario) — indicador de ADOÇÃO;
+//   ENGAJAMENTO  = fez uma ação relevante (EventoEngajamento);
+//   RESULTADO    = venda/meta (IndicadorRealizado) — fora deste bloco.
+// XP e VendaCoins continuam nos ledgers próprios (XpTransacao/MoedaTransacao).
+
+// Um registro por vendedor por DIA LOCAL da empresa (Empresa.timezone).
+// O @@unique([vendedorId, dia]) é a barreira contra recompensa duplicada:
+// só a requisição que INSERE a linha concede o check-in; refresh, outra aba,
+// outro aparelho ou chamadas simultâneas caem no ON CONFLICT e só atualizam
+// último acesso/contador. Histórico append-only: nunca apagado na virada da
+// semana.
+model AcessoDiario {
+  id                  String   @id @default(uuid())
+  empresaId           String
+  // Loja do vendedor NO DIA do acesso (preserva o histórico se ele for
+  // transferido depois).
+  lojaId              String
+  vendedorId          String
+  dia                 DateTime @db.Date
+  primeiroAcessoEm    DateTime
+  ultimoAcessoEm      DateTime
+  quantidadeAcessos   Int      @default(1)
+  recompensaConcedida Boolean  @default(false)
+  xpConcedido         Int      @default(0)
+  moedasConcedidas    Int      @default(0)
+  // De onde veio o registro (ex.: APP_ABERTO) — auditoria, nunca vindo de
+  // valor livre do cliente.
+  origem              String
+  createdAt           DateTime @default(now())
+
+  @@unique([vendedorId, dia])
+  @@index([empresaId, dia])
+  @@index([empresaId, lojaId, dia])
+  @@map("acesso_diario")
+}
+
+// Configuração da recompensa pelo primeiro acesso do dia — uma por empresa.
+// Sem registro = recompensa DESLIGADA (nada é concedido sem decisão do Admin).
+model ConfigRecompensaAcesso {
+  id            String   @id @default(uuid())
+  empresaId     String   @unique
+  ativo         Boolean  @default(false)
+  xp            Int      @default(0)
+  moedas        Int      @default(0)
+  atualizadoEm  DateTime @updatedAt
+  atualizadoPor String?
+
+  @@map("config_recompensa_acesso")
+}
+
+// Ações relevantes, registradas no SERVIDOR quando a ação acontece de fato
+// (nunca um "evento" enviado pelo cliente). Extensível: novos tipos entram
+// no enum. Conversa com o Conselheiro NÃO é instrumentada (Constituição do
+// Conselheiro §12 — decisão pendente do produto).
+enum TipoEventoEngajamento {
+  MISSAO_CONCLUIDA
+  DESAFIO_CONCLUIDO
+  AULA_CONCLUIDA
+  QUIZ_APROVADO
+  SIMULACAO_CONCLUIDA
+}
+
+model EventoEngajamento {
+  id             String                @id @default(uuid())
+  empresaId      String
+  lojaId         String
+  vendedorId     String
+  tipo           TipoEventoEngajamento
+  referenciaTipo String?
+  referenciaId   String?
+  // Contexto seguro (ids/títulos) — nunca conteúdo de conversa nem dado
+  // pessoal sensível.
+  metadata       Json?
+  dia            DateTime              @db.Date
+  ocorridoEm     DateTime              @default(now())
+  // Um evento por (tipo, vendedor, referência) — reprocessar a mesma
+  // conclusão não infla a contagem.
+  chave          String                @unique
+
+  @@index([empresaId, dia])
+  @@index([vendedorId, ocorridoEm])
+  @@map("evento_engajamento")
 }

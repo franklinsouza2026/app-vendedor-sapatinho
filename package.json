@@ -15,6 +15,7 @@
     "seed": "tsx scripts/seed.ts",
     "reset:coach-e2e": "tsx scripts/reset-coach-e2e.ts",
     "seed:piloto-habitos": "tsx scripts/seed-piloto-habitos.ts",
+    "seed:engajamento-demo": "tsx scripts/seed-engajamento-demo.ts",
     "promover:platform-admin": "tsx scripts/promover-platform-admin.ts",
     "publicar:piloto-habitos": "tsx scripts/publicar-piloto-habitos.ts",
     "reset:treinador-e2e": "tsx scripts/reset-treinador-e2e.ts",

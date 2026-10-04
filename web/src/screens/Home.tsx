@@ -7,27 +7,31 @@ import { buscarMinhasMetas } from '../api/metas';
 import { buscarCarteira, buscarRanking, buscarStreak } from '../api/gamificacao';
 import { buscarMissoesAtivas } from '../api/missoes';
 import { buscarTemporadaAtual } from '../api/competicoes';
+import { buscarMeuEngajamento, MeuEngajamento } from '../api/engajamento';
+import { useCheckin } from '../engajamento/CheckinContext';
 import { Card } from '../components/Card';
 import { ProgressBar } from '../components/ProgressBar';
 import { LoadingState } from '../components/LoadingState';
 import { ErrorState } from '../components/ErrorState';
-import { formatarHora, formatarMoeda, formatarNumero, saudacao } from '../utils/format';
+import { formatarHora, formatarInteiro, formatarMoeda, formatarNumero, saudacao } from '../utils/format';
 import { vendasNecessarias } from '../utils/calculo';
 import { rotaDaAcaoMissao } from '../utils/missoes';
 
 async function carregarHome(vendedorId: string) {
-  const [metas, carteira, streak, ranking, missoes, temporada] = await Promise.all([
+  const [metas, carteira, streak, ranking, missoes, temporada, engajamento] = await Promise.all([
     buscarMinhasMetas(),
     buscarCarteira(),
     buscarStreak(),
     buscarRanking('SCORE_GERAL', 'LOJA'),
     buscarMissoesAtivas(),
     buscarTemporadaAtual(),
+    // Best-effort: sem o painel de engajamento a Home continua funcionando.
+    buscarMeuEngajamento().catch(() => null),
   ]);
   const dia = metas.progresso.find((p) => p.periodo === 'DIA')!;
   const posicao = ranking.ranking.find((r) => r.vendedorId === vendedorId)?.posicao ?? null;
   const missoesPendentes = missoes.missoes.filter((m) => m.status === 'ASSIGNED' || m.status === 'IN_PROGRESS');
-  return { dia, carteira, streak, posicao, totalNoRanking: ranking.ranking.length, missoesPendentes, temporada: temporada.season, sincronizadoEm: metas.sincronizadoEm };
+  return { dia, carteira, streak, posicao, totalNoRanking: ranking.ranking.length, missoesPendentes, temporada: temporada.season, sincronizadoEm: metas.sincronizadoEm, engajamento };
 }
 
 export function Home() {
@@ -50,13 +54,16 @@ export function Home() {
 function HomeVendedor() {
   const { sessao } = useAuth();
   const vendedorId = sessao!.vendedor.id;
-  const { dados, carregando, erro, recarregar } = useApi(() => carregarHome(vendedorId), [vendedorId]);
+  const { checkin } = useCheckin();
+  // Recarrega quando o check-in do dia é reconhecido — XP, VendaCoins e
+  // sequência já aparecem com a recompensa somada (o saldo vem do servidor).
+  const { dados, carregando, erro, recarregar } = useApi(() => carregarHome(vendedorId), [vendedorId, checkin?.dia, checkin?.primeiroAcessoDoDia]);
 
   if (carregando && !dados) return <LoadingState texto="Carregando sua meta de hoje..." />;
   if (erro) return <ErrorState mensagem={erro} onRetry={recarregar} />;
   if (!dados) return null;
 
-  const { dia, carteira, streak, posicao, totalNoRanking, missoesPendentes, temporada } = dados;
+  const { dia, carteira, streak, posicao, totalNoRanking, missoesPendentes, temporada, engajamento } = dados;
   const percentual = dia.metaFaturamento ? (dia.realizado.faturamento / dia.metaFaturamento) * 100 : 0;
   const vendas = dia.faltaParaMeta !== null && dia.realizado.ticketMedio > 0 ? vendasNecessarias(dia.faltaParaMeta, dia.realizado.ticketMedio) : null;
 
@@ -68,6 +75,48 @@ function HomeVendedor() {
         </h1>
         <p className="text-xs text-slate-500">{sessao!.loja.nome}</p>
       </div>
+
+      {/* XP (progressão, não se gasta) e VendaCoins (moeda) lado a lado, mas
+          SEPARADOS; sequência de ACESSO e status do check-in do dia. Valores
+          da recompensa vêm da configuração do Admin — nunca fixos aqui. */}
+      <Card>
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div>
+            <p className="text-lg font-bold text-white">
+              <span aria-hidden="true">⭐ </span>
+              {formatarInteiro(carteira.xp)}
+            </p>
+            <p className="text-xs text-slate-400">XP · {carteira.nivel.nome}</p>
+          </div>
+          <Link to="/moedas" className="block">
+            <p className="text-lg font-bold text-amber-200">
+              <span aria-hidden="true">🪙 </span>
+              {formatarInteiro(carteira.saldoMoedas)}
+            </p>
+            <p className="text-xs text-slate-400">VendaCoins</p>
+          </Link>
+          <div>
+            <p className="text-lg font-bold text-white">
+              <span aria-hidden="true">🔥 </span>
+              {engajamento?.streakAtual ?? checkin?.streakAcesso ?? 0}
+            </p>
+            <p className="text-xs text-slate-400">{(engajamento?.streakAtual ?? 0) === 1 ? 'dia acessando' : 'dias acessando'}</p>
+          </div>
+        </div>
+        {carteira.nivel.xpProximoNivel !== null && (
+          <div className="mt-3">
+            <ProgressBar percentual={(carteira.nivel.xpAtual / carteira.nivel.xpProximoNivel) * 100} />
+            <p className="mt-1 text-xs text-slate-400">Faltam {formatarInteiro(carteira.nivel.xpProximoNivel - carteira.nivel.xpAtual)} XP para o próximo nível</p>
+          </div>
+        )}
+        <StatusCheckin engajamento={engajamento} />
+        <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
+          <span>🎯 {streak.streakAtual} {streak.streakAtual === 1 ? 'dia seguido' : 'dias seguidos'} batendo a meta</span>
+          <Link to="/ganhos" className="inline-flex min-h-[44px] items-center font-medium text-accentSoft">
+            Meus ganhos →
+          </Link>
+        </div>
+      </Card>
 
       {/* Conselheiro logo após a saudação (Fatia 9.6, seção 17) — antes só
           era alcançável via /evoluir; a entrada principal agora fica aqui,
@@ -175,31 +224,6 @@ function HomeVendedor() {
         </div>
       )}
 
-      {/* Gamificação resumida — nível com progresso, moedas e streak juntos */}
-      <Card>
-        <div className="flex items-center justify-between">
-          <span className="font-semibold text-white">{carteira.nivel.nome}</span>
-          <span className="text-sm text-slate-400">Nível {carteira.nivel.nivel}</span>
-        </div>
-        {carteira.nivel.xpProximoNivel !== null && (
-          <div className="mt-2">
-            <ProgressBar percentual={(carteira.nivel.xpAtual / carteira.nivel.xpProximoNivel) * 100} />
-          </div>
-        )}
-        <div className="mt-3 flex justify-between text-center">
-          <div className="flex-1">
-            <p className="text-lg">🪙</p>
-            <p className="font-semibold text-white">{carteira.saldoMoedas}</p>
-            <p className="text-xs text-slate-400">moedas</p>
-          </div>
-          <div className="flex-1">
-            <p className="text-lg">🔥</p>
-            <p className="font-semibold text-white">{streak.streakAtual}</p>
-            <p className="text-xs text-slate-400">dias seguidos</p>
-          </div>
-        </div>
-      </Card>
-
       {/* Temporada atual (Fatia 8, seção 41/86) — só ocupa espaço quando
           existe uma season ACTIVE de verdade; nunca inflado com detalhe,
           só um atalho compacto pra tela de Competições. */}
@@ -250,4 +274,27 @@ function HomeVendedor() {
 
 function formatarPercentualCompacto(p: number): string {
   return `${Math.round(p)}% atingido`;
+}
+
+/** Status do check-in do dia — antes: quanto pode ganhar; depois: "concluído ✓". */
+function StatusCheckin({ engajamento }: { engajamento: MeuEngajamento | null }) {
+  if (!engajamento) return null;
+  const { config, acessouHoje, recompensaHoje } = engajamento;
+  const valores = [config.xp > 0 ? `+${config.xp} XP` : null, config.moedas > 0 ? `+${config.moedas} VendaCoins` : null].filter(Boolean).join(' e ');
+  if (acessouHoje) {
+    return (
+      <p className="mt-3 rounded-xl bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
+        ✓ Check-in de hoje concluído
+        {recompensaHoje && (recompensaHoje.xp > 0 || recompensaHoje.moedas > 0) && (
+          <span className="text-emerald-300/80">
+            {' '}
+            · {[recompensaHoje.xp > 0 ? `+${recompensaHoje.xp} XP` : null, recompensaHoje.moedas > 0 ? `+${recompensaHoje.moedas} VendaCoins` : null].filter(Boolean).join(' · ')}
+          </span>
+        )}
+        {config.ativo && valores && <span className="block text-xs text-emerald-300/70">Volte amanhã: {valores}.</span>}
+      </p>
+    );
+  }
+  if (!config.ativo || !valores) return null;
+  return <p className="mt-3 rounded-xl bg-slate-800/80 px-3 py-2 text-sm text-slate-300">Abra o app todo dia e ganhe {valores}.</p>;
 }

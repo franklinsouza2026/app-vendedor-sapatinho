@@ -8,6 +8,7 @@ import { createLogger } from '../utils/logger';
 import { gerarEvidenciaDeQuiz } from '../universidade/evidence.service';
 import { concluirItemPDIPorConteudo } from '../universidade/pdi.service';
 import { registrarResultadoQuestao } from '../universidade/spaced-repetition.service';
+import { registrarEventoEngajamento } from '../engajamento/eventos.service';
 
 const log = createLogger('academia:quiz');
 
@@ -214,7 +215,9 @@ export async function responderQuiz(lessonId: string, vendedorId: string, respos
     // de idempotência da recompensa) evita duplicar o item de PDI.
     if (!quizJaConcedido) {
       await concluirItemPDIPorConteudo(vendedorId, 'QUIZ', quiz.id);
+      await registrarEventoEngajamento({ vendedorId, tipo: 'QUIZ_APROVADO', referenciaTipo: 'ACADEMIA_QUIZ', referenciaId: quiz.id, metadata: { score } });
     }
+    if (!aulaJaConcedida) await registrarEventoEngajamento({ vendedorId, tipo: 'AULA_CONCLUIDA', referenciaTipo: 'ACADEMIA_AULA', referenciaId: lessonId });
     log.info({ vendedorId, lessonId, score }, 'quiz aprovado');
   }
 

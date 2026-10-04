@@ -22,6 +22,7 @@ import { createLogger } from '../utils/logger';
 import { gerarEvidenciaDeMissao } from '../universidade/evidence.service';
 import { concluirItemPDIPorConteudo } from '../universidade/pdi.service';
 import { publicarEventoFeed } from '../competicoes/feed.service';
+import { registrarEventoEngajamento } from '../engajamento/eventos.service';
 
 const log = createLogger('missoes:avaliacao');
 
@@ -77,6 +78,7 @@ export async function avaliarMissoesDoVendedor(vendedorId: string, agora: Date =
     await gerarEvidenciaDeMissao(vendedorId, assignment.definicao.id, assignment.id);
     await concluirItemPDIPorConteudo(vendedorId, 'MISSION', assignment.definicao.id);
     await publicarEventoFeed({ eventType: 'MISSION_COMPLETED', sourceType: 'MISSION_ASSIGNMENT', sourceId: assignment.id, visibility: 'STORE', lojaId: assignment.lojaId, subjectId: vendedorId, templateData: { missionTitle: assignment.definicao.title } });
+    await registrarEventoEngajamento({ vendedorId, tipo: 'MISSAO_CONCLUIDA', referenciaTipo: 'MISSION_ASSIGNMENT', referenciaId: assignment.id, metadata: { missao: assignment.definicao.code }, agora });
   }
 }
 
@@ -120,5 +122,6 @@ export async function avaliarDesafiosDoVendedor(vendedorId: string, agora: Date 
       referenciaId: assignment.id,
       idempotencyKey: `desafio-${assignment.id}`,
     });
+    await registrarEventoEngajamento({ vendedorId, tipo: 'DESAFIO_CONCLUIDO', referenciaTipo: 'CHALLENGE_ASSIGNMENT', referenciaId: assignment.id, metadata: { desafio: assignment.definicao.code }, agora });
   }
 }

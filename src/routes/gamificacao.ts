@@ -43,6 +43,28 @@ gamificacaoRouter.get('/gamificacao/extrato-moedas', requireAuth(), async (req, 
   res.json({ transacoes, proximoCursor: transacoes.length === limite ? transacoes[transacoes.length - 1].id : null });
 });
 
+// "Meus ganhos": XP e VendaCoins lado a lado, só transações REAIS dos dois
+// ledgers (nada inventado). Lançamentos do mesmo evento (mesma
+// idempotencyKey, ex.: check-in diário) aparecem numa linha só. As moedas
+// continuam somando só no ledger de moedas e o XP só no de XP — a junção é de
+// EXIBIÇÃO, nunca de saldo.
+gamificacaoRouter.get('/gamificacao/meus-ganhos', requireAuth(), async (req, res) => {
+  const vendedorId = req.auth!.vendedorId;
+  const [xps, moedas] = await Promise.all([
+    prisma.xpTransacao.findMany({ where: { vendedorId }, orderBy: [{ ocorridoEm: 'desc' }, { id: 'desc' }], take: 60 }),
+    prisma.moedaTransacao.findMany({ where: { vendedorId }, orderBy: [{ ocorridoEm: 'desc' }, { id: 'desc' }], take: 60 }),
+  ]);
+  const itens = new Map<string, { chave: string; tipoEvento: string; referenciaTipo: string | null; ocorridoEm: Date; xp: number; moedas: number }>();
+  for (const t of xps) itens.set(t.idempotencyKey, { chave: t.idempotencyKey, tipoEvento: t.tipoEvento, referenciaTipo: t.referenciaTipo, ocorridoEm: t.ocorridoEm, xp: t.quantidade, moedas: 0 });
+  for (const t of moedas) {
+    const existente = itens.get(t.idempotencyKey);
+    if (existente) existente.moedas += t.valor;
+    else itens.set(t.idempotencyKey, { chave: t.idempotencyKey, tipoEvento: t.tipoEvento, referenciaTipo: t.referenciaTipo, ocorridoEm: t.ocorridoEm, xp: 0, moedas: t.valor });
+  }
+  const lista = [...itens.values()].sort((a, b) => b.ocorridoEm.getTime() - a.ocorridoEm.getTime()).slice(0, 60);
+  res.json({ itens: lista.map((i) => ({ ...i, ocorridoEm: i.ocorridoEm.toISOString() })) });
+});
+
 gamificacaoRouter.get('/gamificacao/streak', requireAuth(), async (req, res) => {
   const streak = await prisma.streakVendedor.findUnique({ where: { vendedorId: req.auth!.vendedorId } });
   res.json(streak ?? { streakAtual: 0, maiorStreak: 0, ultimaDataContada: null });

@@ -82,6 +82,13 @@ export function Perfil() {
         </>
       )}
 
+      {sessao!.vendedor.papel === 'VENDEDOR' && (
+        <Link to="/ganhos" className="flex min-h-[44px] items-center justify-between rounded-lg bg-surface px-4 py-3 text-sm text-slate-300 active:opacity-80">
+          <span>Meus ganhos — XP e VendaCoins</span>
+          <span aria-hidden="true">→</span>
+        </Link>
+      )}
+
       <Link
         to="/perfil/senha"
         className="flex min-h-[44px] items-center justify-between rounded-lg bg-surface px-4 py-3 text-sm text-slate-300 active:opacity-80"

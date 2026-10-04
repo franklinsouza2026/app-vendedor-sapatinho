@@ -6,6 +6,10 @@ export function formatarNumero(valor: number, casas = 1): string {
   return valor.toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
 }
 
+export function formatarInteiro(valor: number): string {
+  return Math.round(valor).toLocaleString('pt-BR');
+}
+
 export function formatarPercentual(valor: number): string {
   return `${formatarNumero(valor, 1)}%`;
 }
@@ -27,7 +31,10 @@ export function saudacao(agora: Date = new Date()): string {
 
 /** Tradução pt-BR dos tipoEvento técnicos do ledger — nunca mostrar enum cru na UI. */
 const LABEL_EVENTO: Record<string, string> = {
-  CHECKIN_DIARIO: 'Check-in diário',
+  // CHECKIN_DIARIO é o check-in de HUMOR do Conselheiro (nunca recompensado);
+  // o check-in de ACESSO ao app é ACESSO_DIARIO.
+  CHECKIN_DIARIO: 'Check-in de humor',
+  ACESSO_DIARIO: 'Check-in diário',
   TREINAMENTO_CONCLUIDO: 'Treinamento concluído',
   QUIZ_APROVADO: 'Quiz aprovado',
   META_DIARIA_100: 'Meta diária atingida',
@@ -42,6 +49,7 @@ const LABEL_EVENTO: Record<string, string> = {
   MISSAO: 'Missão concluída',
   AJUSTE_MANUAL: 'Ajuste manual',
   REVERSAO: 'Ajuste por cancelamento/reversão',
+  COMPETICAO: 'Prêmio de competição',
 };
 
 export function labelEvento(tipoEvento: string): string {

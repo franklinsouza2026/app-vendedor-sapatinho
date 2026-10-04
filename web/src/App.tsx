@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthContext';
+import { CheckinProvider } from './engajamento/CheckinContext';
 import { RequireAuth } from './auth/RequireAuth';
 import { Layout } from './components/Layout';
 import { Login } from './screens/Login';
@@ -10,6 +11,7 @@ import { Ranking } from './screens/Ranking';
 import { Carteira } from './screens/Carteira';
 import { Badges } from './screens/Badges';
 import { Perfil } from './screens/Perfil';
+import { MeusGanhos } from './screens/MeusGanhos';
 import { Coach } from './screens/Coach';
 import { Treinador } from './screens/Treinador';
 import { Simulador } from './screens/Simulador';
@@ -29,6 +31,7 @@ import { AdminTreinamento } from './screens/admin/AdminTreinamento';
 import { AdminUniversidade } from './screens/admin/AdminUniversidade';
 import { Competicoes } from './screens/Competicoes';
 import { AdminGamificacao } from './screens/admin/AdminGamificacao';
+import { AdminEngajamento } from './screens/admin/AdminEngajamento';
 import { Pendencias } from './screens/Pendencias';
 import { AdminEstrutura } from './screens/admin/AdminEstrutura';
 import { AdminMetas } from './screens/admin/AdminMetas';
@@ -44,181 +47,192 @@ const Fase1App = import.meta.env.DEV || import.meta.env.VITE_FASE1_DEMO === 'tru
 export function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/ativacao" element={<Ativacao />} />
-          {Fase1App && (
+      <CheckinProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/ativacao" element={<Ativacao />} />
+            {Fase1App && (
+              <Route
+                path="/fase1/*"
+                element={
+                  <Suspense fallback={<LoadingState texto="Abrindo a demonstração da Fase 1..." />}>
+                    <Fase1App />
+                  </Suspense>
+                }
+              />
+            )}
+            {/* Admin Foundation (Fatia 7.5A) — desktop-first, fora do Layout do
+                vendedor (sem bottom nav), só acessível pra papel ADMIN. */}
             <Route
-              path="/fase1/*"
+              path="/admin/usuarios"
               element={
-                <Suspense fallback={<LoadingState texto="Abrindo a demonstração da Fase 1..." />}>
-                  <Fase1App />
-                </Suspense>
-              }
-            />
-          )}
-          {/* Admin Foundation (Fatia 7.5A) — desktop-first, fora do Layout do
-              vendedor (sem bottom nav), só acessível pra papel ADMIN. */}
-          <Route
-            path="/admin/usuarios"
-            element={
-              <RequireAuth papeis={['ADMIN']}>
-                <AdminUsuarios />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="/admin/usuarios/novo"
-            element={
-              <RequireAuth papeis={['ADMIN']}>
-                <AdminNovoVendedor />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="/admin/usuarios/:id"
-            element={
-              <RequireAuth papeis={['ADMIN']}>
-                <AdminUsuarioDetalhe />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="/admin/ai"
-            element={
-              <RequireAuth papeis={['ADMIN']}>
-                <AdminIA />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="/admin/treinamento"
-            element={
-              <RequireAuth papeis={['ADMIN']}>
-                <AdminTreinamento />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="/admin/estrutura"
-            element={
-              <RequireAuth papeis={['ADMIN']}>
-                <AdminEstrutura />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="/admin/metas"
-            element={
-              <RequireAuth papeis={['ADMIN']}>
-                <AdminMetas />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="/admin/universidade"
-            element={
-              <RequireAuth papeis={['ADMIN']}>
-                <AdminUniversidade />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="/admin/gamificacao"
-            element={
-              <RequireAuth papeis={['ADMIN']}>
-                <AdminGamificacao />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="/admin/gerencial"
-            element={
-              <RequireAuth papeis={['ADMIN']}>
-                <AdminAlertasGerenciais />
-              </RequireAuth>
-            }
-          />
-          {/* Coach fica fora do Layout (sem bottom nav) — tela de chat ocupa a
-              altura inteira, com input fixo embaixo; bottom nav junto quebraria
-              esse layout. */}
-          <Route
-            path="/coach"
-            element={
-              <RequireAuth>
-                <Coach />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="/treinador"
-            element={
-              <RequireAuth>
-                <Treinador />
-              </RequireAuth>
-            }
-          />
-          {/* Simulador também fica fora do Layout — mesma razão do Coach/Treinador:
-              a tela de sessão ocupa a altura inteira, com input fixo embaixo. */}
-          <Route
-            path="/simulador"
-            element={
-              <RequireAuth>
-                <Simulador />
-              </RequireAuth>
-            }
-          />
-          <Route
-            element={
-              <RequireAuth>
-                <Layout />
-              </RequireAuth>
-            }
-          >
-            <Route path="/" element={<Home />} />
-            <Route path="/metas" element={<Metas />} />
-            <Route path="/ranking" element={<Ranking />} />
-            <Route path="/moedas" element={<Carteira />} />
-            <Route path="/conquistas" element={<Badges />} />
-            <Route path="/perfil" element={<Perfil />} />
-            <Route path="/perfil/senha" element={<AlterarSenha />} />
-            <Route path="/academia" element={<Academia />} />
-            <Route path="/evoluir" element={<Evoluir />} />
-            <Route path="/missoes" element={<Missoes />} />
-            <Route path="/universidade" element={<Universidade />} />
-            <Route path="/universidade/revisao" element={<Revisao />} />
-            <Route path="/competicoes" element={<Competicoes />} />
-            {/* Telas exclusivas do gerente (Fatia 9.7): o backend já barrava
-                (403), mas sem `papeis=` aqui o vendedor via a tela carregar e
-                só depois quebrar. Agora é redirecionado antes de renderizar. */}
-            <Route
-              path="/equipe"
-              element={
-                <RequireAuth papeis={['GERENTE']}>
-                  <Equipe />
+                <RequireAuth papeis={['ADMIN']}>
+                  <AdminUsuarios />
                 </RequireAuth>
               }
             />
             <Route
-              path="/gerente/pendencias"
+              path="/admin/usuarios/novo"
               element={
-                <RequireAuth papeis={['GERENTE']}>
-                  <Pendencias />
+                <RequireAuth papeis={['ADMIN']}>
+                  <AdminNovoVendedor />
                 </RequireAuth>
               }
             />
             <Route
-              path="/gerente/reuniao-do-dia"
+              path="/admin/usuarios/:id"
               element={
-                <RequireAuth papeis={['GERENTE']}>
-                  <ReuniaoDoDia />
+                <RequireAuth papeis={['ADMIN']}>
+                  <AdminUsuarioDetalhe />
                 </RequireAuth>
               }
             />
-          </Route>
-        </Routes>
-      </BrowserRouter>
+            <Route
+              path="/admin/ai"
+              element={
+                <RequireAuth papeis={['ADMIN']}>
+                  <AdminIA />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/treinamento"
+              element={
+                <RequireAuth papeis={['ADMIN']}>
+                  <AdminTreinamento />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/estrutura"
+              element={
+                <RequireAuth papeis={['ADMIN']}>
+                  <AdminEstrutura />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/metas"
+              element={
+                <RequireAuth papeis={['ADMIN']}>
+                  <AdminMetas />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/universidade"
+              element={
+                <RequireAuth papeis={['ADMIN']}>
+                  <AdminUniversidade />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/gamificacao"
+              element={
+                <RequireAuth papeis={['ADMIN']}>
+                  <AdminGamificacao />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/engajamento"
+              element={
+                <RequireAuth papeis={['ADMIN']}>
+                  <AdminEngajamento />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/gerencial"
+              element={
+                <RequireAuth papeis={['ADMIN']}>
+                  <AdminAlertasGerenciais />
+                </RequireAuth>
+              }
+            />
+            {/* Coach fica fora do Layout (sem bottom nav) — tela de chat ocupa a
+                altura inteira, com input fixo embaixo; bottom nav junto quebraria
+                esse layout. */}
+            <Route
+              path="/coach"
+              element={
+                <RequireAuth>
+                  <Coach />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/treinador"
+              element={
+                <RequireAuth>
+                  <Treinador />
+                </RequireAuth>
+              }
+            />
+            {/* Simulador também fica fora do Layout — mesma razão do Coach/Treinador:
+                a tela de sessão ocupa a altura inteira, com input fixo embaixo. */}
+            <Route
+              path="/simulador"
+              element={
+                <RequireAuth>
+                  <Simulador />
+                </RequireAuth>
+              }
+            />
+            <Route
+              element={
+                <RequireAuth>
+                  <Layout />
+                </RequireAuth>
+              }
+            >
+              <Route path="/" element={<Home />} />
+              <Route path="/metas" element={<Metas />} />
+              <Route path="/ranking" element={<Ranking />} />
+              <Route path="/moedas" element={<Carteira />} />
+              <Route path="/conquistas" element={<Badges />} />
+              <Route path="/perfil" element={<Perfil />} />
+              <Route path="/ganhos" element={<MeusGanhos />} />
+              <Route path="/perfil/senha" element={<AlterarSenha />} />
+              <Route path="/academia" element={<Academia />} />
+              <Route path="/evoluir" element={<Evoluir />} />
+              <Route path="/missoes" element={<Missoes />} />
+              <Route path="/universidade" element={<Universidade />} />
+              <Route path="/universidade/revisao" element={<Revisao />} />
+              <Route path="/competicoes" element={<Competicoes />} />
+              {/* Telas exclusivas do gerente (Fatia 9.7): o backend já barrava
+                  (403), mas sem `papeis=` aqui o vendedor via a tela carregar e
+                  só depois quebrar. Agora é redirecionado antes de renderizar. */}
+              <Route
+                path="/equipe"
+                element={
+                  <RequireAuth papeis={['GERENTE']}>
+                    <Equipe />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/gerente/pendencias"
+                element={
+                  <RequireAuth papeis={['GERENTE']}>
+                    <Pendencias />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/gerente/reuniao-do-dia"
+                element={
+                  <RequireAuth papeis={['GERENTE']}>
+                    <ReuniaoDoDia />
+                  </RequireAuth>
+                }
+              />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      </CheckinProvider>
     </AuthProvider>
   );
 }
