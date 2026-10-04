@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useState, useCallback } from 'react';
 import { Link, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { rotaInicialPara } from '../auth/rotaInicial';
@@ -17,7 +17,8 @@ export function Login() {
   const [enviando, setEnviando] = useState(false);
   const aviso = (useLocation().state as { aviso?: string } | null)?.aviso ?? null;
 
-  useEffect(() => {
+  const carregarLojas = useCallback(() => {
+    setErro(null);
     listarLojas()
       .then((res) => {
         setLojas(res.lojas);
@@ -25,6 +26,12 @@ export function Login() {
       })
       .catch(() => setErro('Não foi possível carregar as lojas. Verifique sua conexão.'));
   }, []);
+
+  useEffect(() => {
+    carregarLojas();
+    window.addEventListener('online', carregarLojas);
+    return () => window.removeEventListener('online', carregarLojas);
+  }, [carregarLojas]);
 
   // Landing por papel (Fatia 9.7) — ADMIN nunca cai na Home de vendedor.
   if (sessao) return <Navigate to={rotaInicialPara(sessao.vendedor.papel)} replace />;
@@ -58,7 +65,15 @@ export function Login() {
         </p>
       )}
 
-      {lojas === null && <LoadingState texto="Carregando lojas..." />}
+      {lojas === null && !erro && <LoadingState texto="Carregando lojas..." />}
+      {lojas === null && erro && (
+        <div role="alert" className="flex flex-col items-center gap-3 rounded-lg bg-red-500/10 px-3 py-4 text-center text-sm text-red-200">
+          {erro}
+          <button type="button" onClick={carregarLojas} className="min-h-[44px] rounded-full border border-red-300/40 px-5 font-medium text-red-100">
+            Tentar de novo
+          </button>
+        </div>
+      )}
 
       {lojas !== null && (
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">

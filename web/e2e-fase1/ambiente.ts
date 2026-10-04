@@ -30,6 +30,8 @@ export const PORTA_API = 3020;
 export const PORTA_WEB = 5183;
 /** Build de produção servido por `vite preview` (E25: PWA instalado). */
 export const PORTA_PWA = 5184;
+/** Servidor estático da spec de atualização do PWA (troca a versão A→B na mesma origem). */
+export const PORTA_PWA_DEPLOY = 5185;
 export const DIR_ERP = join(RAIZ, '.e2e', 'erp-controlado');
 
 /** IDs fixos — specs e preparo concordam sem consultar o banco. */
@@ -110,7 +112,7 @@ export function envBackendE2E(): Record<string, string> {
     ERP_CONTROLADO_DIR: DIR_ERP,
     // Sync automático raro: o E2E dispara sync pelo botão/endpoint e verifica o efeito.
     ERP_SYNC_CRON: '0 3 1 1 *',
-    CORS_ORIGINS: `http://localhost:${PORTA_WEB},http://localhost:${PORTA_PWA}`,
+    CORS_ORIGINS: `http://localhost:${PORTA_WEB},http://localhost:${PORTA_PWA},http://localhost:${PORTA_PWA_DEPLOY}`,
     // Playwright faz dezenas de logins em segundos; os limites reais são testados à parte (Security Gate).
     LOGIN_RATE_LIMIT_PER_MINUTE: '1000',
     API_RATE_LIMIT_PER_MINUTE: '5000',

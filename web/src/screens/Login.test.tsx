@@ -85,4 +85,13 @@ describe('Login', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Muitas tentativas de login. Aguarde alguns minutos e tente de novo.');
   });
+
+  it('sem internet: diz que não carregou as lojas e oferece tentar de novo (nada de carregamento infinito)', async () => {
+    vi.mocked(authApi.listarLojas).mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    renderLogin();
+    expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível carregar as lojas. Verifique sua conexão.');
+    expect(screen.queryByText('Carregando lojas...')).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Tentar de novo' }));
+    expect(await screen.findByText('Loja Piloto')).toBeInTheDocument();
+  });
 });

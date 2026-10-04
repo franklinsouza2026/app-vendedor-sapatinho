@@ -13,6 +13,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { RequireAuth } from '../auth/RequireAuth';
 import { useAuth } from '../auth/AuthContext';
 import { rotaInicialPara } from '../auth/rotaInicial';
+import { SemConexao } from '../auth/SemConexao';
 import { LoadingState } from '../components/LoadingState';
 import { Login } from '../screens/Login';
 import { Ativacao } from '../screens/Ativacao';
@@ -34,8 +35,9 @@ import { PaginaReconhecimentos, Perfil } from './telas/Perfil';
 const AdminRotas = lazy(() => import('./admin/AdminRotas'));
 
 function Raiz() {
-  const { sessao, carregando } = useAuth();
+  const { sessao, carregando, semConexao } = useAuth();
   if (carregando) return <LoadingState texto="Carregando sua sessão..." />;
+  if (!sessao && semConexao) return <SemConexao />;
   if (!sessao) return <Navigate to="/login" replace />;
   return <Navigate to={rotaInicialPara(sessao.vendedor.papel)} replace />;
 }
