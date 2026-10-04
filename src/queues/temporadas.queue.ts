@@ -12,6 +12,8 @@ import { transicionarSeason } from '../competicoes/seasons.service';
 import { transicionarCompetition } from '../competicoes/competitions.service';
 import { finalizarSeasonCompleta } from '../competicoes/season-finalization.service';
 import { finalizarCompetition } from '../competicoes/competitions.service';
+import { atualizarStatusPeloRelogio as atualizarMissoesPeloRelogio } from '../fase1/missoes/missoes.service';
+import { atualizarCampanhasPeloRelogio } from '../fase1/campanhas/campanhas.service';
 
 const log = createLogger('queue:temporadas');
 
@@ -78,6 +80,20 @@ export function createTemporadasWorker() {
         } catch (err) {
           log.error({ err, competitionId: c.id }, 'falha ao finalizar competição — outras competições não são afetadas');
         }
+      }
+
+      // Fase 1: missões e campanhas também mudam de fase pelo relógio — sem
+      // depender de alguém abrir a tela (campanha encerrada congela resultado
+      // e credita prêmio digital aqui). Ambas idempotentes.
+      try {
+        await atualizarMissoesPeloRelogio(null, agora);
+      } catch (err) {
+        log.error({ err }, 'falha ao atualizar missões pelo relógio');
+      }
+      try {
+        await atualizarCampanhasPeloRelogio(null, agora);
+      } catch (err) {
+        log.error({ err }, 'falha ao atualizar campanhas pelo relógio');
       }
 
       log.info({ ativadas, finalizadas }, 'processamento de temporadas/competições concluído');

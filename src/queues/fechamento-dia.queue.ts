@@ -7,6 +7,7 @@ import { connection } from './connection';
 import { createLogger } from '../utils/logger';
 import { prisma } from '../db';
 import { avaliarFechamentoDia } from '../gamificacao/streak.service';
+import { fecharMesAnteriorDeTodas } from '../fase1/ranking/fechamento-mensal.service';
 
 const log = createLogger('queue:fechamento-dia');
 
@@ -60,6 +61,13 @@ export function createFechamentoDiaWorker() {
           falhas++;
           log.error({ err, vendedorId: v.id }, 'falha ao fechar dia deste vendedor — outros vendedores não são afetados');
         }
+      }
+
+      // Congela o ranking do mês anterior (idempotente: só grava uma vez por empresa/mês).
+      try {
+        await fecharMesAnteriorDeTodas();
+      } catch (err) {
+        log.error({ err }, 'falha ao fechar o ranking do mês anterior');
       }
 
       log.info({ vendedores: vendedores.length, fechados, falhas }, 'fechamento de dia concluído');
