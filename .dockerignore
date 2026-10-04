@@ -14,3 +14,9 @@ coverage
 *.log
 README.md
 docs
+backups
+.e2e
+test-results
+**/test-results
+web/dist-e2e
+web/playwright-report

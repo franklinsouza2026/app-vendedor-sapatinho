@@ -58,6 +58,13 @@ if (env.NODE_ENV === 'production' && origensPermitidas.length === 0) {
   logger.fatal('NODE_ENV=production exige CORS_ORIGINS (lista de origens separadas por vírgula)');
   process.exit(1);
 }
+// Atrás do nginx (e, com TLS, de um proxy no host) o IP real só é visto com
+// TRUST_PROXY_HOPS ≥ 1. Com 0 em produção, todo mundo cai no IP do nginx e o
+// rate limit vira um balde único para a empresa inteira.
+if (env.NODE_ENV === 'production' && env.TRUST_PROXY_HOPS < 1) {
+  logger.fatal('NODE_ENV=production exige TRUST_PROXY_HOPS ≥ 1 (nº real de proxies à frente da API)');
+  process.exit(1);
+}
 app.use(cors(origensPermitidas.length > 0 ? { origin: origensPermitidas, credentials: true } : {}));
 
 app.use(express.json());

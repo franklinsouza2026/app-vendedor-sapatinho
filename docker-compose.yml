@@ -9,8 +9,8 @@ services:
       POSTGRES_DB: app_vendedor_sapatinho
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "127.0.0.1:5432:5432"
+    # SEM `ports:` (T7): banco só na rede interna. Backup/restore por
+    # `docker compose exec postgres pg_dump …` (docs/FASE-1-DEPLOY.md).
     networks:
       - app_net
     healthcheck:
@@ -22,7 +22,10 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: redis-server --requirepass ${REDIS_PASSWORD} --maxmemory 512mb --maxmemory-policy allkeys-lru
+    # noeviction (Fase 1, T7): o Redis guarda a FILA (BullMQ) e o bloqueio de
+    # login. Com allkeys-lru, sob pressão de memória ele descartaria jobs de
+    # sync e contadores de força bruta em silêncio — o BullMQ avisa no boot.
+    command: redis-server --requirepass ${REDIS_PASSWORD} --maxmemory 512mb --maxmemory-policy noeviction --appendonly yes
     volumes:
       - redis_data:/data
     networks:
@@ -33,8 +36,28 @@ services:
       timeout: 3s
       retries: 5
 
+  # Job de uso único: aplica as migrations versionadas antes de api/worker subirem.
+  migrate:
+    build:
+      context: .
+      target: migrate
+    restart: "no"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://vendedor_app:${POSTGRES_PASSWORD}@postgres:5432/app_vendedor_sapatinho
+      JWT_SECRET: ${JWT_SECRET}
+      CPF_HASH_SECRET: ${CPF_HASH_SECRET}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      INTEGRATION_SECRETS_ENCRYPTION_KEY: ${INTEGRATION_SECRETS_ENCRYPTION_KEY}
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks:
+      - app_net
+
   api:
-    build: .
+    build:
+      context: .
+      target: runtime
     restart: unless-stopped
     environment:
       NODE_ENV: production
@@ -67,9 +90,11 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       API_RATE_LIMIT_PER_MINUTE: ${API_RATE_LIMIT_PER_MINUTE:-120}
       LOGIN_RATE_LIMIT_PER_MINUTE: ${LOGIN_RATE_LIMIT_PER_MINUTE:-10}
-      ERP_MODE: ${ERP_MODE:-mock}
-      LINX_API_URL: ${LINX_API_URL:-}
-      LINX_API_KEY: ${LINX_API_KEY:-}
+      # Fase 1: chave mestra das credenciais de integração (AES-256-GCM),
+      # FORA do banco. Obrigatória em produção (o boot falha sem ela).
+      INTEGRATION_SECRETS_ENCRYPTION_KEY: ${INTEGRATION_SECRETS_ENCRYPTION_KEY}
+      ERP_SYNC_CRON: ${ERP_SYNC_CRON:-*/15 * * * *}
+      MODULOS_LEGADOS_ATIVOS: "false"
     # SEM `ports:` de propósito (Fatia 9.7). A API é alcançada só pela rede
     # interna, via o proxy do serviço `web`.
     #
@@ -82,13 +107,24 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
     networks:
       - app_net
 
   worker:
-    build: .
+    build:
+      context: .
+      target: runtime
     restart: unless-stopped
     command: ["node", "dist/worker.js"]
+    # O worker não serve HTTP: a saúde é a própria batida que ele grava a cada
+    # minuto (a mesma que o Admin vê em "Saúde dos dados").
+    healthcheck:
+      test: ["CMD", "node", "dist/healthcheck-worker.js"]
+      interval: 60s
+      timeout: 10s
+      start_period: 90s
+      retries: 3
     environment:
       NODE_ENV: production
       APP_NAME: app-vendedor-sapatinho-worker
@@ -105,11 +141,14 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       API_RATE_LIMIT_PER_MINUTE: ${API_RATE_LIMIT_PER_MINUTE:-120}
       LOGIN_RATE_LIMIT_PER_MINUTE: ${LOGIN_RATE_LIMIT_PER_MINUTE:-10}
-      ERP_MODE: ${ERP_MODE:-mock}
-      LINX_API_URL: ${LINX_API_URL:-}
-      LINX_API_KEY: ${LINX_API_KEY:-}
+      # Fase 1: chave mestra das credenciais de integração (AES-256-GCM),
+      # FORA do banco. Obrigatória em produção (o boot falha sem ela).
+      INTEGRATION_SECRETS_ENCRYPTION_KEY: ${INTEGRATION_SECRETS_ENCRYPTION_KEY}
+      ERP_SYNC_CRON: ${ERP_SYNC_CRON:-*/15 * * * *}
+      MODULOS_LEGADOS_ATIVOS: "false"
     depends_on:
       api: { condition: service_started }
+      migrate: { condition: service_completed_successfully }
     networks:
       - app_net
 
@@ -120,6 +159,9 @@ services:
     build:
       context: .
       dockerfile: web/Dockerfile
+      args:
+        # Só necessário com mais de uma empresa no banco (login escolhe a empresa).
+        VITE_EMPRESA_ID: ${VITE_EMPRESA_ID:-}
     restart: unless-stopped
     ports:
       - "127.0.0.1:8080:80"

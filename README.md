@@ -40,7 +40,7 @@ POST /auth/login
 
 ## ERP
 
-Por padrão (`ERP_MODE=mock`), os indicadores são gerados localmente para os vendedores já cadastrados — não depende de credenciais reais do Linx. Para apontar pro Linx de verdade, definir `ERP_MODE=linx` + `LINX_API_URL` + `LINX_API_KEY` — **a integração real ainda não foi validada contra o contrato de API do Linx** (ver TODO em `src/integracoes/erp/linx/linx-client.ts`).
+As vendas entram por integrações configuradas pelo Admin em **Configurações → Integrações** (simulador em desenvolvimento, arquivo controlado em testes/E2E; Linx preparada, conexão real na etapa de Integração Linx). Deploy do piloto: `docs/FASE-1-DEPLOY.md`. E2E isolado: `npm run e2e:fase1`.
 
 ## Frontend (PWA)
 

@@ -26,6 +26,10 @@ COPY web/ ./
 # /auth/login na raiz, que o nginx serve como index.html (HTML, não JSON).
 ARG VITE_API_URL="/api"
 ENV VITE_API_URL=$VITE_API_URL
+# Multiempresa (Fase 1, D8): com mais de uma empresa no banco, o login precisa
+# saber de qual empresa listar as lojas. Vazio = instalação de empresa única.
+ARG VITE_EMPRESA_ID=""
+ENV VITE_EMPRESA_ID=$VITE_EMPRESA_ID
 RUN npm run build
 
 FROM nginx:1.27-alpine
@@ -33,6 +37,6 @@ COPY web/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/web/dist /usr/share/nginx/html
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget -q --spider http://localhost/ || exit 1
+  CMD wget -q --spider http://127.0.0.1/ || exit 1
 
 EXPOSE 80

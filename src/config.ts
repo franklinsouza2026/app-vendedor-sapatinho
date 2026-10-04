@@ -127,6 +127,7 @@ function validateEnv(): Env {
     if (!result.data.INTEGRATION_SECRETS_ENCRYPTION_KEY) problemas.push('INTEGRATION_SECRETS_ENCRYPTION_KEY é obrigatória em produção');
     if (result.data.JWT_SECRET === result.data.CPF_HASH_SECRET) problemas.push('JWT_SECRET e CPF_HASH_SECRET precisam ser diferentes');
     if (result.data.ERP_CONTROLADO_DIR) problemas.push('ERP_CONTROLADO_DIR (adapter de teste) não pode existir em produção');
+    if (result.data.MODULOS_LEGADOS_ATIVOS) problemas.push('MODULOS_LEGADOS_ATIVOS não pode ser true em produção (piloto = só Fase 1)');
     if (problemas.length) {
       console.error('\n🔴 CONFIGURAÇÃO DE PRODUÇÃO INVÁLIDA:\n');
       problemas.forEach((p) => console.error(`  ❌ ${p}`));

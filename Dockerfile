@@ -24,6 +24,8 @@ RUN npm prune --omit=dev
 
 FROM node:20-alpine AS ts-builder
 WORKDIR /app
+# openssl ANTES do generate/CLI: o Prisma escolhe o engine pelo OpenSSL presente.
+RUN apk add --no-cache openssl
 COPY package*.json tsconfig*.json ./
 COPY src ./src
 COPY prisma ./prisma
@@ -31,7 +33,19 @@ RUN npm ci --no-audit --no-fund
 RUN npx prisma generate
 RUN npm run build
 
-FROM node:20-alpine
+# Imagem de MIGRAÇÃO/PROVISIONAMENTO (Fase 1, T7). A imagem final não leva o
+# CLI do Prisma (é devDependency, removida no prune) — então `migrate deploy`
+# e o provisionamento de empresa rodam por esta imagem, como job de uso único:
+#   docker compose run --rm migrate                       (migrate deploy)
+#   docker compose run --rm migrate npx tsx scripts/provisionar-empresa.ts
+# Nunca `db push`.
+FROM ts-builder AS migrate
+COPY scripts ./scripts
+RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001 -G nodejs && chown -R nodejs:nodejs /app
+USER nodejs
+CMD ["npx", "prisma", "migrate", "deploy"]
+
+FROM node:20-alpine AS runtime
 # `openssl` também aqui: é a lib que o engine do Prisma carrega em runtime.
 RUN apk add --no-cache tini openssl
 WORKDIR /app
