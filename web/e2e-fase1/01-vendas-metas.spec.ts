@@ -78,6 +78,8 @@ test('E14 — cancelamento corrige realizado, ranking e estorna a recompensa da 
   expect(antes.xp.total - depois.xp.total).toBe(regua.xp.META_DIARIA_100);
   // histórico preservado: o estorno é um lançamento novo, nada é apagado
   expect(depois.moedas.historico.some((m: { valor: number }) => m.valor < 0)).toBeTruthy();
+  // a celebração da meta estornada não aparece mais
+  expect(depois.celebracoes.some((x: { tipo: string }) => x.tipo === 'META_DIA')).toBe(false);
 });
 
 test('E15 — cancelamento repetido (mesmo id e outro id para a mesma venda) não estorna de novo', async ({ request }) => {

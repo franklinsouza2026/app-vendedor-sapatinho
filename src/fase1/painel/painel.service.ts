@@ -105,7 +105,15 @@ export async function montarPainel(vendedorId: string, agora = new Date()) {
 
   // Celebrações: créditos recentes do próprio ledger (o app lembra quais já mostrou).
   const desde = new Date(agora.getTime() - 48 * 3600 * 1000);
-  const recentes = extrato.xp.historico.filter((h) => new Date(h.quando) >= desde && h.xp > 0);
+  const naJanela = extrato.xp.historico.filter((h) => new Date(h.quando) >= desde);
+  // Crédito já estornado (cancelamento/devolução — D4) nunca vira celebração:
+  // o estorno usa a chave `reversao-<chave do crédito>` (com sufixo -N se repetir).
+  const estornos = naJanela.filter((h) => h.id.startsWith('xp:reversao-')).map((h) => h.id.slice('xp:reversao-'.length));
+  const foiEstornado = (id: string) => {
+    const chave = id.slice('xp:'.length);
+    return estornos.some((e) => e === chave || (e.startsWith(`${chave}-`) && /^\d+$/.test(e.slice(chave.length + 1))));
+  };
+  const recentes = naJanela.filter((h) => h.xp > 0 && !foiEstornado(h.id));
   const celebracoes = recentes
     .filter((h) => /Meta diária atingida|Missão|Prêmio|Sequência/.test(h.origem))
     .slice(0, 3)
@@ -117,7 +125,7 @@ export async function montarPainel(vendedorId: string, agora = new Date()) {
       recompensa: { xp: h.xp, moedas: extrato.moedas.historico.find((m) => m.id.replace('m:', '') === h.id.replace('xp:', ''))?.valor ?? 0 },
     }));
   const nivelAgora = calcularNivel(extrato.xp.total);
-  const nivelAntes = calcularNivel(extrato.xp.total - recentes.reduce((a, h) => a + h.xp, 0));
+  const nivelAntes = calcularNivel(extrato.xp.total - naJanela.reduce((a, h) => a + h.xp, 0)); // variação LÍQUIDA (estornos inclusos)
   if (nivelAgora.nome !== nivelAntes.nome) celebracoes.unshift({ id: `nivel:${nivelAgora.nome}`, tipo: 'NIVEL', titulo: `Nível ${nivelAgora.nome}!`, detalhe: 'Você subiu de nível com o XP das suas vendas.', recompensa: { xp: 0, moedas: 0 } });
 
   const admitidoEm = (vendedor.admitidoEm ?? vendedor.createdAt).toISOString().slice(0, 10);

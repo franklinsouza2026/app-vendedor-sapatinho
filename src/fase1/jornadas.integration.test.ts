@@ -188,12 +188,15 @@ describe('E8–E10/E13–E15 — missão governada, Produto da Semana, recompens
     const v = await c.vender(100);
     expect(await getTotalXp(c.vendedor.id)).toBe(100);
     expect(await getSaldoMoedas(c.vendedor.id)).toBe(50);
+    expect((await c.painel()).celebracoes.some((x: { tipo: string }) => x.tipo === 'META_DIA')).toBe(true);
     depositar(c.integracao.id, [cancelamento(v.idExterno, horaSegura())]);
     await sincronizarIntegracao(c.integracao.id);
     expect(await getTotalXp(c.vendedor.id)).toBe(0);
     expect(await getSaldoMoedas(c.vendedor.id)).toBe(0);
     const p = await c.painel();
     expect(p.xp.historico.some((h: { origem: string }) => h.origem.startsWith('Estorno'))).toBe(true);
+    // crédito estornado não vira celebração (nem "subiu de nível" fantasma)
+    expect(p.celebracoes.some((x: { tipo: string }) => x.tipo === 'META_DIA' || x.tipo === 'NIVEL')).toBe(false);
   });
 });
 

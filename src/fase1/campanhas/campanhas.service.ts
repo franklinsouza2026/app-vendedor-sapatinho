@@ -353,7 +353,8 @@ export async function campanhasDoVendedor(empresaId: string, vendedorId: string,
       saida.push({
         id: c.id, nome: c.nome, descricao: c.descricao, iniciaEm: c.inicio.toISOString(), terminaEm: c.fim.toISOString(), status: 'ENCERRADA' as const, regras: c.regras, frentes: [],
         resultado: resultado.map((r) => ({ titulo: r.titulo, vencedor: r.vencedor, premio: r.premio, minhaPosicao: r.posicoes[vendedorId] ?? r.posicoes[lojaId] ?? null })),
-        meusGanhos: { xp: xp._sum.quantidade ?? 0, moedas: moedas._sum.valor ?? 0 },
+        // null quando não ganhou nada (o app não mostra "Você ganhou +0 XP").
+        meusGanhos: (xp._sum.quantidade ?? 0) > 0 || (moedas._sum.valor ?? 0) > 0 ? { xp: xp._sum.quantidade ?? 0, moedas: moedas._sum.valor ?? 0 } : null,
       });
     }
   }
