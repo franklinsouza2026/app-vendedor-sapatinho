@@ -12,7 +12,7 @@ import { Entrar } from './telas/Entrar';
 import { Inicio } from './telas/Inicio';
 import { Desempenho } from './telas/Desempenho';
 import { Ranking } from './telas/Ranking';
-import { Desafios } from './telas/Desafios';
+import { Desafios, DetalheCompeticao, DetalheMissao } from './telas/Desafios';
 import { Progresso } from './telas/Progresso';
 import { Moedas } from './telas/Moedas';
 import { Conquistas } from './telas/Conquistas';
@@ -40,6 +40,8 @@ export default function Fase1App() {
           <Route path="desempenho" element={<Desempenho />} />
           <Route path="ranking" element={<Ranking />} />
           <Route path="desafios" element={<Desafios />} />
+          <Route path="desafios/missao/:id" element={<DetalheMissao />} />
+          <Route path="desafios/competicao/:id" element={<DetalheCompeticao />} />
           <Route path="progresso" element={<Progresso />} />
           <Route path="moedas" element={<Moedas />} />
           <Route path="conquistas" element={<Conquistas />} />

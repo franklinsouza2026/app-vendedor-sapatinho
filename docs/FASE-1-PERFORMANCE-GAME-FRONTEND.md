@@ -4,6 +4,36 @@
 > Objetivo: **VER → USAR → TESTAR → CRITICAR → CORRIGIR → HOMOLOGAR** antes do gap analysis de backend.
 > Docs irmãos: [`FASE-1-MAPA-FRONTEND-BACKEND.md`](./FASE-1-MAPA-FRONTEND-BACKEND.md) (ponte para o backend) · [`FASE-1-JORNADAS-HOMOLOGACAO.md`](./FASE-1-JORNADAS-HOMOLOGACAO.md) (roteiro A–Z).
 
+## 0. Homologação 1 — ajustes do app da vendedora (04/10/2026)
+
+Decisões registradas a partir do uso real do protótipo (mobile first, leitura direta):
+
+| # | Decisão | Onde |
+|---|---|---|
+| 1 | **`#` removido das posições.** Número grande limpo ("2") e ordinal em texto ("2º lugar"). | Home (Sua posição), Ranking, Competições, Campanha, Recordes, Desempenho, Próximo alvo |
+| 2 | **`≈` removido da interface operacional.** Quantidade é inteiro: "Faltam 2 vendas". Regra: ⌈restante ÷ ticket médio atual⌉ (sem fração de venda; conservador). Ex.: R$ 486 ÷ R$ 249 = 1,95 → 2. | `dominio/estimativas.ts` |
+| 3 | **Números derivados calculados do estado-base**, nunca digitados: falta, vendas, pares, vendas/dia, dias restantes, distância no ranking, recordes, "quanto falta" das conquistas, textos de celebração e ganhos da campanha encerrada. Admin muda a meta → tudo recalcula. | `demo/cenarios.ts` (`finalizar`, `conquistasDerivadas`, celebrações como função) |
+| 4 | **Uma única nota sobre ticket médio**, no rodapé da Home (e no rodapé de Meu ritmo): "A quantidade de vendas é calculada com o seu ticket médio atual." Removidos os selos repetidos dos cards. | `NotaTicket` |
+| 5 | **Ticket médio atual exibido na Corrida do mês**, junto de vendas, pares e vendas por dia (bloco "Para bater a meta do mês"). | `CorridaMes` |
+| 6 | **Desafio direto vendedor × vendedor ("Duelo") fora da Fase 1.** Sem jornada definida (desafiar, aceitar, recusar, regra, conclusão). Retirado do estado inicial, dos tipos e das telas; estado salvo no navegador é migrado (`migrar()`). Competições do Admin, ranking, campanhas, missões e Loja × Loja continuam. | `demo/estado.ts`, `dominio/tipos.ts` |
+| 7 | **Navegação mobile com retorno explícito:** "← Voltar" (44 px) em toda tela secundária e de detalhe; volta para a origem quando veio do app, ou para a tela-mãe quando abriu por link. Novas telas de detalhe: missão e competição. Abas de Desafios e Competições ficam na URL (voltar cai na mesma aba). | `BotaoVoltar`, `DetalheMissao`, `DetalheCompeticao` |
+| 8 | **Backend continua intocado.** Nenhum endpoint, schema, migration ou dependência. | — |
+
+**Meta de hoje e Corrida do mês** agora rotulam cada valor ("Meta de hoje R$ 2.000,00 · Realizado R$ 1.514,00 · 76% da meta"), sem o formato ambíguo "R$ 1.514 / R$ 2.000". Valores em reais sempre com centavos. Variação de posição em palavras: "↑ 1 posição", "↓ 2 posições", "Manteve a posição". O card de meta assume o papel de Próximo alvo quando o alvo é a própria meta (ou o próximo marco depois de batida) — sem repetição.
+
+### Auditoria de navegação (vendedora)
+
+| Tela | Como entra | Como volta |
+|---|---|---|
+| Início, Desempenho, Ranking, Desafios, Perfil | Barra inferior (raiz) | — (raiz; barra inferior sempre visível) |
+| Abas de Desempenho, Ranking, Desafios | Abas no topo (URL guarda a aba) | Outra aba / barra inferior |
+| Detalhe da missão | "Ver detalhes da missão" (Home, Desafios) ou Próximo alvo | ← Voltar → origem (fallback: Desafios) |
+| Detalhe da competição | "Ver detalhes e classificação" (Competições) ou "Ver classificação" (Campanha) | ← Voltar → origem (fallback: Competições) |
+| XP e nível, VendaCoins, Conquistas, Recordes, Reconhecimentos | Perfil (e atalhos do cabeçalho da Home) | ← Voltar → origem (fallback: Perfil) |
+| Acontecendo agora | Home ("Ver tudo") ou Perfil | ← Voltar → origem (fallback: Início) |
+
+Nenhuma tela sem saída; nenhuma depende do botão do navegador. Barra inferior: 5 itens, 56 px de altura, rótulo 11–12 px, item ativo em âmbar (também nas telas secundárias do grupo), safe-area do iPhone respeitada.
+
 ## 1. Visão
 
 **ACOMPANHAR → COMPARAR → COMPETIR → CONQUISTAR.** O Vendedor IA transforma números em **posição, distância, oportunidade e conquista**. Toda tela tenta responder: como estou, quanto falta, qual minha posição, qual a distância do próximo objetivo, o que preciso fazer (aproximadamente) e o que posso conquistar agora.
@@ -18,7 +48,7 @@ ADMIN configura o jogo  →  estado da demonstração muda  →  VENDEDOR joga o
 
 | Dentro | Fora (no código, intocado, fora da navegação da Fase 1) |
 |---|---|
-| **Vendedor**: Home, Meu ritmo, Indicadores, Comparativos, Rankings (loja / geral / loja × loja), Próximo alvo, Missões, Competições, Campanhas (ativas + histórico), XP/nível, VendaCoins, Conquistas, Recordes, Feed, Reconhecimentos, Perfil, Celebrações, estados especiais | Gerente (papel existe; sem experiência nova), Supervisor, Coordenador, Conselheiro, Universidade, Academia, Treinador, Quiz, Certificação, Simulador, Linx real, IA conversacional, Fase 2 |
+| **Vendedor**: Home, Meu ritmo, Indicadores, Comparativos, Rankings (loja / geral / loja × loja), Próximo alvo, Missões, Competições, Campanhas (ativas + histórico), XP/nível, VendaCoins, Conquistas, Recordes, Feed, Reconhecimentos, Perfil, Celebrações, estados especiais | Gerente (papel existe; sem experiência nova), desafio direto vendedor × vendedor, Supervisor, Coordenador, Conselheiro, Universidade, Academia, Treinador, Quiz, Certificação, Simulador, Linx real, IA conversacional, Fase 2 |
 | **Admin**: Visão geral + pendências, Vendedores, Lojas, Metas (loja × individual), Meta diária, Calendário, Rankings, Elegibilidade, Indicadores, Campanhas (assistente em 10 etapas), Missões (+ templates + produtos), Competições, Premiações, XP, VendaCoins, Níveis/Conquistas, Reconhecimentos, Feed, Saúde dos dados, Auditoria, Prontidão, Uso do piloto, **Ver como vendedora** | Backend, endpoint, schema, migration, motor novo, auth, pagamento, conversão de VendaCoins em dinheiro |
 
 ## 3. Isolamento da demonstração
@@ -60,6 +90,8 @@ Barra inferior (5 itens): **Início · Desempenho · Ranking · Desafios · Perf
 | `/fase1/desempenho` | **Meu ritmo** (Hoje/Mês: plano, ticket usado, dias válidos do calendário, ritmo, projeção) · **Indicadores** (Hoje/Mês/Histórico; só indicadores liberados pelo Admin; conversão nunca inventada) · **Comparar** (Eu × Loja, Eu × Empresa sem R$ entre lojas) |
 | `/fase1/ranking` | Minha loja · Geral · Loja × Loja; métricas liberadas pelo Admin; faturamento de colegas oculto |
 | `/fase1/desafios` | Missões · Competições (ativas/próximas/encerradas) · Campanha (ativa + histórico com resultado e ganhos) |
+| `/fase1/desafios/missao/:id` | Detalhe da missão: progresso, falta, produtos, recompensa, regra de contagem, prazo |
+| `/fase1/desafios/competicao/:id` | Detalhe da competição: regra, período, prêmio, sua posição e distância, classificação completa |
 | `/fase1/perfil` | Nível, VendaCoins, sequência, links: Conquistas, Recordes, Reconhecimentos, Feed |
 | `/fase1/progresso`, `/moedas`, `/conquistas`, `/recordes`, `/feed`, `/reconhecimentos` | Telas de segundo nível |
 
@@ -82,7 +114,7 @@ Menu (7 grupos, como proposto): **Visão geral · Pessoas (Vendedores, Lojas) ·
 | Indicadores | Fonte (confiável / parcial / sem fonte); só libera ao vendedor o que tem fonte. Conversão bloqueada |
 | Campanhas | Lista (ativas e programadas / rascunhos / histórico), **assistente em 10 etapas** (Identidade → Período → Participantes → Objetivo → Mecânica → Recompensas → Premiação → Regras → Preview → Publicação), checagem "Não é possível publicar" com o motivo exato, **preview na moldura de celular**, ciclo de vida (rascunho, programada, ativa, encerrada, arquivada, cancelada), **bloqueio de regra crítica após o início**, duplicar |
 | Missões | Lista por situação, **7 templates**, editor com produtos por categoria, preview com o **componente real do app**, checagem, publicar/programar, encerrar, cancelar (motivo), duplicar, bloqueio após início; cadastro de **produtos de demonstração** |
-| Competições | Lista com classificação, criar (individual / evolução / loja × loja; % meta, evolução, score, PA, ticket), publicar/encerrar/cancelar |
+| Competições | Lista com classificação, criar (individual / evolução / loja × loja; % meta, evolução, score, PA, ticket), publicar/encerrar/cancelar. Sem desafio direto entre vendedores (fora da Fase 1) |
 | Premiações | Digital (XP, VendaCoins, badge) × Empresarial (dinheiro, vale, produto, experiência, outro — informativo); onde cada prêmio é usado |
 | XP / VendaCoins | **Somente consulta**: régua v1, lançamentos, saldos. Nada editável |
 | Níveis e conquistas | Curva v1, distribuição por nível, catálogo (catálogo atual × proposta) |
@@ -126,7 +158,7 @@ Menu (7 grupos, como proposto): **Visão geral · Pessoas (Vendedores, Lojas) ·
 | Cálculo | Regra provisória |
 |---|---|
 | % da meta | arredondado, mas 99,6% nunca vira "100%" |
-| Vendas estimadas | ⌈falta ÷ ticket de referência⌉ |
+| Vendas necessárias | ⌈falta ÷ ticket médio atual⌉ — inteiro, sem “≈” |
 | Pares estimados | round(vendas × PA) — some se Pares/PA ocultos |
 | Vendas por dia | ⌈vendas ÷ dias válidos restantes⌉ (calendário do Admin) |
 | Ticket de referência | ticket do mês; vendedor novo → ticket da loja; sem base ou Ticket oculto → nenhuma estimativa |
@@ -143,8 +175,8 @@ Menu (7 grupos, como proposto): **Visão geral · Pessoas (Vendedores, Lojas) ·
 |---|---|---|---|
 | A | Início do dia | K | Novo nível |
 | B | 76% da meta do dia | L | Recorde próximo (R$ 860 do melhor mês) |
-| C | Quase #1 (R$ 90) | M | Recorde batido |
-| D | Meta batida (109%) | N | Loja quase #1 (31 pts) |
+| C | Quase 1º lugar (R$ 90) | M | Recorde batido |
+| D | Meta batida (109%) | N | Loja quase em 1º (31 pts) |
 | E | 110% | O | Vendedora nova |
 | F | 120% | P | Sem meta |
 | G | 150% (+ badge, recorde de dia) | Q | Sem ticket suficiente |
@@ -152,7 +184,7 @@ Menu (7 grupos, como proposto): **Visão geral · Pessoas (Vendedores, Lojas) ·
 | I | Missão quase concluída (simular → concluir) | S | Campanha ativa (em destaque) |
 | J | Missão concluída | T | Campanha encerrada (resultado + ganhos) |
 
-Estados especiais: **X1** folga · **X2** loja fechada · **X3** erro · **X4** carregando · **X5** offline · **X6** vazio. Cada celebração aparece uma vez por seleção do cenário; 10 celebrações podem ser disparadas a qualquer momento (meta, 110, 120, 150, #1, recorde, nível, missão, badge, VendaCoins).
+Estados especiais: **X1** folga · **X2** loja fechada · **X3** erro · **X4** carregando · **X5** offline · **X6** vazio. Cada celebração aparece uma vez por seleção do cenário; 10 celebrações podem ser disparadas a qualquer momento (meta, 110, 120, 150, 1º lugar, recorde, nível, missão, badge, VendaCoins).
 
 ## 11. Reaproveitamento
 

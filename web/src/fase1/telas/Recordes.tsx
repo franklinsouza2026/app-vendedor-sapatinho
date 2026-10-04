@@ -13,7 +13,7 @@ function formatar(r: Recorde, v: number): string {
     case 'dias':
       return plural(v, 'dia');
     case 'posicao':
-      return `#${v}`;
+      return `${v}º lugar`;
     case 'percentual':
       return pct(v);
   }

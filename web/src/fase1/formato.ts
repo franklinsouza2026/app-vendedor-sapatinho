@@ -1,6 +1,12 @@
 /**
- * Formatação da Fase 1 — números sempre em pt-BR, valores grandes sem centavos
- * (leitura de 5 segundos no celular), estimativas sempre com "≈".
+ * Formatação da Fase 1 — números sempre em pt-BR.
+ *
+ * Decisões da homologação (out/2026):
+ *  - dinheiro SEMPRE com centavos ("R$ 2.000,00"), igual ao cupom/ERP;
+ *  - posição como número limpo ("2") ou ordinal em texto ("2º lugar"),
+ *    nunca "#2";
+ *  - quantidade operacional como número inteiro ("2 vendas"), nunca "≈ 2".
+ *    A regra de arredondamento está em dominio/estimativas.ts.
  */
 import type { Metrica } from './dominio/tipos';
 import { UNIDADE_METRICA } from './dominio/estimativas';
@@ -8,9 +14,27 @@ import { UNIDADE_METRICA } from './dominio/estimativas';
 const moedaInteira = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0, minimumFractionDigits: 0 });
 const moedaCentavos = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
-/** R$ sem centavos — o vendedor lê "R$ 486", não "R$ 486,00". Espaço não-quebrável vira espaço comum para testes e leitores de tela. */
+/** R$ com centavos ("R$ 486,00"). Espaço não-quebrável vira espaço comum para testes e leitores de tela. */
 export function reais(valor: number): string {
-  return moedaInteira.format(Math.round(valor)).replace(/ /g, ' ');
+  return moedaCentavos.format(valor).replace(/\u00a0/g, ' ');
+}
+
+/** R$ sem centavos — só para eixos/legendas compactas. */
+export function reaisCompacto(valor: number): string {
+  return moedaInteira.format(Math.round(valor)).replace(/\u00a0/g, ' ');
+}
+
+/** "2º" — posição em texto corrido ("2º lugar"). */
+export function ordinal(n: number): string {
+  return `${n}º`;
+}
+
+/** Mudança de posição em português: "↑ 1 posição", "↓ 2 posições", "Manteve a posição". */
+export function textoVariacao(v: number | null): string | null {
+  if (v === null) return null;
+  if (v === 0) return 'Manteve a posição';
+  const n = Math.abs(v);
+  return `${v > 0 ? '↑' : '↓'} ${n} ${n === 1 ? 'posição' : 'posições'}`;
 }
 
 export function reaisCentavos(valor: number): string {

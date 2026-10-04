@@ -5,9 +5,14 @@
  * escolhido para homologar a experiência e precisa ser confirmado (ou movido
  * para o backend) na etapa de conexão. Cada função diz qual decisão está aberta.
  *
- * Princípio que NÃO é provisório: toda estimativa é apresentada como
- * estimativa ("≈", "aproximadamente"), nunca como certeza, e some quando não
- * há base para ela — melhor não mostrar do que inventar precisão.
+ * Princípio que NÃO é provisório: a conversão R$ → vendas só aparece quando
+ * há ticket médio confiável; sem base, a tela mostra só o valor em R$.
+ *
+ * Decisão da homologação (out/2026): a interface mostra NÚMERO INTEIRO
+ * operacional ("Faltam 2 vendas"), sem "≈". Regra: ⌈restante ÷ ticket médio
+ * atual⌉ — arredonda para cima porque não existe fração de venda e é
+ * conservador (nunca promete menos esforço). A explicação aparece UMA vez no
+ * rodapé da tela ("calculada com o seu ticket médio atual").
  */
 import type { LinhaRankingBruta, LinhaRankingLoja, Metrica } from './tipos';
 
@@ -25,9 +30,8 @@ export function falta(realizado: number, meta: number | null): number | null {
 }
 
 /**
- * Vendas estimadas para cobrir um valor em R$.
- * DECISÃO ABERTA: arredondar para cima (hoje) — "faltam 1,3 vendas" vira 2,
- * para nunca prometer menos esforço do que o necessário.
+ * Vendas necessárias para cobrir um valor em R$: ⌈valor ÷ ticket⌉.
+ * Ex.: R$ 486 ÷ R$ 249 = 1,95 → 2 vendas. R$ 498 ÷ R$ 249 = 2,00 → 2 vendas.
  */
 export function vendasEstimadas(valor: number, ticketMedio: number | null): number | null {
   if (ticketMedio === null || ticketMedio <= 0 || valor <= 0) return null;

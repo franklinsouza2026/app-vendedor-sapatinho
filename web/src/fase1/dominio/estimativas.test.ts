@@ -13,9 +13,21 @@ describe('estimativas da Fase 1 (regra provisória)', () => {
     expect(vendasPorDia(v, 8)).toBe(4);
   });
 
-  it('arredonda vendas para cima — nunca promete menos esforço', () => {
-    expect(vendasEstimadas(486, 243)).toBe(2);
+  it('regra da quantidade inteira: ⌈restante ÷ ticket⌉ — 1,95 vira 2; exato não sobe', () => {
+    expect(vendasEstimadas(2000 - 1514, 249)).toBe(2); // 486 / 249 = 1,95
+    expect(vendasEstimadas(498, 249)).toBe(2); // exato
+    expect(vendasEstimadas(499, 249)).toBe(3);
     expect(vendasEstimadas(320, 249)).toBe(2);
+  });
+
+  it('meta mensal: 30.000 − 23.200 = 6.800; vendas, pares e por dia reagem ao ticket, PA e dias', () => {
+    const f = falta(23200, 30000)!;
+    expect(f).toBe(6800);
+    expect(vendasEstimadas(f, 250)).toBe(28);
+    expect(vendasEstimadas(f, 200)).toBe(34); // ticket menor → mais vendas
+    expect(paresEstimados(28, 2)).toBe(56);
+    expect(vendasPorDia(28, 7)).toBe(4);
+    expect(vendasPorDia(28, 5)).toBe(6);
   });
 
   it('sem ticket, sem meta ou sem dias: nenhuma estimativa (não inventa precisão)', () => {

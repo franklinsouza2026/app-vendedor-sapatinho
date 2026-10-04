@@ -91,7 +91,8 @@ export interface MissaoCad {
   progressoDemo: number;
 }
 
-export type TipoCompeticaoCad = 'VENDEDOR' | 'LOJA' | 'EVOLUCAO' | 'CATEGORIA' | 'DUELO';
+// Sem 'DUELO': desafio direto entre vendedores está fora da Fase 1 (ver dominio/tipos.ts).
+export type TipoCompeticaoCad = 'VENDEDOR' | 'LOJA' | 'EVOLUCAO' | 'CATEGORIA';
 
 export interface CompeticaoCad {
   id: string;
@@ -310,7 +311,6 @@ export function estadoInicial(): EstadoDemo {
       { id: 'c-lojas', nome: 'Batalha das Lojas', tipo: 'LOJA', formato: 'MENSAL', metrica: null, unidade: 'pontos', valoresDemo: null, escopo: 'TODAS', regra: 'Pontuação coletiva da loja no mês. Fórmula em definição — pontos ilustrativos.', inicio: INICIO_MES, fim: FIM_MES, status: 'ATIVA', premioIds: ['p-cafe'] },
       { id: 'c-cresceu', nome: 'Quem Mais Cresceu', tipo: 'EVOLUCAO', formato: 'MENSAL', metrica: 'EVOLUCAO', unidade: 'pp', valoresDemo: null, escopo: 'TODAS', regra: 'Maior crescimento do % da meta contra o próprio histórico.', inicio: INICIO_MES, fim: FIM_MES, status: 'ATIVA', premioIds: ['p-evolucao'] },
       { id: 'c-top', nome: 'Top Seller', tipo: 'VENDEDOR', formato: 'MENSAL', metrica: 'SCORE', unidade: 'pontos', valoresDemo: null, escopo: 'TODAS', regra: 'Maior Score Geral do mês (meta, evolução, PA, ticket e consistência).', inicio: INICIO_MES, fim: FIM_MES, status: 'ATIVA', premioIds: ['p-vale'] },
-      { id: 'c-duelo', nome: 'Duelo: Ana × Júlia', tipo: 'DUELO', formato: 'SEMANAL', metrica: null, unidade: 'pares', valoresDemo: { ana: 38, julia: 41 }, escopo: 'MINHA_LOJA', regra: 'Quem vender mais pares na semana. Desafio aceito pelas duas.', inicio: '2026-10-19T09:00:00', fim: FIM_SEMANA, status: 'ATIVA', premioIds: ['p-duelo'] },
       { id: 'c-black', nome: 'Aquecimento Black Friday', tipo: 'VENDEDOR', formato: 'ESPECIAL', metrica: 'PERCENTUAL_META', unidade: 'percentual', valoresDemo: null, escopo: 'TODAS', regra: 'Maior % da meta de 01/11 a 27/11.', inicio: '2026-11-01T09:00:00', fim: '2026-11-27T22:00:00', status: 'PROGRAMADA', premioIds: ['p-vale'] },
       { id: 'c-set', nome: 'Sprint de Setembro', tipo: 'VENDEDOR', formato: 'MENSAL', metrica: null, unidade: 'vendas', valoresDemo: { julia: 118, ana: 111, maria: 104 }, escopo: 'MINHA_LOJA', regra: 'Mais vendas no mês. Só a sua loja.', inicio: '2026-09-01T09:00:00', fim: '2026-09-30T22:00:00', status: 'ENCERRADA', premioIds: ['p-trofeu'] },
     ],
@@ -382,7 +382,6 @@ export function estadoInicial(): EstadoDemo {
       { id: 'p-evolucao', nome: 'Maior Evolução', tipo: 'DIGITAL', xp: 0, moedas: 150, badge: 'MAIOR_EVOLUCAO', categoria: null, descricao: 'Badge + 150 VendaCoins.' },
       { id: 'p-meta', nome: 'Meta do mês batida', tipo: 'DIGITAL', xp: 200, moedas: 80, badge: null, categoria: null, descricao: 'Para todos que baterem 100% da meta do mês.' },
       { id: 'p-vale', nome: 'Vale-compras R$ 300', tipo: 'EMPRESARIAL', xp: 0, moedas: 0, badge: null, categoria: 'VALE', descricao: 'Vale na própria loja. Informativo — entrega pela administração.' },
-      { id: 'p-duelo', nome: 'Vitória no duelo', tipo: 'DIGITAL', xp: 50, moedas: 0, badge: null, categoria: null, descricao: '+50 XP para quem vencer.' },
     ],
     reconhecimentos: [
       { id: 'r1', vendedorId: 'ana', motivo: 'RESULTADO', titulo: 'Atendimento que vira fidelidade', mensagem: 'Três clientes citaram seu nome na pesquisa de satisfação da semana. Obrigada, Ana!', quando: '2026-10-18T10:00:00', autor: 'Administração Sapatinho de Luxo' },
@@ -407,12 +406,28 @@ export function carregarEstado(): EstadoDemo {
     const bruto = localStorage.getItem(CHAVE);
     if (bruto) {
       const e = JSON.parse(bruto) as EstadoDemo;
-      if (e.versao === 2) return e;
+      if (e.versao === 2) return migrar(e);
     }
   } catch {
     // storage indisponível ou corrompido — volta ao estado inicial
   }
   return estadoInicial();
+}
+
+/**
+ * Migrações do estado salvo no navegador durante a homologação — preservam
+ * o que o Admin configurou e só retiram o que saiu do escopo.
+ */
+function migrar(e: EstadoDemo): EstadoDemo {
+  // Out/2026: desafio direto vendedor × vendedor ("Duelo") saiu da Fase 1.
+  const duelos = new Set(e.competicoes.filter((c) => (c.tipo as string) === 'DUELO').map((c) => c.id));
+  if (duelos.size === 0) return e;
+  return {
+    ...e,
+    competicoes: e.competicoes.filter((c) => !duelos.has(c.id)),
+    premios: e.premios.filter((p) => p.id !== 'p-duelo'),
+    campanhas: e.campanhas.map((c) => ({ ...c, frentes: c.frentes.filter((f) => !f.refId || !duelos.has(f.refId)) })),
+  };
 }
 
 export function salvarEstado(e: EstadoDemo) {

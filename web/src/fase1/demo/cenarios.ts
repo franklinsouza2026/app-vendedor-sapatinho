@@ -38,7 +38,9 @@ import type {
   Recorde,
   StatusDados,
 } from '../dominio/tipos';
-import { pct } from '../formato';
+import { pct, plural, reais } from '../formato';
+import { proximoMarco } from '../dominio/estimativas';
+import { calcularNivel } from '../dominio/niveis';
 import { diasValidosRestantes, feriadoHoje, LIMITE_SYNC_MIN, metaDiariaVigente, minutosDesde, opcoesMetaDiaria } from '../dominio/admin';
 import { type EstadoDemo, estadoInicial, type MotivoInelegivel } from './estado';
 
@@ -150,7 +152,8 @@ interface Rascunho {
   recordes: Recorde[];
   feed: EventoFeed[];
   historico: MesHistorico[];
-  celebracoes: Celebracao[];
+  /** Celebração pode ser função dos dados finais — o texto nunca fica com número fixo. */
+  celebracoes: (Celebracao | ((d: Fase1Dados) => Celebracao))[];
   semReconhecimentos: boolean;
 }
 
@@ -213,6 +216,7 @@ function missoesDoEstado(estado: EstadoDemo, lojaId: string, agora: string): Mis
       terminaEm: m.fim,
       produtos: m.produtos.length ? m.produtos.map((ref) => ({ referencia: ref, nome: produto(ref)?.nome ?? 'Produto não cadastrado', foto: produto(ref)?.foto })) : undefined,
       premio: premio(m.premioId),
+      regra: m.regras || undefined,
     }));
 }
 
@@ -271,7 +275,7 @@ function rascunhoBase(estado: EstadoDemo, cenarioId: string): Rascunho {
     recordes: recordesBase(),
     feed: [
       { id: 'f1', tipo: 'META', quando: '2026-10-22T15:05:00', icone: '🎯', texto: 'Rafaela (Santa Cruz) bateu 100% da meta de hoje.' },
-      { id: 'f2', tipo: 'POSICAO', quando: '2026-10-22T14:40:00', icone: '⬆️', texto: 'Você subiu para #2 na loja.', meu: true },
+      { id: 'f2', tipo: 'POSICAO', quando: '2026-10-22T14:40:00', icone: '⬆️', texto: 'Você subiu para o 2º lugar na loja.', meu: true },
       { id: 'f3', tipo: 'RECORDE', quando: '2026-10-22T13:12:00', icone: '🚀', texto: 'Maria quebrou o recorde pessoal de PA.' },
       { id: 'f4', tipo: 'LOJA', quando: '2026-10-22T11:30:00', icone: '🏬', texto: 'Caruaru Shopping assumiu a liderança da Batalha das Lojas.', meu: true },
       { id: 'f5', tipo: 'CONQUISTA', quando: '2026-10-21T19:20:00', icone: '🔥', texto: 'João chegou a 5 dias seguidos de meta.' },
@@ -357,6 +361,23 @@ function competicoesDoEstado(r: Rascunho, elegiveis: Perfil[], lojaId: string): 
     });
 }
 
+/** Ganhos digitais = soma dos prêmios digitais das frentes que a vendedora venceu (1º lugar ou meta do mês batida). */
+function ganhosDaCampanha(estado: EstadoDemo, cad: EstadoDemo['campanhas'][number] | undefined, competicoes: Competicao[], pctMes: number | null) {
+  if (!cad) return null;
+  let xp = 0;
+  let moedas = 0;
+  for (const f of cad.frentes) {
+    const comp = competicoes.find((c) => c.id === f.refId);
+    const venceu = f.mecanismo === 'META_MES' ? pctMes !== null && pctMes >= 100 : Boolean(comp && comp.participantes[0]?.id === comp.meuId);
+    const p = estado.premios.find((x) => x.id === f.premioId);
+    if (venceu && p && p.tipo === 'DIGITAL') {
+      xp += p.xp;
+      moedas += p.moedas;
+    }
+  }
+  return { xp, moedas };
+}
+
 function campanhasDoEstado(r: Rascunho, competicoes: Competicao[], lojaId: string, metaMes: number | null): Campanha[] {
   const { estado } = r;
   const premio = (id: string | null) => {
@@ -368,7 +389,8 @@ function campanhasDoEstado(r: Rascunho, competicoes: Competicao[], lojaId: strin
     const i = c ? c.participantes.findIndex((p) => p.id === c.meuId) : -1;
     return i === -1 ? null : i + 1;
   };
-  const pctMes = metaMes ? pct((r.mes.realizado.faturamento / metaMes) * 100) : null;
+  const pctMesNum = metaMes ? (r.mes.realizado.faturamento / metaMes) * 100 : null;
+  const pctMes = pctMesNum !== null ? pct(pctMesNum) : null;
   const participa = (lojas: 'TODAS' | string[]) => lojas === 'TODAS' || lojas.includes(lojaId);
 
   const ativas: Campanha[] = estado.campanhas
@@ -394,8 +416,8 @@ function campanhasDoEstado(r: Rascunho, competicoes: Competicao[], lojaId: strin
               ? 'Missão vinculada'
               : pos === null
                 ? 'Você não participa'
-                : `${ehLoja ? 'Sua loja está' : 'Você está'} em #${pos}`;
-        return { id: f.id, icone: f.icone, titulo: f.titulo, descricao: comp?.nome ?? (f.mecanismo === 'META_MES' ? 'Bater 100% da meta do mês' : '—'), premio: premio(f.premioId), situacao };
+                : `${ehLoja ? 'Sua loja está' : 'Você está'} em ${pos}º lugar`;
+        return { id: f.id, icone: f.icone, titulo: f.titulo, descricao: comp?.nome ?? (f.mecanismo === 'META_MES' ? 'Bater 100% da meta do mês' : '—'), premio: premio(f.premioId), situacao, competicaoId: comp?.id };
       }),
     }));
 
@@ -426,7 +448,7 @@ function campanhasDoEstado(r: Rascunho, competicoes: Competicao[], lojaId: strin
         const comp = competicoes.find((x) => x.id === ref?.refId);
         return { titulo: f.titulo, vencedor: ref?.mecanismo === 'META_MES' ? 'Todas que bateram 100% da meta do mês' : (comp?.participantes[0]?.nome ?? '—'), premio: f.premio, minhaPosicao: ref?.refId ? posicao(ref.refId) : null };
       }),
-      meusGanhos: { xp: 200, moedas: 80 },
+      meusGanhos: ganhosDaCampanha(estado, cad, competicoes, pctMesNum),
       frentes: [],
     });
   }
@@ -523,7 +545,7 @@ function finalizar(r: Rascunho): Fase1Dados {
   const xpTotal = r.xpTotal + creditos.reduce((a, c) => a + c.xp, 0);
   const moedasSaldo = r.moedas.saldo + creditos.reduce((a, c) => a + c.moedas, 0);
 
-  return {
+  const dados: Fase1Dados = {
     agora: r.agora,
     vendedor: { id: EU, nome: cadEu.nome, primeiroNome: cadEu.nome.split(' ')[0], lojaId, empresa: 'Sapatinho de Luxo', admitidoEm: r.novo ? '2026-10-19' : cadEu.admitidoEm, novo: r.novo },
     lojas: estado.lojas.map((l) => ({ id: l.id, nome: l.nome })),
@@ -550,12 +572,48 @@ function finalizar(r: Rascunho): Fase1Dados {
     reconhecimentos: reconhecimentos.map((x) => ({ id: x.id, quando: x.quando, autor: x.autor, motivo: x.motivo, titulo: x.titulo, mensagem: x.mensagem })),
     historico: r.historico,
     comparavel: { faturamento: 21700, vendas: 92, pares: 160, ticketMedio: 235.9, pa: 1.74, percentualMeta: 77.5 },
-    celebracoes: r.celebracoes,
+    celebracoes: [],
     indicadores,
     metricasRanking: estado.rankings.metricasAtivas.filter((m) => indicadores[INDICADOR_DA_METRICA[m]]),
     metricaCorrida: indicadores[INDICADOR_DA_METRICA[estado.rankings.metricaCorrida]] ? estado.rankings.metricaCorrida : 'SCORE',
     elegibilidade: { elegivel: euElegivel, motivo: euElegivel ? null : motivo },
   };
+  dados.conquistas = conquistasDerivadas(dados);
+  dados.celebracoes = r.celebracoes.map((c) => (typeof c === 'function' ? c(dados) : c));
+  return dados;
+}
+
+/** "Quanto falta" das conquistas calculado dos dados — nunca texto fixo. */
+const BASE_TICKET_DEMO = 258; // baseline pessoal de ticket (backend: baseline.service)
+function conquistasDerivadas(d: Fase1Dados): Conquista[] {
+  return d.conquistas.map((c) => {
+    if (c.conquistadaEm) return c;
+    if (c.codigo === 'STREAK_7') {
+      const faltam = Math.max(0, 7 - d.sequencia.atual);
+      return { ...c, falta: `faltam ${plural(faltam, 'dia')} de meta batida`, progresso: (d.sequencia.atual / 7) * 100 };
+    }
+    if (c.codigo === 'TICKET_MASTER' && d.mes.realizado.ticketMedio !== null) {
+      return { ...c, falta: `ticket do mês ${reais(d.mes.realizado.ticketMedio)} · sua base ${reais(BASE_TICKET_DEMO)}`, progresso: Math.min(100, (d.mes.realizado.ticketMedio / BASE_TICKET_DEMO) * 100) };
+    }
+    if (c.codigo === 'MAIOR_EVOLUCAO') {
+      const comp = d.competicoes.find((x) => x.tipo === 'EVOLUCAO' && x.status === 'ATIVA');
+      const i = comp ? comp.participantes.findIndex((p) => p.id === comp.meuId) : -1;
+      return { ...c, falta: i >= 0 && comp ? `você está em ${i + 1}º lugar em “${comp.nome}”` : undefined };
+    }
+    if (c.codigo === 'DESTAQUE_DA_EQUIPE') {
+      const comp = d.competicoes.find((x) => x.tipo === 'LOJA' && x.status === 'ATIVA');
+      return { ...c, falta: comp ? `${comp.nome} termina em ${comp.terminaEm.slice(8, 10)}/${comp.terminaEm.slice(5, 7)}` : undefined };
+    }
+    return c;
+  });
+}
+
+/** Texto das celebrações de meta, derivado dos dados finais. */
+function detalheMetaDia(d: Fase1Dados): string {
+  const meta = d.hoje.meta ?? 0;
+  const real = d.hoje.realizado.faturamento;
+  const marco = proximoMarco(real, meta);
+  return `${reais(real)} de ${reais(meta)} — ${pct((real / Math.max(1, meta)) * 100)} da meta de hoje.${marco ? ` Faltam ${reais(marco.faltaReais)} para os ${marco.marco}%.` : ''}`;
 }
 
 // ------------------------------------------------------------ cenários
@@ -612,11 +670,11 @@ export const CENARIOS: Cenario[] = [
   },
   { id: 'B', rotulo: 'B', titulo: '76% da meta do dia', grupo: 'jornada', carga: 'normal', descricao: 'Tarde de quinta. R$ 1.514 de R$ 2.000. Situação típica do piloto.', ajustar: () => {} },
   {
-    id: 'C', rotulo: 'C', titulo: 'Quase #1', grupo: 'jornada', carga: 'normal',
+    id: 'C', rotulo: 'C', titulo: 'Quase 1º lugar', grupo: 'jornada', carga: 'normal',
     descricao: 'A Júlia está só R$ 90 à frente — uma venda resolve.',
     ajustar: (r) => {
       perfil(r, 'julia')!.vendas = 23290;
-      r.feed.unshift({ id: 'fc', tipo: 'POSICAO', quando: '2026-10-22T15:12:00', icone: '⚡', texto: 'Você está a R$ 90 do #1 da loja.', meu: true });
+      r.feed.unshift({ id: 'fc', tipo: 'POSICAO', quando: '2026-10-22T15:12:00', icone: '⚡', texto: 'Você está a R$ 90,00 do 1º lugar da loja.', meu: true });
     },
   },
   {
@@ -624,7 +682,7 @@ export const CENARIOS: Cenario[] = [
     descricao: 'R$ 2.180 de R$ 2.000 (109%). A corrida continua rumo aos 110%.',
     ajustar: (r) => {
       vendasDoDia(r, 2180, 9, 16);
-      r.celebracoes = [{ id: 'cel-d', tipo: 'META_DIA', titulo: 'Meta do dia batida!', detalhe: 'R$ 2.180 de R$ 2.000 — 109%. Faltam R$ 20 para os 110%.', recompensa: REGUA_V1.META_DIARIA_100 }];
+      r.celebracoes = [(d) => ({ id: 'cel-d', tipo: 'META_DIA', titulo: 'Meta do dia batida!', detalhe: detalheMetaDia(d), recompensa: REGUA_V1.META_DIARIA_100 })];
     },
   },
   {
@@ -632,7 +690,7 @@ export const CENARIOS: Cenario[] = [
     descricao: 'R$ 2.210 (110%). Próximo marco: 120%.',
     ajustar: (r) => {
       vendasDoDia(r, 2210, 9, 17);
-      r.celebracoes = [{ id: 'cel-e', tipo: 'META_DIA', titulo: '110% da meta!', detalhe: 'R$ 2.210 hoje. Próximo marco: 120% — faltam R$ 190.', recompensa: REGUA_V1.META_DIARIA_110 }];
+      r.celebracoes = [(d) => ({ id: 'cel-e', tipo: 'META_DIA', titulo: '110% da meta!', detalhe: detalheMetaDia(d), recompensa: REGUA_V1.META_DIARIA_110 })];
     },
   },
   {
@@ -640,7 +698,7 @@ export const CENARIOS: Cenario[] = [
     descricao: 'R$ 2.420 (121%). Marcos 100/110/120 ✓, próximo 150%.',
     ajustar: (r) => {
       vendasDoDia(r, 2420, 10, 19);
-      r.celebracoes = [{ id: 'cel-f', tipo: 'META_DIA', titulo: '120% da meta!', detalhe: 'R$ 2.420 hoje. O próximo marco é 150%.', recompensa: REGUA_V1.META_DIARIA_120 }];
+      r.celebracoes = [(d) => ({ id: 'cel-f', tipo: 'META_DIA', titulo: '120% da meta!', detalhe: detalheMetaDia(d), recompensa: REGUA_V1.META_DIARIA_120 })];
     },
   },
   {
@@ -705,7 +763,12 @@ export const CENARIOS: Cenario[] = [
       r.xpTotal = 1840;
       r.xpHistorico.unshift({ id: 'xk', quando: '2026-10-22T15:16:00', origem: 'Meta diária atingida', xp: REGUA_V1.META_DIARIA_100.xp });
       vendasDoDia(r, 2030, 8, 15);
-      r.celebracoes = [{ id: 'cel-k', tipo: 'NIVEL', titulo: 'Novo nível: Platina', detalhe: 'Você chegou a 1.840 XP. Próximo: Diamante, com 3.500 XP.' }];
+      r.celebracoes = [
+        (d) => {
+          const n = calcularNivel(d.xp.total);
+          return { id: 'cel-k', tipo: 'NIVEL', titulo: `Novo nível: ${n.nome}`, detalhe: `Você chegou a ${d.xp.total.toLocaleString('pt-BR')} XP.${n.proximo ? ` Próximo: ${n.proximo.nome}, com ${n.proximo.xpMinimo.toLocaleString('pt-BR')} XP.` : ''}` };
+        },
+      ];
     },
   },
   {
@@ -728,12 +791,12 @@ export const CENARIOS: Cenario[] = [
       const rec = r.recordes.find((x) => x.tipo === 'MELHOR_DIA')!;
       rec.valor = 3120;
       rec.quando = '2026-10-22';
-      r.celebracoes = [{ id: 'cel-m', tipo: 'RECORDE', titulo: 'Novo recorde!', detalhe: 'Melhor dia da sua história: R$ 3.120. O anterior era R$ 2.980 (12/09).', recompensa: { xp: 40, moedas: 15 } }];
+      r.celebracoes = [(d) => ({ id: 'cel-m', tipo: 'RECORDE', titulo: 'Novo recorde!', detalhe: `Melhor dia da sua história: ${reais(d.hoje.realizado.faturamento)}. O anterior era ${reais(2980)} (12/09).`, recompensa: { xp: 40, moedas: 15 } })];
     },
   },
   {
-    id: 'N', rotulo: 'N', titulo: 'Loja quase #1', grupo: 'jornada', carga: 'normal',
-    descricao: 'Você é #1 da loja; a loja está 31 pontos atrás de Santa Cruz.',
+    id: 'N', rotulo: 'N', titulo: 'Loja quase em 1º', grupo: 'jornada', carga: 'normal',
+    descricao: 'Você é a 1ª da loja; a loja está 31 pontos atrás de Santa Cruz.',
     ajustar: (r) => {
       r.pontosLojas = [
         { lojaId: 'santacruz', pontos: 842, posicaoAnterior: 1 },
@@ -743,7 +806,13 @@ export const CENARIOS: Cenario[] = [
       r.mes.realizado = realizado(24100, 96, 174);
       perfil(r, 'ana')!.score = 851;
       r.feed.unshift({ id: 'fn', tipo: 'LOJA', quando: '2026-10-22T15:10:00', icone: '🏬', texto: 'Caruaru Shopping está a 31 pontos da liderança.', meu: true });
-      r.celebracoes = [{ id: 'cel-n', tipo: 'PRIMEIRO_LUGAR', titulo: 'Você assumiu o #1 da loja', detalhe: 'R$ 24.100 no mês — R$ 580 à frente da Júlia.' }];
+      r.celebracoes = [
+        (d) => {
+          const linhas = [...d.rankings.loja.VENDAS].sort((a, b) => b.valor - a.valor);
+          const segunda = d.pessoas.find((p) => p.id === linhas[1]?.pessoaId);
+          return { id: 'cel-n', tipo: 'PRIMEIRO_LUGAR', titulo: 'Você assumiu o 1º lugar da loja', detalhe: `${reais(d.mes.realizado.faturamento)} no mês${segunda ? ` — ${reais(linhas[0].valor - linhas[1].valor)} à frente de ${segunda.nome.split(' ')[0]}` : ''}.` };
+        },
+      ];
     },
   },
   {
@@ -818,7 +887,13 @@ export const CENARIOS: Cenario[] = [
       r.encerrarCampanhaAtiva = true;
       r.missoes = r.missoes.filter((m) => m.id === 'm-ponta' || m.id === 'm-consistencia');
       r.feed = [];
-      r.celebracoes = [{ id: 'cel-t', tipo: 'MOEDAS', titulo: 'Outubro Campeão encerrado', detalhe: 'Você bateu 105% da meta do mês e ganhou a frente “Meta batida”.', recompensa: { xp: 200, moedas: 80 } }];
+      r.celebracoes = [
+        (d) => {
+          const camp = d.campanhas.find((c) => c.status === 'ENCERRADA');
+          const p = d.mes.meta ? pct((d.mes.realizado.faturamento / d.mes.meta) * 100) : null;
+          return { id: 'cel-t', tipo: 'MOEDAS', titulo: `${camp?.nome ?? 'Campanha'} encerrada`, detalhe: p ? `Você fechou o mês com ${p} da meta.` : 'Veja o resultado da campanha.', recompensa: camp?.meusGanhos ?? undefined };
+        },
+      ];
     },
   },
   // ------------------------------------------------ estados especiais
@@ -846,12 +921,12 @@ export function montarCenario(id: string, estado: EstadoDemo = estadoInicial()):
 
 /** Celebrações para "experimentar" a qualquer momento. */
 export const CELEBRACOES_DEMO: Celebracao[] = [
-  { id: 'demo-meta', tipo: 'META_DIA', titulo: 'Meta do dia batida!', detalhe: 'R$ 2.180 de R$ 2.000 — 109%.', recompensa: REGUA_V1.META_DIARIA_100 },
-  { id: 'demo-110', tipo: 'META_DIA', titulo: '110% da meta!', detalhe: 'R$ 2.210 hoje. Próximo marco: 120%.', recompensa: REGUA_V1.META_DIARIA_110 },
-  { id: 'demo-120', tipo: 'META_DIA', titulo: '120% da meta!', detalhe: 'R$ 2.420 hoje. Próximo marco: 150%.', recompensa: REGUA_V1.META_DIARIA_120 },
+  { id: 'demo-meta', tipo: 'META_DIA', titulo: 'Meta do dia batida!', detalhe: 'R$ 2.180,00 de R$ 2.000,00 — 109% da meta de hoje.', recompensa: REGUA_V1.META_DIARIA_100 },
+  { id: 'demo-110', tipo: 'META_DIA', titulo: '110% da meta!', detalhe: 'R$ 2.210,00 hoje. Próximo marco: 120%.', recompensa: REGUA_V1.META_DIARIA_110 },
+  { id: 'demo-120', tipo: 'META_DIA', titulo: '120% da meta!', detalhe: 'R$ 2.420,00 hoje. Próximo marco: 150%.', recompensa: REGUA_V1.META_DIARIA_120 },
   { id: 'demo-150', tipo: 'META_DIA', titulo: '150% da meta!', detalhe: 'Todos os marcos do dia conquistados.', recompensa: REGUA_V1.META_DIARIA_150 },
-  { id: 'demo-primeiro', tipo: 'PRIMEIRO_LUGAR', titulo: 'Você assumiu o #1 da loja', detalhe: 'R$ 24.100 no mês — R$ 580 à frente da Júlia.' },
-  { id: 'demo-recorde', tipo: 'RECORDE', titulo: 'Novo recorde!', detalhe: 'Melhor dia da sua história: R$ 3.120.', recompensa: { xp: 40, moedas: 15 } },
+  { id: 'demo-primeiro', tipo: 'PRIMEIRO_LUGAR', titulo: 'Você assumiu o 1º lugar da loja', detalhe: 'R$ 24.100,00 no mês — R$ 580,00 à frente da Júlia.' },
+  { id: 'demo-recorde', tipo: 'RECORDE', titulo: 'Novo recorde!', detalhe: 'Melhor dia da sua história: R$ 3.120,00.', recompensa: { xp: 40, moedas: 15 } },
   { id: 'demo-nivel', tipo: 'NIVEL', titulo: 'Novo nível: Platina', detalhe: 'Próximo: Diamante, com 3.500 XP.' },
   { id: 'demo-missao', tipo: 'MISSAO', titulo: 'Missão concluída!', detalhe: 'Scarpin da semana — 3 pares do Ref. 12345.', recompensa: { xp: 30, moedas: 10 } },
   { id: 'demo-badge', tipo: 'BADGE', titulo: 'Badge conquistada: Meta 150%', detalhe: 'Você passou de 150% da meta do dia.', recompensa: REGUA_V1.META_DIARIA_150 },

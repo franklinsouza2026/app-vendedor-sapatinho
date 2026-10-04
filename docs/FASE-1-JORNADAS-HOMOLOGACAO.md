@@ -26,7 +26,7 @@ Dica: no Chrome, ⌥⌘I → ⇧⌘M para ver o app da vendedora em tamanho de c
    - *Saúde dos dados* → **Simular sync agora** em Difusora.
    - *Vendedores* → Lucas → **Verificar vínculo ERP**.
    - Volte à Visão geral: as pendências somem e a prontidão sobe.
-3. **Meta da Ana**: *Metas do mês* → Ana Beatriz Lima = **32000** → Salvar → **👁 Ver como a Ana recebe**. Na Home: "R$ 23.200 / R$ 32.000", "Faltam R$ 8.800", "≈ 36 vendas". **Voltar ao Admin** (faixa roxa).
+3. **Meta da Ana**: *Metas do mês* → Ana Beatriz Lima = **32000** → Salvar → **👁 Ver como a Ana recebe**. Na Home (Corrida do mês): "Meta mensal R$ 32.000,00", "Faltam R$ 8.800,00", "36 vendas". **Voltar ao Admin** (faixa roxa).
 4. **Meta diária**: aba *Meta diária* → compare as 3 regras → escolha **Distribuição uniforme** → 👁 → a Meta de hoje muda.
 5. **Calendário**: aba *Calendário operacional* → adicione feriado em **28/10/2026** (todas as lojas) → 👁 → Desempenho › Meu ritmo › Mês: dias restantes **7** e mais vendas/dia. (Opcional: feriado em 22/10 para Caruaru → "A loja não abre hoje".)
 6. **Indicadores**: oculte **Pares** → 👁 → a estimativa de pares some. Tente ligar **Conversão**: bloqueado (sem fonte).
@@ -59,9 +59,9 @@ Dica: no Chrome, ⌥⌘I → ⇧⌘M para ver o app da vendedora em tamanho de c
 Clique em **👁 Ver como vendedora** (ou saia e entre como Vendedora). A faixa azul tracejada do topo (**🧪 DEMO · B — trocar**) muda o **cenário**.
 
 1. **Início (cenário B)**, em 10 segundos:
-   - Meta de hoje 76%, "Faltam R$ 486 — ≈ 2 vendas" (com selo **est.**).
-   - Você também está perto, Corrida do mês (≈ vendas, pares, vendas/dia).
-   - Sua posição: #2 na loja ↑1, #7 geral ↑2, "Faltam R$ 320 para o #1".
+   - Meta de hoje R$ 2.000,00, Realizado R$ 1.514,00, 76% e "Faltam 2 vendas para atingir a meta do dia".
+   - Você também está perto, Corrida do mês (vendas, pares, vendas por dia, ticket médio atual).
+   - Sua posição: 2 na loja (↑ 1 posição), 7 no geral (↑ 2 posições), "Faltam R$ 320,00 para alcançar o 1º lugar da loja".
 2. **Reconhecimento**: o feed mostra "Você recebeu um reconhecimento" (se você fez o passo 13 do Admin). Perfil › Reconhecimentos.
 3. **Ranking**:
    - Minha loja (faturamento das colegas oculto) → troque para **PA**: a distância fala em PA, não em R$.
@@ -69,17 +69,27 @@ Clique em **👁 Ver como vendedora** (ou saia e entre como Vendedora). A faixa 
 4. **Desempenho**: Meu ritmo (Hoje/Mês) → Indicadores (Hoje/Mês/Histórico) → Comparar (Eu × Loja, Eu × Empresa).
 5. **Desafios**:
    - *Missões*: encontre **Bota da semana** e toque em **🧪 Simular um par vendido** até concluir → **celebração** → Perfil › VendaCoins mostra o crédito.
-   - *Competições*: abra uma classificação.
+   - *Competições*: toque em "Ver detalhes e classificação" e volte com **← Voltar**.
    - *Campanha*: frentes, prêmios, regras e histórico ("Setembro em Dobro").
 6. **Perfil**: nível e XP (faltam X para o próximo), VendaCoins (extrato), Conquistas (conquistadas / a conquistar), Recordes.
 7. **Cenários** (DEMO → trocar):
    - **D/E/F/G**: meta batida, 110%, 120%, 150% e as celebrações.
-   - **C**: quase #1. **H**: último no ranking, mas evoluindo. **I**: missão quase concluída.
-   - **K**: novo nível. **L/M**: recorde próximo e recorde batido. **N**: loja quase #1.
+   - **C**: quase 1º lugar. **H**: último no ranking, mas evoluindo. **I**: missão quase concluída.
+   - **K**: novo nível. **L/M**: recorde próximo e recorde batido. **N**: loja quase em 1º.
    - **O**: vendedora nova. **P**: sem meta. **Q**: sem ticket. **R**: dado desatualizado.
    - **S**: campanha em destaque. **T**: campanha encerrada.
    - Estados: **X1–X6** (folga, loja fechada, erro, carregando, offline, vazio).
 8. **Celebrações**: DEMO → "Experimentar celebrações" (10 tipos).
+
+## Homologação 1 — o que conferir nos ajustes (04/10/2026)
+
+1. **Meta de hoje**: "Meta de hoje R$ 2.000,00 · Realizado R$ 1.514,00 · 76% da meta" e "Faltam 2 vendas para atingir a meta do dia".
+2. **Corrida do mês**: "Meta mensal · Realizado · %", "Faltam R$ 6.800,00 e 8 dias para encerrar o mês", e o bloco "Para bater a meta do mês": vendas, pares, vendas por dia, **ticket médio atual**.
+3. **Sua posição**: "2 na sua loja · ↑ 1 posição", "7 no ranking geral · ↑ 2 posições", "Faltam R$ 320,00 para alcançar o 1º lugar da loja — 2 vendas no seu ticket médio atual."
+4. Nenhum `#` nem `≈`. Uma única nota sobre ticket médio, no rodapé.
+5. **Admin → Metas → Ana = 32000 → 👁**: falta, vendas e vendas por dia mudam juntos.
+6. **Voltar**: Home → "Ver detalhes da missão" → ← Voltar; Desafios › Competições → "Ver detalhes e classificação" → ← Voltar (cai na mesma aba); Perfil → VendaCoins / Conquistas / Recordes → ← Voltar.
+7. Não existe mais "Duelo" nem convite para desafiar outra vendedora.
 
 ## O que observar (para criticar)
 

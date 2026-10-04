@@ -7,9 +7,9 @@
  * de cor — sempre há texto, ícone ou sinal (↑ ↓) junto.
  */
 import { KeyboardEvent, ReactNode, useId, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { MARCOS_META } from '../dominio/estimativas';
-import { pct } from '../formato';
+import { pct, textoVariacao } from '../formato';
 
 export function Painel({ children, className = '', destaque = false, as: Tag = 'section', rotulo }: { children: ReactNode; className?: string; destaque?: boolean; as?: 'section' | 'div' | 'article'; rotulo?: string }) {
   return (
@@ -35,14 +35,34 @@ export function TituloSecao({ children, acao }: { children: ReactNode; acao?: { 
   );
 }
 
+/**
+ * "← Voltar" explícito para telas secundárias e detalhes. Volta para a tela de
+ * origem quando a pessoa veio de dentro do app; se abriu o link direto (sem
+ * histórico), cai na tela-mãe (`fallback`). Nunca depende do botão do navegador.
+ */
+export function BotaoVoltar({ fallback }: { fallback: string }) {
+  const navegar = useNavigate();
+  const location = useLocation();
+  // No react-router, a primeira entrada da sessão tem key "default".
+  const temOrigem = location.key !== 'default';
+  return (
+    <button
+      type="button"
+      onClick={() => (temOrigem ? navegar(-1) : navegar(fallback))}
+      className="-ml-2 inline-flex min-h-[44px] items-center gap-1 rounded-full px-2 text-sm font-semibold text-accentSoft active:bg-surface"
+    >
+      <span aria-hidden="true" className="text-lg leading-none">
+        ←
+      </span>
+      Voltar
+    </button>
+  );
+}
+
 export function CabecalhoTela({ titulo, subtitulo, voltar }: { titulo: string; subtitulo?: string; voltar?: string }) {
   return (
-    <header className="flex items-start gap-2">
-      {voltar && (
-        <Link to={voltar} aria-label="Voltar" className="-ml-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xl text-slate-300 active:bg-surface">
-          ←
-        </Link>
-      )}
+    <header className="flex flex-col items-start">
+      {voltar && <BotaoVoltar fallback={voltar} />}
       <div className="min-w-0">
         <h1 className="text-2xl font-bold tracking-tight text-white">{titulo}</h1>
         {subtitulo && <p className="text-sm text-slate-400">{subtitulo}</p>}
@@ -63,25 +83,12 @@ export function SeloEstimativa({ base }: { base: string }) {
   );
 }
 
-export function Variacao({ valor, sufixo = '' }: { valor: number | null; sufixo?: string }) {
-  if (valor === null || valor === 0) {
-    if (valor === null) return null;
-    return (
-      <span className="text-xs text-slate-400">
-        <span aria-hidden="true">=</span>
-        <span className="sr-only">mesma posição</span>
-      </span>
-    );
-  }
-  const sobe = valor > 0;
-  return (
-    <span className={`inline-flex items-center text-xs font-semibold ${sobe ? 'text-emerald-400' : 'text-rose-300'}`}>
-      <span aria-hidden="true">{sobe ? '↑' : '↓'}</span>
-      <span className="sr-only">{sobe ? 'subiu' : 'caiu'} </span>
-      {Math.abs(valor)}
-      {sufixo}
-    </span>
-  );
+/** Mudança de posição sempre em palavras ("↑ 1 posição", "Manteve a posição"). A seta é reforço, não a informação. */
+export function Variacao({ valor }: { valor: number | null }) {
+  const texto = textoVariacao(valor);
+  if (texto === null) return null;
+  const cor = valor === 0 ? 'text-slate-400' : valor! > 0 ? 'text-emerald-400' : 'text-rose-300';
+  return <span className={`text-xs font-semibold ${cor}`}>{texto}</span>;
 }
 
 /** Tendência percentual contra o período comparável — "↑ 6% vs. set". */

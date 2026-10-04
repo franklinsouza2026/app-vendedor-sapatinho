@@ -1073,7 +1073,7 @@ export function Competicoes() {
               <Bloco>
                 <div className="flex flex-wrap items-center gap-2">
                   <StatusCicloPill status={c.status} />
-                  <Selo>{c.tipo === 'LOJA' ? 'Loja × Loja' : c.tipo === 'EVOLUCAO' ? 'Evolução' : c.tipo === 'DUELO' ? 'Duelo' : c.tipo === 'CATEGORIA' ? 'Categoria' : 'Individual'}</Selo>
+                  <Selo>{c.tipo === 'LOJA' ? 'Loja × Loja' : c.tipo === 'EVOLUCAO' ? 'Evolução' : c.tipo === 'CATEGORIA' ? 'Categoria' : 'Individual'}</Selo>
                   <span className="text-xs text-slate-400">{periodo(c.inicio, c.fim)}</span>
                 </div>
                 <h2 className="mt-2 font-bold text-white">{c.nome}</h2>

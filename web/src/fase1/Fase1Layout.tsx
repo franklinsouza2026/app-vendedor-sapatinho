@@ -90,7 +90,7 @@ export function Fase1Layout() {
                 <NavLink
                   to={item.para}
                   className={({ isActive }) =>
-                    `flex min-h-[56px] flex-col items-center justify-center gap-0.5 text-[11px] font-medium ${isActive || tambemAtivo ? 'text-accentSoft' : 'text-slate-400'}`
+                    `flex min-h-[56px] flex-col items-center justify-center gap-0.5 text-[11px] font-medium min-[360px]:text-xs ${isActive || tambemAtivo ? 'text-accentSoft' : 'text-slate-400'}`
                   }
                 >
                   {({ isActive }) => (

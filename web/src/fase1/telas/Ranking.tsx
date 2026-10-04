@@ -4,7 +4,7 @@
  * Duas regras herdadas do produto atual e mantidas:
  *  - faturamento de colegas NUNCA aparece (Fatia 7.5A §30) — só a distância;
  *  - a distância fala a língua da métrica (pontos, p.p., PA...), e só Vendas
- *    converte em "≈ N vendas".
+ *    converte em "N vendas" (no ticket médio atual).
  */
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -91,12 +91,12 @@ function SuaPosicao({ dados, eu, total, acima, metrica, escopo }: { dados: Fase1
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-300">Sua posição {escopo === 'loja' ? 'na loja' : 'geral'}</p>
           <p className="text-4xl font-extrabold text-white">
-            #{eu.posicao} <span className="text-base font-medium text-slate-400">de {total}</span>
+            {eu.posicao} <span className="text-base font-medium text-slate-400">de {total} {escopo === 'loja' ? 'na loja' : 'no ranking geral'}</span>
           </p>
         </div>
         <div className="text-right">
           <p className="text-lg font-bold text-white">{valorMetrica(metrica, eu.linha.valor)}</p>
-          <Variacao valor={eu.variacao} sufixo={eu.variacao && Math.abs(eu.variacao) === 1 ? ' posição' : ' posições'} />
+          <Variacao valor={eu.variacao} />
         </div>
       </div>
       {eu.posicao === 1 ? (
@@ -104,8 +104,8 @@ function SuaPosicao({ dados, eu, total, acima, metrica, escopo }: { dados: Fase1
       ) : (
         eu.distanciaAcima !== null && (
           <p className="mt-2 text-sm text-slate-200">
-            Faltam <strong className="text-white">{distanciaMetrica(metrica, eu.distanciaAcima)}</strong> para alcançar {nomeAcima} (#{eu.posicao - 1})
-            {vendas !== null && <> — ≈ {plural(vendas, 'venda')} no seu ticket médio</>}.
+            Faltam <strong className="text-white">{distanciaMetrica(metrica, eu.distanciaAcima)}</strong> para alcançar {nomeAcima} ({eu.posicao - 1}º lugar)
+            {vendas !== null && <> — {plural(vendas, 'venda')} no seu ticket médio atual</>}.
           </p>
         )
       )}
@@ -201,7 +201,7 @@ function LojaXLoja() {
       <Painel destaque rotulo="Sua loja">
         <p className="text-xs font-semibold uppercase tracking-wider text-slate-300">{lojaNome(minha.linha.lojaId)}</p>
         <p className="text-4xl font-extrabold text-white">
-          #{minha.posicao} <span className="text-base font-medium text-slate-400">de {linhas.length} lojas</span>
+          {minha.posicao} <span className="text-base font-medium text-slate-400">de {linhas.length} lojas</span>
         </p>
         {minha.posicao === 1 ? (
           <p className="mt-2 text-sm text-emerald-300">🏆 Sua loja lidera com {plural(minha.linha.pontos - segunda.linha.pontos, 'ponto')} de vantagem.</p>

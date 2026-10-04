@@ -10,8 +10,8 @@ import { useFase1 } from '../demo/Fase1Contexto';
 import type { Fase1Dados, Metrica } from '../dominio/tipos';
 import { falta, paresEstimados, percentual, projecaoMes, vendasEstimadas, vendasPorDia, UNIDADE_METRICA } from '../dominio/estimativas';
 import { rankingCalculado } from '../dominio/alvos';
-import { baseEstimativa, CardMetaHoje, CorridaMes } from '../componentes/blocos';
-import { Abas, AvisoProvisorio, CabecalhoTela, Painel, SeloEstimativa, Tendencia, Vazio } from '../componentes/ui';
+import { CardMetaHoje, CorridaMes, NotaTicket } from '../componentes/blocos';
+import { Abas, AvisoProvisorio, CabecalhoTela, Painel, Tendencia, Vazio } from '../componentes/ui';
 import { decimal, distanciaMetrica, inteiro, mesCurto, pct, plural, reais, valorMetrica } from '../formato';
 import { Fase1Pagina } from './Fase1Pagina';
 
@@ -53,7 +53,7 @@ function MeuRitmo() {
       <Abas<'hoje' | 'mes'> compacta rotulo="Período do ritmo" ativa={periodo} onTrocar={setPeriodo} abas={[{ id: 'hoje', rotulo: 'Hoje' }, { id: 'mes', rotulo: 'Mês' }]} />
       {periodo === 'hoje' ? (
         <>
-          <CardMetaHoje dados={dados} compacto />
+          <CardMetaHoje dados={dados} />
           <PlanoHoje dados={dados} />
         </>
       ) : (
@@ -62,6 +62,7 @@ function MeuRitmo() {
           <PlanoMes dados={dados} />
         </>
       )}
+      <NotaTicket dados={dados} />
     </>
   );
 }
@@ -91,10 +92,9 @@ function PlanoHoje({ dados }: { dados: Fase1Dados }) {
         <Linha rotulo="Vendas fechadas" valor={dados.indicadores.PARES ? `${realizado.vendas} · ${realizado.pares} pares` : `${realizado.vendas}`} />
         <Linha rotulo="Falta" valor={f === 0 ? 'nada — meta batida' : reais(f)} destaque={f > 0} />
         {f > 0 && <Linha rotulo="Ticket médio usado" valor={t !== null ? reais(t) : 'sem base'} />}
-        {f > 0 && <Linha rotulo="Vendas estimadas" valor={vendas !== null ? `≈ ${vendas}` : '—'} destaque />}
-        {f > 0 && dados.indicadores.PARES && <Linha rotulo="Pares estimados" valor={pares !== null ? `≈ ${pares}` : '—'} />}
+        {f > 0 && <Linha rotulo="Vendas que faltam" valor={vendas !== null ? String(vendas) : '—'} destaque />}
+        {f > 0 && dados.indicadores.PARES && <Linha rotulo="Pares que faltam" valor={pares !== null ? String(pares) : '—'} />}
       </dl>
-      {f > 0 && vendas !== null && <SeloEstimativa base={baseEstimativa(dados)} />}
     </Painel>
   );
 }
@@ -118,7 +118,7 @@ function PlanoMes({ dados }: { dados: Fase1Dados }) {
         <Linha rotulo="Dias de trabalho restantes" valor={diasTrabalhoRestantes !== null ? plural(diasTrabalhoRestantes, 'dia') : 'escala não cadastrada'} />
         <Linha rotulo="Sua média por dia" valor={mediaDiaria !== null ? reais(mediaDiaria) : '—'} />
         {f > 0 && <Linha rotulo="Necessário por dia" valor={reaisPorDia !== null ? reais(reaisPorDia) : '—'} destaque />}
-        {f > 0 && <Linha rotulo="Vendas por dia" valor={porDia !== null ? `≈ ${porDia}` : '—'} destaque />}
+        {f > 0 && <Linha rotulo="Vendas por dia" valor={porDia !== null ? String(porDia) : '—'} destaque />}
         {projecao !== null && <Linha rotulo="Projeção no ritmo atual" valor={`${reais(projecao)} · ${pct((projecao / meta) * 100)}`} />}
       </dl>
       {f > 0 && mediaDiaria !== null && reaisPorDia !== null && (
@@ -205,7 +205,7 @@ function GradeIndicadores({ dados, periodo }: { dados: Fase1Dados; periodo: 'hoj
           contexto="% da meta vs. mesmo período de setembro"
         />
       )}
-      {periodo === 'mes' && ind.SCORE && score && <Indicador rotulo="Score Geral" valor={inteiro(score.linha.valor)} contexto={`#${score.posicao} na loja`} />}
+      {periodo === 'mes' && ind.SCORE && score && <Indicador rotulo="Score Geral" valor={inteiro(score.linha.valor)} contexto={`${score.posicao}º lugar na loja`} />}
     </div>
   );
 }
@@ -329,7 +329,7 @@ function LinhaComparacao({ dados, escopo, metrica }: { dados: Fase1Dados; escopo
       <div className="flex items-baseline justify-between gap-2">
         <p className="text-sm font-semibold text-white">{u.rotulo}</p>
         <p className="text-xs text-slate-400">
-          #{eu.posicao} de {linhas.length}
+          {eu.posicao}º de {linhas.length}
         </p>
       </div>
       <div className="mt-2 grid grid-cols-2 gap-2 text-sm">

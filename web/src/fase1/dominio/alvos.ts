@@ -90,7 +90,7 @@ export function derivarAlvos(dados: Fase1Dados): Alvo[] {
   if (pos && pos.distanciaAcima !== null && pos.posicao > 1) {
     const alvoPos = pos.posicao - 1;
     const emReais = metrica === 'VENDAS';
-    alvos.push({ id: 'ranking-loja', tipo: 'RANKING', icone: '🏆', falta: emReais ? reais(pos.distanciaAcima) : distanciaMetrica(metrica, pos.distanciaAcima), objetivo: `para alcançar o #${alvoPos} da loja${emReais ? '' : ` em ${UNIDADE_METRICA[metrica].curto}`}`, esforcoVendas: emReais ? vendasEstimadas(pos.distanciaAcima, ticket) : null, rota: '/fase1/ranking' });
+    alvos.push({ id: 'ranking-loja', tipo: 'RANKING', icone: '🏆', falta: emReais ? reais(pos.distanciaAcima) : distanciaMetrica(metrica, pos.distanciaAcima), objetivo: `para alcançar o ${alvoPos}º lugar da loja${emReais ? '' : ` em ${UNIDADE_METRICA[metrica].curto}`}`, esforcoVendas: emReais ? vendasEstimadas(pos.distanciaAcima, ticket) : null, rota: '/fase1/ranking' });
   }
 
   // Missões e desafios em andamento.
@@ -107,7 +107,7 @@ export function derivarAlvos(dados: Fase1Dados): Alvo[] {
       falta: textoUnidade(m.unidade, f),
       objetivo: `para concluir “${m.titulo}”`,
       esforcoVendas,
-      rota: '/fase1/jogo',
+      rota: `/fase1/desafios/missao/${m.id}`,
     });
   }
 

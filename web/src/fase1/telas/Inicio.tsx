@@ -8,7 +8,7 @@ import { useFase1 } from '../demo/Fase1Contexto';
 import { derivarAlvos } from '../dominio/alvos';
 import { priorizarAlvos, vocePerto } from '../dominio/proximoAlvo';
 import { calcularNivel } from '../dominio/niveis';
-import { CardMetaHoje, CardMissao, CorridaMes, MinhaCorrida, ProximoAlvo, VocePerto } from '../componentes/blocos';
+import { CardMetaHoje, CardMissao, CorridaMes, MinhaCorrida, NotaTicket, ProximoAlvo, VocePerto } from '../componentes/blocos';
 import { Painel, TituloSecao } from '../componentes/ui';
 import { dataPorExtenso, haQuanto, hora, inteiro, saudacao, tempoRestante } from '../formato';
 import { Fase1Pagina } from './Fase1Pagina';
@@ -30,7 +30,10 @@ function ConteudoInicio() {
   const loja = dados.lojas.find((l) => l.id === dados.vendedor.lojaId)!;
   const alvos = priorizarAlvos(derivarAlvos(dados));
   const principal = alvos[0] ?? null;
-  const perto = vocePerto(alvos, 2);
+  // Meta do dia (e o próximo marco depois de batida) já está no card de meta:
+  // nunca repetir no Próximo alvo nem em "Você também está perto".
+  const metaEhAlvo = principal?.tipo === 'META_DIA';
+  const perto = principal ? vocePerto([principal, ...alvos.filter((a) => a.tipo !== 'META_DIA' && a !== principal)], 2) : [];
   const operando = !dados.status.diaDeFolga && !dados.status.lojaFechada;
   // Em folga/loja fechada, missão diária não aparece: nada de cobrança em dia sem expediente.
   const missoesAbertas = dados.missoes.filter((m) => !m.concluidaEm && (operando || m.tipo !== 'DIARIA')).slice(0, 2);
@@ -45,17 +48,17 @@ function ConteudoInicio() {
         <p className="text-sm text-slate-400">
           {dados.vendedor.empresa} • {loja.nome}
         </p>
-        <nav aria-label="Seu progresso" className="mt-3 flex flex-wrap gap-2">
-          <Link to="/fase1/progresso" className="flex min-h-[40px] items-center gap-1.5 rounded-full bg-surface px-3 text-sm ring-1 ring-slate-700">
+        <nav aria-label="Seu progresso" className="mt-3 flex flex-wrap gap-2 max-[359px]:gap-1.5">
+          <Link to="/fase1/progresso" className="flex min-h-[40px] items-center gap-1.5 rounded-full bg-surface px-3 text-sm ring-1 ring-slate-700 max-[359px]:px-2">
             <span aria-hidden="true">⭐</span>
             <span className="font-semibold text-white">{nivel.nome}</span>
             <span className="text-slate-400">· nível {nivel.nivel}</span>
           </Link>
-          <Link to="/fase1/progresso" className="flex min-h-[40px] items-center gap-1.5 rounded-full bg-surface px-3 text-sm ring-1 ring-slate-700">
+          <Link to="/fase1/progresso" className="flex min-h-[40px] items-center gap-1.5 rounded-full bg-surface px-3 text-sm ring-1 ring-slate-700 max-[359px]:px-2">
             <span className="font-semibold text-white">{inteiro(dados.xp.total)}</span>
             <span className="text-slate-400">XP</span>
           </Link>
-          <Link to="/fase1/moedas" className="flex min-h-[40px] items-center gap-1.5 rounded-full bg-surface px-3 text-sm ring-1 ring-slate-700">
+          <Link to="/fase1/moedas" className="flex min-h-[40px] items-center gap-1.5 rounded-full bg-surface px-3 text-sm ring-1 ring-slate-700 max-[359px]:px-2">
             <span aria-hidden="true">🪙</span>
             <span className="font-semibold text-white">{inteiro(dados.moedas.saldo)}</span>
             <span className="sr-only">VendaCoins</span>
@@ -65,9 +68,9 @@ function ConteudoInicio() {
 
       {/* Quando o Próximo Alvo É a meta do dia, o próprio card de meta assume o
           selo — repetir "R$ 486 para bater a meta" num segundo card é ruído. */}
-      <CardMetaHoje dados={dados} ehProximoAlvo={operando && principal?.id === 'meta-dia'} />
+      <CardMetaHoje dados={dados} ehProximoAlvo={operando && metaEhAlvo} />
 
-      {operando && principal && principal.id !== 'meta-dia' && <ProximoAlvo alvo={principal} />}
+      {operando && principal && !metaEhAlvo && <ProximoAlvo alvo={principal} />}
       {operando && <VocePerto alvos={perto} />}
 
       {campanha && dados.campanhaEmDestaque && (
@@ -103,7 +106,7 @@ function ConteudoInicio() {
           </TituloSecao>
           <div className="flex flex-col gap-3">
             {missoesAbertas.map((m) => (
-              <CardMissao key={m.id} missao={m} onSimular={() => simular(m)} />
+              <CardMissao key={m.id} missao={m} onSimular={() => simular(m)} para={`/fase1/desafios/missao/${m.id}`} />
             ))}
           </div>
         </section>
@@ -163,6 +166,7 @@ function ConteudoInicio() {
         </section>
       )}
 
+      <NotaTicket dados={dados} />
       <p className="text-center text-xs text-slate-400">
         {dados.status.sincronizadoEm ? `Dados do ERP de ${hora(dados.status.sincronizadoEm)} · atualiza a cada hora` : 'Ainda sem sincronização do ERP hoje.'}
       </p>

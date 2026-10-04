@@ -36,7 +36,7 @@ Legenda: **✅ Pronto** · **🟡 Parcial** · **❌ Ausente**. "Mock" aponta o 
 | Missões | Progresso | 🟡 | `progressoAtual/Alvo` | E `progressoDemo` + simulação | Contagem por item vendido |
 | Competições | Lista, status, período | ✅ | `GET /competicoes` | E `competicoes` | — |
 | Competições | Classificação | ✅ | `GET /competicoes/:id` | derivado | Nome na linha |
-| Competições | Duelo, categoria | ❌ | — | E `tipo` | Novos tipos |
+| Competições | Categoria | ❌ | — | E `tipo` | Novo tipo (duelo vendedor × vendedor está FORA da Fase 1) |
 | Campanhas | Campanha com frentes | ❌ | (Temporada ≈) | E `campanhas` | **Entidade Campanha** |
 | Campanhas | Resultado e ganhos | ❌ | — | E `resultado/meusGanhos` | Fechamento automático |
 | Prêmios | Prêmio por frente/competição | 🟡 | `rewardXp/Moedas/Badge` | E `premios` | Prêmio empresarial descritivo |
@@ -51,6 +51,19 @@ Legenda: **✅ Pronto** · **🟡 Parcial** · **❌ Ausente**. "Mock" aponta o 
 | Celebrações | Eventos não vistos | ❌ | — | C `celebracoes` | Fila de eventos por vendedor |
 | Status | Sync, atraso, ranking indisponível | 🟡 | `sincronizadoEm` | E `lojas.ultimaSync` | Limite (90 min proposto) |
 | Status | Folga, loja fechada | ❌ | — | C / E `calendario` | Escala e calendário |
+
+### A.1 Necessidades que ficaram mais claras na Homologação 1 (não implementar agora)
+
+| Tela | Informação | Situação | Observação |
+|---|---|---|---|
+| Corrida do mês | **Ticket médio atual com centavos** (faturamento ÷ vendas do período) | 🟡 | `realizado.ticketMedio` existe; confirmar arredondamento e período ("atual" = mês corrente) |
+| Meta de hoje / Corrida | **Quantidade inteira de vendas** | ✅ (front) | Regra ⌈restante ÷ ticket⌉ vive no front; avaliar mover para o backend para Home, push e relatório usarem a mesma conta |
+| Corrida do mês | **Pares que faltam** | ❌ | Precisa de PA confiável do período (pares ÷ vendas) |
+| Corrida do mês | **Dias para encerrar o mês** | ❌ | Calendário operacional por loja (feriado, domingo) |
+| Detalhe da missão | Missão por id **com progresso da vendedora** e regra de contagem | 🟡 | `GET /missoes/:id` existe para treinamento; falta missão de venda |
+| Detalhe da competição | Competição por id com **nome dos participantes** e posição da vendedora | 🟡 | `GET /competicoes/:id` devolve ranking sem nome |
+| Sua posição | Variação de posição em palavras | ❌ | Precisa de posição anterior (snapshot) |
+| Celebrações | Texto com valores do momento | ❌ | Evento com payload (valor, meta, marco) |
 
 ## B. Admin — leitura e ações
 

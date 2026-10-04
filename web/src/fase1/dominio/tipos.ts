@@ -80,9 +80,16 @@ export interface Missao {
   concluidaEm?: string;
   /** Prêmio empresarial/digital extra, além de XP e VendaCoins. */
   premio?: string;
+  /** Regra de contagem — o que vale para o progresso. */
+  regra?: string;
 }
 
-export type TipoCompeticao = 'VENDEDOR' | 'LOJA' | 'EVOLUCAO' | 'CATEGORIA' | 'DUELO';
+/**
+ * Desafio direto vendedor × vendedor ("Duelo") foi RETIRADO da Fase 1 na
+ * homologação (out/2026): não há jornada definida de desafiar, aceitar,
+ * recusar, regra e conclusão. Competições continuam sendo criadas pelo Admin.
+ */
+export type TipoCompeticao = 'VENDEDOR' | 'LOJA' | 'EVOLUCAO' | 'CATEGORIA';
 
 export interface Competicao {
   id: string;
@@ -110,7 +117,7 @@ export interface Campanha {
   terminaEm: string;
   status: 'ATIVA' | 'ENCERRADA';
   regras: string;
-  frentes: { id: string; icone: string; titulo: string; descricao: string; premio: string; situacao: string }[];
+  frentes: { id: string; icone: string; titulo: string; descricao: string; premio: string; situacao: string; competicaoId?: string }[];
   /** Só em campanha encerrada. */
   resultado?: { titulo: string; vencedor: string; premio: string; minhaPosicao: number | null }[];
   meusGanhos?: { xp: number; moedas: number } | null;

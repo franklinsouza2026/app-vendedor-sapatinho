@@ -29,15 +29,38 @@ describe('Fase 1 — vendedora', () => {
     expect(await screen.findByText(/Boa tarde, Ana/)).toBeInTheDocument();
   });
 
-  it('Home (B): meta com % + falta + estimativa marcada como estimativa, posição e distância', async () => {
+  it('Home (B): meta × realizado rotulados, %, vendas que faltam, mês com dias/ticket, posição sem #', async () => {
     abrir('/fase1/inicio');
     const meta = await screen.findByRole('region', { name: 'Meta de hoje' });
+    expect(meta).toHaveTextContent('Meta de hojeR$ 2.000,00');
+    expect(meta).toHaveTextContent('RealizadoR$ 1.514,00');
     expect(within(meta).getByText('76%')).toBeInTheDocument();
-    expect(meta).toHaveTextContent('Faltam R$ 486 — ≈ 2 vendas');
-    expect(meta).toHaveTextContent(/Estimativa baseada no seu ticket médio do mês/);
+    expect(meta).toHaveTextContent('Faltam 2 vendas para atingir a meta do dia');
+    const mes = screen.getByRole('region', { name: 'Corrida do mês' });
+    expect(mes).toHaveTextContent('Meta mensalR$ 30.000,00');
+    expect(mes).toHaveTextContent('RealizadoR$ 23.200,00');
+    expect(mes).toHaveTextContent('Faltam R$ 6.800,00 e 8 dias para encerrar o mês.');
+    expect(mes).toHaveTextContent('28vendas');
+    expect(mes).toHaveTextContent('50pares');
+    expect(mes).toHaveTextContent('4vendas por dia');
+    expect(mes).toHaveTextContent('R$ 249,46ticket médio atual');
     const posicao = screen.getByRole('region', { name: 'Sua posição' });
-    expect(posicao).toHaveTextContent('#2');
-    expect(posicao).toHaveTextContent('Faltam R$ 320 para alcançar o #1 da loja — ≈ 2 vendas');
+    expect(posicao).toHaveTextContent('2na sua loja↑ 1 posição');
+    expect(posicao).toHaveTextContent('7no ranking geral↑ 2 posições');
+    expect(posicao).toHaveTextContent('Faltam R$ 320,00 para alcançar o 1º lugar da loja — 2 vendas no seu ticket médio atual.');
+    // Nota do ticket: uma vez só, no rodapé.
+    expect(screen.getAllByText(/calculada com o seu ticket médio atual/)).toHaveLength(1);
+  });
+
+  it('nenhuma tela da vendedora usa # para posição nem ≈ em quantidade', async () => {
+    for (const rota of ['inicio', 'desempenho', 'desempenho?aba=indicadores', 'desempenho?aba=comparar', 'ranking', 'ranking?escopo=geral', 'ranking?escopo=lojas', 'desafios', 'desafios?aba=competicoes', 'desafios?aba=campanha', 'perfil', 'recordes', 'conquistas']) {
+      const { unmount } = abrir(`/fase1/${rota}`);
+      await screen.findByRole('navigation', { name: 'Navegação principal' });
+      const texto = document.body.textContent ?? '';
+      expect(texto, rota).not.toMatch(/#\d/);
+      expect(texto, rota).not.toContain('≈');
+      unmount();
+    }
   });
 
   it('a navegação da Fase 1 não mostra Conselheiro, Universidade, Simulador nem Treinador', async () => {
@@ -52,14 +75,14 @@ describe('Fase 1 — vendedora', () => {
     const dialogo = await screen.findByRole('dialog', { name: 'Meta do dia batida!' });
     await userEvent.click(within(dialogo).getByRole('button', { name: 'Continuar' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Meta de hoje' })).toHaveTextContent('faltam R$ 20 para 110%');
+    expect(screen.getByRole('region', { name: 'Meta de hoje' })).toHaveTextContent('faltam R$ 20,00 (1 venda) para chegar a 110%');
   });
 
   it('sem ticket suficiente (Q): mostra quanto falta em R$, sem converter em vendas', async () => {
     abrir('/fase1/inicio', 'Q');
     const meta = await screen.findByRole('region', { name: 'Meta de hoje' });
-    expect(meta).toHaveTextContent('Faltam R$ 486.');
-    expect(meta).not.toHaveTextContent('≈');
+    expect(meta).toHaveTextContent('Faltam R$ 486,00 para atingir a meta do dia');
+    expect(meta).not.toHaveTextContent('vendas para atingir');
   });
 
   it('dia de folga (X1): sem cobrança de meta nem missão diária', async () => {
@@ -73,7 +96,7 @@ describe('Fase 1 — vendedora', () => {
     abrir('/fase1/ranking');
     const lista = await screen.findByRole('region', { name: 'Classificação' });
     expect(within(lista).getAllByText('valor oculto')).toHaveLength(4);
-    expect(within(lista).getByText('R$ 23.200')).toBeInTheDocument();
+    expect(within(lista).getByText('R$ 23.200,00')).toBeInTheDocument();
   });
 
   it('ranking de PA fala em PA, nunca em R$', async () => {
@@ -122,6 +145,55 @@ describe('Fase 1 — vendedora', () => {
   });
 });
 
+describe('Fase 1 — navegação mobile com Voltar explícito', () => {
+  async function voltar() {
+    await userEvent.click(screen.getByRole('button', { name: 'Voltar' }));
+  }
+
+  it('Home → missão → detalhe → Voltar volta para a Home', async () => {
+    abrir('/fase1/inicio');
+    await userEvent.click((await screen.findAllByRole('link', { name: /Ver detalhes da missão/ }))[0]);
+    expect(await screen.findByText('O que conta para o progresso')).toBeInTheDocument();
+    await voltar();
+    expect(await screen.findByRole('region', { name: 'Meta de hoje' })).toBeInTheDocument();
+  });
+
+  it('Desafios → competição → detalhe → Voltar volta para a lista de competições', async () => {
+    abrir('/fase1/desafios?aba=competicoes');
+    await userEvent.click((await screen.findAllByRole('link', { name: /Ver detalhes e classificação/ }))[0]);
+    expect(await screen.findByRole('region', { name: 'Classificação' })).toBeInTheDocument();
+    await voltar();
+    expect(await screen.findByRole('tab', { name: 'Competições' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('Perfil → VendaCoins / Conquistas / Recordes → Voltar volta para o Perfil', async () => {
+    abrir('/fase1/perfil');
+    for (const destino of [/VendaCoins/, /Conquistas/, /Meus recordes/]) {
+      await userEvent.click((await screen.findAllByRole('link', { name: destino }))[0]);
+      await screen.findByRole('button', { name: 'Voltar' });
+      await voltar();
+      expect(await screen.findByRole('button', { name: 'Sair da demonstração' })).toBeInTheDocument();
+    }
+  });
+
+  it('Home → Ranking (navegação inferior) → aba Geral → Início', async () => {
+    abrir('/fase1/inicio');
+    const nav = await screen.findByRole('navigation', { name: 'Navegação principal' });
+    await userEvent.click(within(nav).getByRole('link', { name: /Ranking/ }));
+    await userEvent.click(await screen.findByRole('tab', { name: 'Geral' }));
+    expect(screen.getByRole('region', { name: 'Sua posição' })).toHaveTextContent('7 de 15 no ranking geral');
+    await userEvent.click(within(nav).getByRole('link', { name: /Início/ }));
+    expect(await screen.findByRole('region', { name: 'Meta de hoje' })).toBeInTheDocument();
+  });
+
+  it('link direto para um detalhe (sem histórico) volta para a tela-mãe', async () => {
+    abrir('/fase1/desafios/missao/m-produto');
+    await screen.findByText('O que conta para o progresso');
+    await voltar();
+    expect(await screen.findByRole('tab', { name: 'Missões' })).toBeInTheDocument();
+  });
+});
+
 describe('Fase 1 — Admin configura, vendedora recebe', () => {
   it('visão geral mostra prontidão e pendências calculadas', async () => {
     abrir('/fase1/admin', 'B', 'ADMIN');
@@ -141,8 +213,10 @@ describe('Fase 1 — Admin configura, vendedora recebe', () => {
     await userEvent.click(within(bloco).getByRole('button', { name: 'Salvar metas' }));
     await userEvent.click(screen.getAllByRole('button', { name: /Ver como vendedora/ })[0]);
     expect(await screen.findByText(/Pré-visualização do Admin/)).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Corrida do mês' })).toHaveTextContent('R$ 23.200 / R$ 32.000');
-    expect(screen.getByRole('region', { name: 'Corrida do mês' })).toHaveTextContent('Faltam R$ 8.800');
+    const mes = screen.getByRole('region', { name: 'Corrida do mês' });
+    expect(mes).toHaveTextContent('Meta mensalR$ 32.000,00');
+    expect(mes).toHaveTextContent('Faltam R$ 8.800,00');
+    expect(mes).toHaveTextContent(`${Math.ceil(8800 / (23200 / 93))}vendas`);
   });
 
   it('reconhecimento enviado pelo Admin aparece para a vendedora', async () => {

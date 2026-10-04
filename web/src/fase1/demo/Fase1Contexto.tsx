@@ -95,7 +95,8 @@ export function Fase1Provider({ children }: { children: ReactNode }) {
 
   // Celebrações do cenário entram na fila uma vez por seleção — recarregar não repete.
   useEffect(() => {
-    setFila(ler(`${CHAVE_CELEBRADO}:${cenario.id}`) ? [] : montarCenario(cenario.id).celebracoes);
+    // Usa o estado do Admin vigente: o texto da celebração reflete a meta configurada.
+    setFila(ler(`${CHAVE_CELEBRADO}:${cenario.id}`) ? [] : montarCenario(cenario.id, estado).celebracoes);
   }, [cenario.id, versaoCarga]);
 
   const alterar = useCallback((mutacao: (e: EstadoDemo) => void, registro: RegistroAuditoria | null) => {

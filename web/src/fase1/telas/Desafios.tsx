@@ -7,14 +7,13 @@
  * ⚠️ As missões de VENDA aqui são UX/mock: o motor de missões atual só
  * conhece missões de treinamento (actionType → Treinador/Academia...).
  */
-import { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useFase1 } from '../demo/Fase1Contexto';
 import type { Competicao, Fase1Dados } from '../dominio/tipos';
 import { faltaMissao } from '../dominio/alvos';
 import { CardMissao } from '../componentes/blocos';
-import { Abas, AvisoProvisorio, Medalha, Painel, Pilula, Vazio } from '../componentes/ui';
-import { decimal, inteiro, periodo, plural, tempoRestante } from '../formato';
+import { Abas, AvisoProvisorio, CabecalhoTela, Medalha, Painel, Pilula, Vazio } from '../componentes/ui';
+import { dataCurta, decimal, inteiro, periodo, plural, tempoRestante } from '../formato';
 import { Fase1Pagina } from './Fase1Pagina';
 import { useSimularMissao } from '../demo/simulacao';
 
@@ -73,7 +72,7 @@ function Missoes() {
             Em andamento · {abertas.length}
           </h2>
           {abertas.map((m) => (
-            <CardMissao key={m.id} missao={m} onSimular={() => simular(m)} />
+            <CardMissao key={m.id} missao={m} onSimular={() => simular(m)} para={`/fase1/desafios/missao/${m.id}`} />
           ))}
         </section>
       )}
@@ -83,7 +82,7 @@ function Missoes() {
             Concluídas
           </h2>
           {concluidas.map((m) => (
-            <CardMissao key={m.id} missao={m} />
+            <CardMissao key={m.id} missao={m} para={`/fase1/desafios/missao/${m.id}`} />
           ))}
         </section>
       )}
@@ -95,7 +94,7 @@ function Missoes() {
 // ================================================================== competições
 
 const ROTULO_FORMATO: Record<Competicao['formato'], string> = { MENSAL: 'Mensal', SEMANAL: 'Semanal', ESPECIAL: 'Especial' };
-const ROTULO_TIPO: Record<Competicao['tipo'], string> = { VENDEDOR: 'Individual', LOJA: 'Loja × Loja', EVOLUCAO: 'Evolução', CATEGORIA: 'Categoria', DUELO: 'Duelo' };
+const ROTULO_TIPO: Record<Competicao['tipo'], string> = { VENDEDOR: 'Individual', LOJA: 'Loja × Loja', EVOLUCAO: 'Evolução', CATEGORIA: 'Categoria' };
 
 function valorCompeticao(c: Competicao, v: number): string {
   switch (c.unidade) {
@@ -120,7 +119,9 @@ function distanciaCompeticao(c: Competicao, v: number): string {
 
 function Competicoes() {
   const { dados } = useFase1();
-  const [filtro, setFiltro] = useState<Competicao['status']>('ATIVA');
+  const [params, setParams] = useSearchParams();
+  // Situação na URL: ao voltar do detalhe, a vendedora cai na mesma lista.
+  const filtro = (['ATIVA', 'PROXIMA', 'ENCERRADA'].includes(params.get('situacao') ?? '') ? params.get('situacao') : 'ATIVA') as Competicao['status'];
   if (dados.competicoes.length === 0) {
     return <Vazio icone="🏁" titulo="Nenhuma competição no momento" texto="Quando uma competição começar, você vê aqui a regra, o prêmio e a sua posição." />;
   }
@@ -131,7 +132,7 @@ function Competicoes() {
         compacta
         rotulo="Situação das competições"
         ativa={filtro}
-        onTrocar={setFiltro}
+        onTrocar={(id) => setParams({ aba: 'competicoes', situacao: id }, { replace: true })}
         abas={[
           { id: 'ATIVA', rotulo: `Ativas · ${dados.competicoes.filter((c) => c.status === 'ATIVA').length}` },
           { id: 'PROXIMA', rotulo: 'Próximas' },
@@ -146,69 +147,122 @@ function Competicoes() {
   );
 }
 
-function CardCompeticao({ c, dados }: { c: Competicao; dados: Fase1Dados }) {
-  const [aberto, setAberto] = useState(false);
+/** Posição + distância — o mesmo bloco no card da lista e no detalhe. */
+function MinhaPosicaoCompeticao({ c }: { c: Competicao }) {
   const i = c.participantes.findIndex((p) => p.id === c.meuId);
   const minha = i >= 0 ? c.participantes[i] : null;
   const acima = i > 0 ? c.participantes[i - 1] : null;
   const ehLoja = c.tipo === 'LOJA';
-  const lider = c.participantes[0];
+  if (c.status === 'PROXIMA') return null;
+  if (!minha) return c.status === 'ATIVA' ? <p className="mt-3 text-sm text-slate-400">Você não participa desta competição.</p> : null;
+  return (
+    <div className="mt-3 rounded-xl bg-slate-800/80 p-3">
+      <p className="text-sm text-slate-300">
+        {ehLoja ? 'Sua loja' : 'Você'} {c.status === 'ENCERRADA' ? 'terminou em' : 'está em'} <strong className="text-xl text-white">{i + 1}º lugar</strong> de {c.participantes.length} · {valorCompeticao(c, minha.valor)}
+      </p>
+      {c.status === 'ATIVA' && acima && (
+        <p className="mt-1 text-sm text-slate-300">
+          Faltam <strong className="text-white">{distanciaCompeticao(c, acima.valor - minha.valor)}</strong> para {i === 1 ? 'alcançar a liderança' : `alcançar ${acima.nome.split(' ')[0]} (${i}º lugar)`}.
+        </p>
+      )}
+      {c.status === 'ATIVA' && !acima && <p className="mt-1 text-sm text-emerald-300">🏆 {ehLoja ? 'Sua loja está em 1º lugar.' : 'Você está em 1º lugar.'}</p>}
+    </div>
+  );
+}
 
+function CardCompeticao({ c, dados }: { c: Competicao; dados: Fase1Dados }) {
   return (
     <Painel as="article">
       <div className="flex flex-wrap items-center gap-2">
         <Pilula tom="accent">{ROTULO_TIPO[c.tipo]}</Pilula>
         <Pilula>{ROTULO_FORMATO[c.formato]}</Pilula>
         {c.status === 'ATIVA' && <span className="ml-auto text-xs font-medium text-amber-200">⏱ {tempoRestante(c.terminaEm, dados.agora)}</span>}
-        {c.status === 'PROXIMA' && <span className="ml-auto text-xs text-slate-400">começa {periodo(c.iniciaEm, c.terminaEm)}</span>}
+        {c.status === 'PROXIMA' && <span className="ml-auto text-xs text-slate-400">começa {dataCurta(c.iniciaEm)}</span>}
       </div>
       <h3 className="mt-2 text-lg font-bold text-white">{c.nome}</h3>
       <p className="text-sm text-slate-400">{c.regra}</p>
-      <p className="mt-1 text-xs text-slate-400">Período: {periodo(c.iniciaEm, c.terminaEm)}</p>
-
-      {minha && c.status !== 'PROXIMA' && (
-        <div className="mt-3 rounded-xl bg-slate-800/80 p-3">
-          <p className="text-sm text-slate-300">
-            {ehLoja ? 'Sua loja' : 'Você'} {c.status === 'ENCERRADA' ? 'terminou em' : 'está em'} <strong className="text-xl text-white">#{i + 1}</strong> de {c.participantes.length} · {valorCompeticao(c, minha.valor)}
-          </p>
-          {c.status === 'ATIVA' && acima && (
-            <p className="mt-1 text-sm text-slate-300">
-              Faltam <strong className="text-white">{distanciaCompeticao(c, acima.valor - minha.valor)}</strong> para {i === 1 ? 'alcançar a liderança' : `alcançar ${acima.nome.split(' ')[0]}`}.
-            </p>
-          )}
-          {c.status === 'ATIVA' && !acima && lider && <p className="mt-1 text-sm text-emerald-300">🏆 {ehLoja ? 'Sua loja lidera.' : 'Você lidera.'}</p>}
-        </div>
-      )}
-      {!minha && c.status === 'ATIVA' && <p className="mt-3 text-sm text-slate-400">Você não participa desta competição.</p>}
-
+      <MinhaPosicaoCompeticao c={c} />
       <p className="mt-3 text-sm text-slate-300">
         <span aria-hidden="true">🎁 </span>
         <span className="sr-only">Prêmio: </span>
         {c.premio}
       </p>
+      <Link to={`/fase1/desafios/competicao/${c.id}`} className="mt-2 inline-flex min-h-[44px] items-center text-sm font-semibold text-accentSoft">
+        Ver detalhes e classificação →
+      </Link>
+    </Painel>
+  );
+}
 
-      {c.participantes.length > 0 && (
+export function DetalheCompeticao() {
+  const { id } = useParams();
+  const { dados } = useFase1();
+  const c = dados.competicoes.find((x) => x.id === id);
+  return (
+    <Fase1Pagina carregando="Carregando competição...">
+      <CabecalhoTela titulo={c?.nome ?? 'Competição não encontrada'} voltar="/fase1/desafios?aba=competicoes" />
+      {!c ? (
+        <Vazio icone="🏁" titulo="Essa competição não está mais disponível" texto="Ela pode ter sido encerrada ou cancelada. Volte para ver as competições ativas." />
+      ) : (
         <>
-          <button onClick={() => setAberto((v) => !v)} aria-expanded={aberto} className="mt-2 min-h-[44px] text-sm font-medium text-accentSoft">
-            {aberto ? 'Ocultar classificação' : `Ver classificação (${c.participantes.length})`}
-          </button>
-          {aberto && (
-            <ol className="mt-1 divide-y divide-slate-700/60 rounded-xl bg-slate-800/60">
-              {c.participantes.map((p, pos) => {
-                const eu = p.id === c.meuId;
-                return (
-                  <li key={p.id} aria-current={eu ? 'true' : undefined} className={`flex min-h-[44px] items-center gap-2 px-2 py-1.5 text-sm ${eu ? 'bg-accent/15' : ''}`}>
-                    <Medalha posicao={pos + 1} />
-                    <span className={`min-w-0 flex-1 truncate ${eu ? 'font-bold text-accentSoft' : 'text-slate-200'}`}>{eu && !ehLoja ? 'Você' : p.nome}</span>
-                    <span className="font-semibold text-white">{valorCompeticao(c, p.valor)}</span>
-                  </li>
-                );
-              })}
-            </ol>
+          <div className="flex flex-wrap items-center gap-2">
+            <Pilula tom="accent">{ROTULO_TIPO[c.tipo]}</Pilula>
+            <Pilula>{ROTULO_FORMATO[c.formato]}</Pilula>
+            {c.status === 'ATIVA' && <Pilula tom="aviso">⏱ {tempoRestante(c.terminaEm, dados.agora)}</Pilula>}
+            {c.status === 'ENCERRADA' && <Pilula>Encerrada</Pilula>}
+          </div>
+          <Painel rotulo="Regra">
+            <h2 className="text-sm font-bold text-white">Como funciona</h2>
+            <p className="mt-1 text-sm text-slate-300">{c.regra}</p>
+            <p className="mt-2 text-sm text-slate-400">Período: {periodo(c.iniciaEm, c.terminaEm)}</p>
+            <p className="mt-2 text-sm text-slate-300">🎁 Prêmio: {c.premio}</p>
+          </Painel>
+          <MinhaPosicaoCompeticao c={c} />
+          {c.participantes.length > 0 && (
+            <Painel className="!p-0" rotulo="Classificação">
+              <h2 className="px-4 pt-3 text-sm font-bold text-white">Classificação</h2>
+              <ol className="mt-2 divide-y divide-slate-700/60">
+                {c.participantes.map((p, pos) => {
+                  const eu = p.id === c.meuId;
+                  return (
+                    <li key={p.id} aria-current={eu ? 'true' : undefined} className={`flex min-h-[48px] items-center gap-2 px-3 py-2 text-sm ${eu ? 'bg-accent/15' : ''}`}>
+                      <Medalha posicao={pos + 1} />
+                      <span className={`min-w-0 flex-1 truncate ${eu ? 'font-bold text-accentSoft' : 'text-slate-200'}`}>{eu && c.tipo !== 'LOJA' ? 'Você' : p.nome}</span>
+                      <span className="shrink-0 font-semibold text-white">{valorCompeticao(c, p.valor)}</span>
+                    </li>
+                  );
+                })}
+              </ol>
+            </Painel>
           )}
         </>
       )}
-    </Painel>
+    </Fase1Pagina>
+  );
+}
+
+export function DetalheMissao() {
+  const { id } = useParams();
+  const { dados } = useFase1();
+  const simular = useSimularMissao();
+  const m = dados.missoes.find((x) => x.id === id);
+  return (
+    <Fase1Pagina carregando="Carregando missão...">
+      <CabecalhoTela titulo={m?.titulo ?? 'Missão não encontrada'} voltar="/fase1/desafios" />
+      {!m ? (
+        <Vazio icone="🎯" titulo="Essa missão não está mais ativa" texto="Ela pode ter terminado ou sido cancelada. Volte para ver as missões de hoje." />
+      ) : (
+        <>
+          {!m.concluidaEm && <p className="-mt-2 text-sm font-medium text-amber-200">⏱ {tempoRestante(m.terminaEm, dados.agora)}</p>}
+          <CardMissao missao={m} onSimular={() => simular(m)} />
+          <Painel rotulo="Como conta">
+            <h2 className="text-sm font-bold text-white">O que conta para o progresso</h2>
+            <p className="mt-1 text-sm text-slate-300">{m.regra ?? m.descricao}</p>
+            <p className="mt-2 text-sm text-slate-400">Termina em {dataCurta(m.terminaEm)}.</p>
+          </Painel>
+        </>
+      )}
+    </Fase1Pagina>
   );
 }
 
@@ -244,6 +298,11 @@ function CampanhaAba() {
                     <p className="text-sm text-slate-400">{f.descricao}</p>
                     <p className="mt-2 text-sm font-semibold text-white">{f.situacao}</p>
                     <p className="mt-1 text-xs text-slate-300">🎁 {f.premio}</p>
+                    {f.competicaoId && (
+                      <Link to={`/fase1/desafios/competicao/${f.competicaoId}`} className="mt-1 inline-flex min-h-[44px] items-center text-sm font-semibold text-accentSoft">
+                        Ver classificação →
+                      </Link>
+                    )}
                   </div>
                 </Painel>
               </li>
@@ -284,7 +343,7 @@ function CampanhaAba() {
                         Vencedor: {r.vencedor} · 🎁 {r.premio}
                       </p>
                     )}
-                    {r.minhaPosicao !== null && r.minhaPosicao > 1 && <p className="text-xs text-slate-300">Sua posição final: #{r.minhaPosicao}</p>}
+                    {r.minhaPosicao !== null && r.minhaPosicao > 1 && <p className="text-xs text-slate-300">Sua posição final: {r.minhaPosicao}º lugar</p>}
                   </li>
                 ))}
               </ul>

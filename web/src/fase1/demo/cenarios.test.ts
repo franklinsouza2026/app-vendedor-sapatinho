@@ -26,13 +26,13 @@ describe('cenários de demonstração da Fase 1', () => {
     expect(CENARIOS.filter((c) => c.grupo === 'estado').length).toBeGreaterThanOrEqual(6);
   });
 
-  it('B: 76% da meta, faltam R$ 486 ≈ 2 vendas, #2 na loja ↑1 a R$ 320 do #1, #7 geral ↑2', () => {
+  it('B: 76% da meta, faltam R$ 486 (2 vendas), 2º na loja ↑1 a R$ 320 do 1º, 7º geral ↑2', () => {
     const d = montarCenario('B');
     expect(pct((d.hoje.realizado.faturamento / d.hoje.meta!) * 100)).toBe('76%');
     expect(d.hoje.meta! - d.hoje.realizado.faturamento).toBe(486);
     expect(minhaPosicao(d, 'loja', 'VENDAS')).toMatchObject({ posicao: 2, variacao: 1, distanciaAcima: 320 });
     expect(minhaPosicao(d, 'geral', 'VENDAS')).toMatchObject({ posicao: 7, variacao: 2 });
-    expect(proximoAlvo('B')).toMatchObject({ tipo: 'META_DIA', falta: 'R$ 486', esforcoVendas: 2 });
+    expect(proximoAlvo('B')).toMatchObject({ tipo: 'META_DIA', falta: 'R$ 486,00', esforcoVendas: 2 });
   });
 
   it('B: mês R$ 23.200 de R$ 30.000 com 8 dias de trabalho restantes (calendário do Admin)', () => {
@@ -43,15 +43,15 @@ describe('cenários de demonstração da Fase 1', () => {
 
   it('cada cenário de jornada destaca o Próximo Alvo que promete', () => {
     expect(proximoAlvo('A')).toMatchObject({ tipo: 'MISSAO', esforcoVendas: 1 });
-    expect(proximoAlvo('C')).toMatchObject({ tipo: 'RANKING', falta: 'R$ 90', esforcoVendas: 1 });
-    expect(proximoAlvo('D')).toMatchObject({ tipo: 'META_DIA', falta: 'R$ 20' });
-    expect(proximoAlvo('H')).toMatchObject({ tipo: 'RECORDE', falta: 'R$ 860' });
+    expect(proximoAlvo('C')).toMatchObject({ tipo: 'RANKING', falta: 'R$ 90,00', esforcoVendas: 1 });
+    expect(proximoAlvo('D')).toMatchObject({ tipo: 'META_DIA', falta: 'R$ 20,00' });
+    expect(proximoAlvo('H')).toMatchObject({ tipo: 'RECORDE', falta: 'R$ 860,00' });
     expect(proximoAlvo('I')).toMatchObject({ tipo: 'MISSAO', falta: '1 venda' });
     expect(proximoAlvo('O')).toMatchObject({ tipo: 'NIVEL', falta: '80 XP' });
   });
 
   it('L: recorde do melhor mês a R$ 860 aparece em "Você está perto"', () => {
-    expect(vocePerto(derivarAlvos(montarCenario('L')), 2)).toEqual(expect.arrayContaining([expect.objectContaining({ tipo: 'RECORDE', falta: 'R$ 860' })]));
+    expect(vocePerto(derivarAlvos(montarCenario('L')), 2)).toEqual(expect.arrayContaining([expect.objectContaining({ tipo: 'RECORDE', falta: 'R$ 860,00' })]));
   });
 
   it('E/F/G: 110%, 120% e 150% da meta do dia', () => {
@@ -152,6 +152,29 @@ describe('Admin → vendedora (o estado configura, o cenário só descreve a sit
     const d = montarCenario('B', e);
     expect(d.elegibilidade.elegivel).toBe(false);
     expect(d.rankings.loja.VENDAS.some((l) => l.pessoaId === 'ana')).toBe(false);
+  });
+
+  it('números derivados reagem ao dado-base (nunca fixos): meta, ticket e calendário', () => {
+    const e = estadoInicial();
+    const base = montarCenario('B', e);
+    const alvoMeta = (d: ReturnType<typeof montarCenario>) => derivarAlvos(d).find((a) => a.id === 'meta-dia')!;
+    expect(alvoMeta(base).esforcoVendas).toBe(2);
+    e.metas.individuais.ana.diariaManual = 2600; // falta passa de R$ 486 para R$ 1.086
+    expect(alvoMeta(montarCenario('B', e)).esforcoVendas).toBe(Math.ceil(1086 / (23200 / 93)));
+    e.calendario.feriados.push({ id: 'z', data: '2026-10-27', nome: 'x', lojas: 'TODAS' });
+    expect(montarCenario('B', e).mes.diasTrabalhoRestantes).toBe(7);
+  });
+
+  it('celebração e conquistas usam os dados atuais, não texto fixo', () => {
+    const e = estadoInicial();
+    e.metas.individuais.ana.diariaManual = 2100;
+    const d = montarCenario('D', e);
+    expect(d.celebracoes[0].detalhe).toContain('R$ 2.100,00');
+    expect(d.conquistas.find((c) => c.codigo === 'STREAK_7')!.falta).toBe('faltam 3 dias de meta batida');
+  });
+
+  it('duelo vendedor × vendedor não existe na Fase 1', () => {
+    for (const c of CENARIOS) expect(montarCenario(c.id).competicoes.some((x) => /duelo/i.test(x.nome))).toBe(false);
   });
 
   it('regra de meta diária "uniforme" muda a meta do dia', () => {
