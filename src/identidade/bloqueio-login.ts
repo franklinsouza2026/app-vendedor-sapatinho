@@ -14,7 +14,12 @@ export const JANELA_SEGUNDOS = 15 * 60;
 
 let cliente: Redis | null = null;
 function redis() {
-  if (!cliente) cliente = new Redis(env.REDIS_URL, { maxRetriesPerRequest: 1, enableOfflineQueue: false, lazyConnect: false });
+  // enableOfflineQueue precisa ficar LIGADO: desligado, todo comando emitido
+  // enquanto a conexão sobe (partida da API, reconexão) falhava na hora e a
+  // tentativa errada simplesmente não era contada — força bruta passava na
+  // janela de conexão (achado do Security Gate). Com fila + 1 retry + timeout
+  // curto, Redis realmente fora continua caindo no catch abaixo em segundos.
+  if (!cliente) cliente = new Redis(env.REDIS_URL, { maxRetriesPerRequest: 1, enableOfflineQueue: true, connectTimeout: 2000, commandTimeout: 2000 });
   return cliente;
 }
 

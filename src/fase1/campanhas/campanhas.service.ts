@@ -124,8 +124,24 @@ export async function obterCampanha(empresaId: string, id: string, agora = new D
   return serializarCampanha(await buscar(empresaId, id), agora);
 }
 
+/** Zero trust: nem rascunho guarda referência (competição, missão, prêmio, loja) de outra empresa. */
+async function exigirReferenciasDaEmpresa(empresaId: string, c: CampanhaEntrada) {
+  const comp = [...new Set(c.frentes.filter((f) => f.mecanismo === 'COMPETICAO' && f.refId).map((f) => f.refId!))];
+  const miss = [...new Set(c.frentes.filter((f) => f.mecanismo === 'MISSAO' && f.refId).map((f) => f.refId!))];
+  const prem = [...new Set(c.frentes.map((f) => f.premioId).filter((x): x is string => Boolean(x)))];
+  const lojas = c.lojas === 'TODAS' ? [] : [...new Set(c.lojas)];
+  const [nc, nm, np, nl] = await Promise.all([
+    comp.length ? prisma.competition.count({ where: { empresaId, id: { in: comp } } }) : 0,
+    miss.length ? prisma.missionDefinition.count({ where: { empresaId, id: { in: miss } } }) : 0,
+    prem.length ? prisma.premio.count({ where: { empresaId, id: { in: prem } } }) : 0,
+    lojas.length ? prisma.loja.count({ where: { empresaId, id: { in: lojas } } }) : 0,
+  ]);
+  if (nc !== comp.length || nm !== miss.length || np !== prem.length || nl !== lojas.length) throw new ErroHttp(400, 'referencia_invalida', 'A campanha aponta para competição, missão, prêmio ou loja que não existe nesta empresa.');
+}
+
 export async function salvarCampanha(empresaId: string, atorId: string, entrada: unknown, id?: string) {
   const c = campanhaEntradaSchema.parse(entrada);
+  await exigirReferenciasDaEmpresa(empresaId, c);
   if (id) {
     const atual = await buscar(empresaId, id);
     if (atual.status !== 'RASCUNHO' && atual.status !== 'PROGRAMADA') throw new ErroHttp(409, 'regras_bloqueadas', 'Depois que começa, a regra da campanha não muda. Cancele e publique uma substituta.');
