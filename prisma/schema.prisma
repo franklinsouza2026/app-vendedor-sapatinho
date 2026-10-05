@@ -128,14 +128,14 @@ model Vendedor {
   // requireAuth compara com este valor. Trocar senha, bloquear, desligar,
   // mudar papel ou transferir de loja incrementa → tokens antigos morrem na
   // hora (T4/T5, auditoria §22 A6).
-  sessaoVersao      Int       @default(0)
+  sessaoVersao     Int       @default(0)
   // Elegibilidade a ranking/competição (Fase 1). Exceção manual sempre com
   // motivo, auditada. Status ≠ ACTIVE já tira do ranking independentemente.
-  elegivelRanking   Boolean   @default(true)
-  motivoInelegivel  String?
+  elegivelRanking  Boolean   @default(true)
+  motivoInelegivel String?
   // Data de admissão informada pelo Admin (pode ser anterior ao cadastro no
   // sistema). Null = usa createdAt.
-  admitidoEm        DateTime? @db.Date
+  admitidoEm       DateTime? @db.Date
 
   loja Loja @relation(fields: [lojaId], references: [id])
 
@@ -369,13 +369,13 @@ model Badge {
 }
 
 model BadgeConcessao {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   empresaId      String
   lojaId         String
   vendedorId     String
   badgeId        String
-  idempotencyKey String   @unique
-  concedidoEm    DateTime @default(now())
+  idempotencyKey String    @unique
+  concedidoEm    DateTime  @default(now())
   // Fase 1 (D4) — conquista desfeita por correção de venda: deixa de contar,
   // nunca é apagada.
   revogadoEm     DateTime?
@@ -1613,18 +1613,18 @@ model MissionDefinition {
   template        String?
   tipoExibicao    String?
   unidade         String?
-  alvo            Decimal?        @db.Decimal(12, 2)
+  alvo            Decimal?     @db.Decimal(12, 2)
   parametros      Json?
   inicio          DateTime?
   fim             DateTime?
   statusCiclo     StatusCiclo?
-  todasLojas      Boolean         @default(true)
-  lojaIds         String[]        @default([])
-  produtos        String[]        @default([])
-  xp              Int             @default(0)
-  moedas          Int             @default(0)
+  todasLojas      Boolean      @default(true)
+  lojaIds         String[]     @default([])
+  produtos        String[]     @default([])
+  xp              Int          @default(0)
+  moedas          Int          @default(0)
   premioId        String?
-  regras          String?         @db.Text
+  regras          String?      @db.Text
   criadoPor       String?
   encerradaEm     DateTime?
   canceladaMotivo String?
@@ -2243,17 +2243,17 @@ model Competition {
 
   // Fase 1 — competição configurada pela central do Admin.
   // TODAS = uma classificação única; POR_LOJA = cada loja disputa entre si.
-  escopo            EscopoCompeticao      @default(TODAS)
-  todasLojas        Boolean               @default(true)
-  lojaIds           String[]              @default([])
+  escopo          EscopoCompeticao @default(TODAS)
+  todasLojas      Boolean          @default(true)
+  lojaIds         String[]         @default([])
   // VENDEDOR | LOJA | EVOLUCAO | CATEGORIA (rótulo homologado) e formato.
-  tipoExibicao      String?
-  formato           String?
-  regra             String?               @db.Text
-  categoria         String?
-  premioIds         String[]              @default([])
-  canceladaMotivo   String?
-  archivedAt        DateTime?
+  tipoExibicao    String?
+  formato         String?
+  regra           String?          @db.Text
+  categoria       String?
+  premioIds       String[]         @default([])
+  canceladaMotivo String?
+  archivedAt      DateTime?
 
   season        Season?                  @relation(fields: [seasonId], references: [id])
   participantes CompetitionParticipant[]
@@ -3128,12 +3128,12 @@ model VendaAjuste {
 // Quantos dias o vendedor deve trabalhar no mês. NÃO é escala/ponto/RH: é o
 // mínimo para derivar a meta diária (mensal ÷ dias) e os dias restantes.
 model DiasTrabalhoMes {
-  id           String   @id @default(uuid())
-  empresaId    String
-  vendedorId   String
-  mes          String // YYYY-MM
-  dias         Int
-  atualizadoEm DateTime @updatedAt
+  id            String   @id @default(uuid())
+  empresaId     String
+  vendedorId    String
+  mes           String // YYYY-MM
+  dias          Int
+  atualizadoEm  DateTime @updatedAt
   atualizadoPor String
 
   @@unique([vendedorId, mes])
@@ -3217,23 +3217,23 @@ enum MecanismoFrente {
 // missões, com premiação por frente. Ao encerrar, `resultado` congela
 // (imutável) e os prêmios digitais entram pelo ledger.
 model Campanha {
-  id                String      @id @default(uuid())
-  empresaId         String
-  nome              String
-  descricao         String      @db.Text
-  objetivo          String      @db.Text
-  regras            String      @db.Text
-  inicio            DateTime
-  fim               DateTime
-  status            StatusCiclo @default(RASCUNHO)
-  todasLojas        Boolean     @default(true)
-  lojaIds           String[]    @default([])
-  resultado         Json?
-  encerradaEm       DateTime?
-  canceladaMotivo   String?
-  criadoPor         String
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
+  id              String      @id @default(uuid())
+  empresaId       String
+  nome            String
+  descricao       String      @db.Text
+  objetivo        String      @db.Text
+  regras          String      @db.Text
+  inicio          DateTime
+  fim             DateTime
+  status          StatusCiclo @default(RASCUNHO)
+  todasLojas      Boolean     @default(true)
+  lojaIds         String[]    @default([])
+  resultado       Json?
+  encerradaEm     DateTime?
+  canceladaMotivo String?
+  criadoPor       String
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 
   frentes CampanhaFrente[]
 
@@ -3261,17 +3261,17 @@ model CampanhaFrente {
 // Configuração da experiência da Fase 1 por empresa (rankings visíveis,
 // indicadores liberados ao vendedor, tipos de feed, Loja × Loja).
 model ConfigFase1 {
-  id                 String   @id @default(uuid())
-  empresaId          String   @unique
-  metricasRanking    String[]
-  metricaCorrida     String
-  lojaXLojaAtivo     Boolean  @default(false)
-  lojaXLojaFormula   String?
-  lojaXLojaLojas     String[] @default([])
-  indicadores        Json
-  feedTipos          Json
-  atualizadoEm       DateTime @updatedAt
-  atualizadoPor      String
+  id               String   @id @default(uuid())
+  empresaId        String   @unique
+  metricasRanking  String[]
+  metricaCorrida   String
+  lojaXLojaAtivo   Boolean  @default(false)
+  lojaXLojaFormula String?
+  lojaXLojaLojas   String[] @default([])
+  indicadores      Json
+  feedTipos        Json
+  atualizadoEm     DateTime @updatedAt
+  atualizadoPor    String
 
   @@map("config_fase1")
 }
@@ -3308,12 +3308,17 @@ model Integracao {
   ultimaSyncEm           DateTime?
   ultimaSyncSucessoEm    DateTime?
   ultimaVendaEm          DateTime?
+  // Trava de sincronização (Linx L2): só UMA execução por integração por vez,
+  // entre processos/workers. Expira sozinha (crash não trava para sempre).
+  syncTravadaAte         DateTime?
+  syncTravadaPor         String?
   createdAt              DateTime           @default(now())
   updatedAt              DateTime           @updatedAt
   atualizadoPor          String
 
-  lojas      IntegracaoLoja[]
-  execucoes  IntegracaoExecucao[]
+  lojas     IntegracaoLoja[]
+  execucoes IntegracaoExecucao[]
+  cursores  IntegracaoCursor[]
 
   @@unique([empresaId, provedor])
   @@map("integracao")
@@ -3339,16 +3344,26 @@ enum StatusExecucaoIntegracao {
   ERRO
 }
 
+enum TipoExecucaoIntegracao {
+  SYNC
+  RECONCILIACAO
+}
+
 model IntegracaoExecucao {
   id               String                   @id @default(uuid())
   integracaoId     String
   empresaId        String
+  tipo             TipoExecucaoIntegracao   @default(SYNC)
   iniciadaEm       DateTime                 @default(now())
   finalizadaEm     DateTime?
   status           StatusExecucaoIntegracao @default(EM_ANDAMENTO)
   eventosRecebidos Int                      @default(0)
   vendasNovas      Int                      @default(0)
   ajustesNovos     Int                      @default(0)
+  cancelamentos    Int                      @default(0)
+  devolucoes       Int                      @default(0)
+  pendentes        Int                      @default(0)
+  paginas          Int                      @default(0)
   ignorados        Int                      @default(0)
   // Mensagem já sanitizada (nunca credencial/URL com segredo).
   erro             String?                  @db.Text
@@ -3361,6 +3376,56 @@ model IntegracaoExecucao {
 }
 
 // Batida do worker (T6): a API sabe se o processo de jobs está vivo.
+// Cursor incremental por (integração, método/fonte, escopo) — Linx L2.
+// `valor` é o timestamp do Microvix: um CONTADOR (rowversion do SQL Server),
+// não data/hora. BIGINT preserva o valor inteiro (nunca passa por Number).
+// Só avança depois que o lote foi gravado e reconciliado; nunca retrocede.
+enum FaseCursorIntegracao {
+  BACKFILL
+  CATCH_UP
+  LIVE
+}
+
+model IntegracaoCursor {
+  id                   String               @id @default(uuid())
+  empresaId            String
+  integracaoId         String
+  metodo               String
+  escopo               String
+  valor                BigInt               @default(0)
+  fase                 FaseCursorIntegracao @default(BACKFILL)
+  registrosProcessados Int                  @default(0)
+  ultimoAvancoEm       DateTime?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  integracao Integracao @relation(fields: [integracaoId], references: [id])
+
+  @@unique([integracaoId, metodo, escopo])
+  @@index([empresaId])
+  @@map("integracao_cursor")
+}
+
+// Cancelamento/devolução que chegou ANTES da venda original (fontes com
+// cursores independentes podem entregar fora de ordem). Fica guardado e é
+// aplicado quando a venda aparecer — nunca inventa a venda, nunca se perde.
+model VendaAjustePendente {
+  id                String          @id @default(uuid())
+  empresaId         String
+  integracaoId      String?
+  tipo              TipoAjusteVenda
+  idExterno         String
+  vendaIdExterno    String
+  evento            Json
+  recebidoEm        DateTime        @default(now())
+  tentativas        Int             @default(0)
+  ultimaTentativaEm DateTime?
+
+  @@unique([empresaId, idExterno])
+  @@index([empresaId, vendaIdExterno])
+  @@map("venda_ajuste_pendente")
+}
+
 model WorkerHeartbeat {
   nome     String   @id
   ultimoEm DateTime

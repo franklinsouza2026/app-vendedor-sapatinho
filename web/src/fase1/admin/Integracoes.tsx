@@ -90,6 +90,7 @@ function CartaoIntegracao({ integracao: i, lojas, rodar }: { integracao: Integra
   const prov = PROVEDORES.find((p) => p.id === i.provedor)!;
   const [credencial, setCredencial] = useState('');
   const [urlBase, setUrlBase] = useState(i.configuracao.urlBase ?? '');
+  const [portal, setPortal] = useState(i.configuracao.portal ? String(i.configuracao.portal) : '');
   const [codigos, setCodigos] = useState<Record<string, string>>(() => Object.fromEntries(i.lojas.map((l) => [l.lojaId, l.codigoExterno])));
   const st = ROTULO_STATUS[i.status];
 
@@ -106,6 +107,7 @@ function CartaoIntegracao({ integracao: i, lojas, rodar }: { integracao: Integra
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <Selo tom={st.tom}>{st.texto}</Selo>
         {prov.preparada && <Selo tom="info">preparada — conexão real na etapa Linx</Selo>}
+        {i.provedor === 'LINX' && !i.credencialDefinida && <Selo tom="aviso">NÃO TESTADO / AGUARDANDO CREDENCIAL</Selo>}
         <span className="text-xs text-slate-400">
           Última sincronização com sucesso: {i.ultimaSyncSucessoEm ? haQuanto(i.ultimaSyncSucessoEm, new Date().toISOString()) : 'nunca'} · Última venda recebida: {i.ultimaVendaEm ? haQuanto(i.ultimaVendaEm, new Date().toISOString()) : 'nenhuma'}
         </span>
@@ -119,9 +121,13 @@ function CartaoIntegracao({ integracao: i, lojas, rodar }: { integracao: Integra
               className="grid gap-2"
               onSubmit={(e) => {
                 e.preventDefault();
-                void rodar(() => atualizarIntegracao(i.id, { ...i.configuracao, urlBase: urlBase.trim() || undefined }), 'Configuração salva.');
+                const numeroPortal = portal.trim() ? Number(portal.trim()) : undefined;
+                void rodar(() => atualizarIntegracao(i.id, { ...i.configuracao, urlBase: urlBase.trim() || undefined, portal: numeroPortal }), 'Configuração salva.');
               }}
             >
+              <Campo rotulo="Portal Microvix (IdPortal)" ajuda="Número do portal informado pela Linx na ativação do WebService. Não é segredo.">
+                <input className={INPUT} inputMode="numeric" pattern="[0-9]*" value={portal} onChange={(e) => setPortal(e.target.value.replace(/\D/g, ''))} placeholder="Ex.: 12345" />
+              </Campo>
               <Campo rotulo="Endereço do serviço (URL base)" ajuda="Somente HTTPS.">
                 <input className={INPUT} value={urlBase} onChange={(e) => setUrlBase(e.target.value)} placeholder="https://" />
               </Campo>

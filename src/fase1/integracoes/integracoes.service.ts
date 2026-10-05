@@ -17,6 +17,10 @@ export const configuracaoSchema = z
   .object({
     urlBase: z.string().url().max(300).optional(),
     observacao: z.string().max(300).optional(),
+    // Linx Microvix: IdPortal (parâmetro obrigatório do WebService de Saída). Não é segredo.
+    portal: z.number().int().positive().max(2_147_483_647).optional(),
+    // Data de corte do BACKFILL (YYYY-MM-DD). Técnico; sem ela, usa a janela de reabertura.
+    backfillDesde: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   })
   .strict();
 

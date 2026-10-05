@@ -57,12 +57,21 @@ export async function saudeDaEmpresa(empresaId: string, contarFila: ContadorFila
 
   const itens = await Promise.all(
     integracoes.map(async (i) => {
-      const execucoes = await prisma.integracaoExecucao.findMany({ where: { integracaoId: i.id }, orderBy: { iniciadaEm: 'desc' }, take: 10 });
+      const [execucoes, cursores, pendentes] = await Promise.all([
+        prisma.integracaoExecucao.findMany({ where: { integracaoId: i.id }, orderBy: { iniciadaEm: 'desc' }, take: 10 }),
+        prisma.integracaoCursor.findMany({ where: { integracaoId: i.id }, orderBy: [{ metodo: 'asc' }, { escopo: 'asc' }] }),
+        prisma.vendaAjustePendente.count({ where: { integracaoId: i.id } }),
+      ]);
       const ultima = execucoes[0] ?? null;
       const errosRecentes = execucoes.filter((e) => e.status === 'ERRO' && e.iniciadaEm >= desde24h);
-      const avaliacao = i.status !== 'ATIVA'
-        ? { estado: 'ATENCAO' as Estado, motivo: i.status === 'DESATIVADA' ? 'Integração desativada.' : 'Integração em configuração.' }
-        : avaliarIntegracao({ agora, ultimaSucessoEm: i.ultimaSyncSucessoEm, ultimaExecucao: ultima ? { status: ultima.status, ignorados: ultima.ignorados } : null, erroRecenteComSucessoDepois: errosRecentes.length > 0 });
+      // Linx sem credencial: honesto — não configurada, conexão nunca testada (nunca verde).
+      const linxSemCredencial = i.provedor === 'LINX' && !i.credencialCiphertext;
+      const avaliacao = linxSemCredencial
+        ? { estado: 'ATENCAO' as Estado, motivo: 'Linx não configurada: aguardando credencial (conexão não testada).' }
+        : i.status !== 'ATIVA'
+          ? { estado: 'ATENCAO' as Estado, motivo: i.status === 'DESATIVADA' ? 'Integração desativada.' : 'Integração em configuração.' }
+          : avaliarIntegracao({ agora, ultimaSucessoEm: i.ultimaSyncSucessoEm, ultimaExecucao: ultima ? { status: ultima.status, ignorados: ultima.ignorados } : null, erroRecenteComSucessoDepois: errosRecentes.length > 0 });
+      const ultimoAvanco = cursores.map((c) => c.ultimoAvancoEm).filter((d): d is Date => Boolean(d)).sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
       return {
         id: i.id,
         provedor: i.provedor,
@@ -72,8 +81,13 @@ export async function saudeDaEmpresa(empresaId: string, contarFila: ContadorFila
         ultimaSyncSucessoEm: i.ultimaSyncSucessoEm,
         ultimaVendaEm: i.ultimaVendaEm,
         lojasVinculadas: i.lojas.map((l) => ({ lojaId: l.lojaId, codigoExterno: l.codigoExterno, nome: lojas.find((x) => x.id === l.lojaId)?.nome ?? '—' })),
-        execucoes: execucoes.map((e) => ({ id: e.id, iniciadaEm: e.iniciadaEm, finalizadaEm: e.finalizadaEm, status: e.status, eventosRecebidos: e.eventosRecebidos, vendasNovas: e.vendasNovas, ajustesNovos: e.ajustesNovos, ignorados: e.ignorados, erro: e.erro })),
+        execucoes: execucoes.map((e) => ({ id: e.id, tipo: e.tipo, iniciadaEm: e.iniciadaEm, finalizadaEm: e.finalizadaEm, status: e.status, eventosRecebidos: e.eventosRecebidos, vendasNovas: e.vendasNovas, ajustesNovos: e.ajustesNovos, cancelamentos: e.cancelamentos, devolucoes: e.devolucoes, pendentes: e.pendentes, paginas: e.paginas, ignorados: e.ignorados, erro: e.erro })),
         errosUltimas24h: errosRecentes.length,
+        naoConfigurada: linxSemCredencial,
+        // Cursor incremental (Linx): valor é contador, não data — trafega como string (sem perda de precisão).
+        cursores: cursores.map((c) => ({ metodo: c.metodo, escopo: c.escopo, fase: c.fase, valor: c.valor.toString(), ultimoAvancoEm: c.ultimoAvancoEm })),
+        minutosDesdeUltimoAvanco: ultimoAvanco ? Math.round((agora.getTime() - ultimoAvanco.getTime()) / 60000) : null,
+        ajustesPendentes: pendentes,
       };
     })
   );

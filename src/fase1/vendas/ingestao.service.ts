@@ -24,6 +24,12 @@ export interface ResultadoIngestao {
   recebidos: number;
   vendasNovas: number;
   ajustesNovos: number;
+  cancelamentos: number;
+  devolucoes: number;
+  /** Ajustes guardados à espera da venda original (fora de ordem). */
+  pendentes: number;
+  /** Pendentes antigos aplicados nesta ingestão (a venda chegou). */
+  pendentesAplicados: number;
   duplicados: number;
   ignorados: number;
   motivosIgnorados: Partial<Record<MotivoIgnorado, number>>;
@@ -45,7 +51,7 @@ function ordemDeProcessamento(e: EventoErp) {
 export async function ingerirEventos(params: { empresaId: string; integracaoId: string | null; eventos: unknown[] }): Promise<ResultadoIngestao> {
   const { empresaId, integracaoId } = params;
   const tz = await timezoneDaEmpresa(empresaId);
-  const resultado: ResultadoIngestao = { recebidos: params.eventos.length, vendasNovas: 0, ajustesNovos: 0, duplicados: 0, ignorados: 0, motivosIgnorados: {}, afetados: new Map(), ultimaVendaEm: null };
+  const resultado: ResultadoIngestao = { recebidos: params.eventos.length, vendasNovas: 0, ajustesNovos: 0, cancelamentos: 0, devolucoes: 0, pendentes: 0, pendentesAplicados: 0, duplicados: 0, ignorados: 0, motivosIgnorados: {}, afetados: new Map(), ultimaVendaEm: null };
   const ignorar = (motivo: MotivoIgnorado) => {
     resultado.ignorados++;
     resultado.motivosIgnorados[motivo] = (resultado.motivosIgnorados[motivo] ?? 0) + 1;
@@ -93,57 +99,18 @@ export async function ingerirEventos(params: { empresaId: string; integracaoId: 
     return id;
   }
 
-  for (const evento of validos) {
-    if (evento.tipo === 'VENDA') {
-      const lojaId = lojaPorCodigo.get(evento.lojaExterna);
-      if (!lojaId) {
-        ignorar('LOJA_NAO_VINCULADA');
-        continue;
-      }
-      const vendedorId = await resolverVendedor(lojaId, evento.vendedorExterno);
-      if (!vendedorId) {
-        ignorar('VENDEDOR_NAO_VINCULADO');
-        continue;
-      }
-      const ocorridoEm = new Date(evento.ocorridoEm);
-      const dia = diaLocal(ocorridoEm, tz);
-      try {
-        await prisma.venda.create({
-          data: {
-            empresaId,
-            lojaId,
-            vendedorId,
-            integracaoId,
-            idExterno: evento.idExterno,
-            ocorridoEm,
-            dia: paraDate(dia),
-            valor: evento.valor,
-            pecas: evento.itens.reduce((a, i) => a + i.quantidade, 0),
-            pares: evento.itens.reduce((a, i) => a + i.pares, 0),
-            itens: { create: evento.itens.map((i) => ({ referencia: i.referencia, descricao: i.descricao, categoria: i.categoria ?? null, quantidade: i.quantidade, pares: i.pares, valor: i.valor })) },
-          },
-        });
-        resultado.vendasNovas++;
-        afetar(vendedorId, dia);
-        if (!resultado.ultimaVendaEm || ocorridoEm > resultado.ultimaVendaEm) resultado.ultimaVendaEm = ocorridoEm;
-      } catch (err) {
-        if (!ehDuplicado(err)) throw err;
-        resultado.duplicados++;
-      }
-      continue;
-    }
-
+  type Ajuste = Exclude<EventoErp, { tipo: 'VENDA' }>;
+  /** Aplica cancelamento/devolução na venda original (mesma transação do registro do ajuste). */
+  async function aplicarAjuste(evento: Ajuste): Promise<'APLICADO' | 'DUPLICADO' | 'VENDA_DESCONHECIDA' | 'VENDA_JA_CANCELADA'> {
     const venda = await prisma.venda.findUnique({ where: { empresaId_idExterno: { empresaId, idExterno: evento.vendaIdExterno } }, include: { itens: true } });
-    if (!venda) {
-      ignorar('VENDA_DESCONHECIDA');
-      continue;
-    }
+    if (!venda) return 'VENDA_DESCONHECIDA';
     if (venda.status === 'CANCELADA') {
       // Já cancelada: um novo cancelamento/devolução não tem o que desfazer.
       const jaExiste = await prisma.vendaAjuste.findUnique({ where: { empresaId_idExterno: { empresaId, idExterno: evento.idExterno } } });
       if (jaExiste) resultado.duplicados++;
       else ignorar('VENDA_JA_CANCELADA');
-      continue;
+      afetar(venda.vendedorId, venda.dia.toISOString().slice(0, 10));
+      return jaExiste ? 'DUPLICADO' : 'VENDA_JA_CANCELADA';
     }
 
     try {
@@ -186,10 +153,94 @@ export async function ingerirEventos(params: { empresaId: string; integracaoId: 
         });
       });
       resultado.ajustesNovos++;
+      if (evento.tipo === 'CANCELAMENTO') resultado.cancelamentos++;
+      else resultado.devolucoes++;
       afetar(venda.vendedorId, venda.dia.toISOString().slice(0, 10));
+      return 'APLICADO';
     } catch (err) {
       if (!ehDuplicado(err)) throw err;
       resultado.duplicados++;
+      afetar(venda.vendedorId, venda.dia.toISOString().slice(0, 10));
+      return 'DUPLICADO';
+    }
+  }
+
+  /** Ajuste cuja venda ainda não chegou: guarda (idempotente) para aplicar quando ela chegar. */
+  async function guardarPendente(evento: Ajuste) {
+    const r = await prisma.vendaAjustePendente.createMany({
+      data: [{ empresaId, integracaoId, tipo: evento.tipo, idExterno: evento.idExterno, vendaIdExterno: evento.vendaIdExterno, evento: evento as unknown as Prisma.InputJsonValue }],
+      skipDuplicates: true,
+    });
+    if (r.count) resultado.pendentes++;
+    else {
+      await prisma.vendaAjustePendente.updateMany({ where: { empresaId, idExterno: evento.idExterno }, data: { tentativas: { increment: 1 }, ultimaTentativaEm: new Date() } });
+      resultado.duplicados++;
+    }
+  }
+
+  for (const evento of validos) {
+    if (evento.tipo === 'VENDA') {
+      const lojaId = lojaPorCodigo.get(evento.lojaExterna);
+      if (!lojaId) {
+        ignorar('LOJA_NAO_VINCULADA');
+        continue;
+      }
+      const vendedorId = await resolverVendedor(lojaId, evento.vendedorExterno);
+      if (!vendedorId) {
+        ignorar('VENDEDOR_NAO_VINCULADO');
+        continue;
+      }
+      const ocorridoEm = new Date(evento.ocorridoEm);
+      const dia = diaLocal(ocorridoEm, tz);
+      try {
+        await prisma.venda.create({
+          data: {
+            empresaId,
+            lojaId,
+            vendedorId,
+            integracaoId,
+            idExterno: evento.idExterno,
+            ocorridoEm,
+            dia: paraDate(dia),
+            valor: evento.valor,
+            pecas: evento.itens.reduce((a, i) => a + i.quantidade, 0),
+            pares: evento.itens.reduce((a, i) => a + i.pares, 0),
+            itens: { create: evento.itens.map((i) => ({ referencia: i.referencia, descricao: i.descricao, categoria: i.categoria ?? null, quantidade: i.quantidade, pares: i.pares, valor: i.valor })) },
+          },
+        });
+        resultado.vendasNovas++;
+        afetar(vendedorId, dia);
+        if (!resultado.ultimaVendaEm || ocorridoEm > resultado.ultimaVendaEm) resultado.ultimaVendaEm = ocorridoEm;
+      } catch (err) {
+        if (!ehDuplicado(err)) throw err;
+        resultado.duplicados++;
+        // Replay (ex.: o processo caiu depois de gravar e antes de reconciliar):
+        // reprocessa os derivados do dia — recalcular é idempotente.
+        const existente = await prisma.venda.findUnique({ where: { empresaId_idExterno: { empresaId, idExterno: evento.idExterno } }, select: { vendedorId: true, dia: true } });
+        if (existente) afetar(existente.vendedorId, existente.dia.toISOString().slice(0, 10));
+      }
+      continue;
+    }
+
+    const desfecho = await aplicarAjuste(evento);
+    if (desfecho === 'VENDA_DESCONHECIDA') await guardarPendente(evento);
+  }
+
+  // Ajustes que esperavam a venda: aplica os que agora têm venda (desta ou de outra execução).
+  const pendentes = await prisma.vendaAjustePendente.findMany({ where: { empresaId }, orderBy: { recebidoEm: 'asc' }, take: 500 });
+  if (pendentes.length) {
+    const existentes = new Set((await prisma.venda.findMany({ where: { empresaId, idExterno: { in: [...new Set(pendentes.map((p) => p.vendaIdExterno))] } }, select: { idExterno: true } })).map((v) => v.idExterno));
+    for (const p of pendentes.filter((x) => existentes.has(x.vendaIdExterno)).sort((x, y) => Date.parse((x.evento as { ocorridoEm: string }).ocorridoEm) - Date.parse((y.evento as { ocorridoEm: string }).ocorridoEm))) {
+      const parsed = eventoErpSchema.safeParse(p.evento);
+      if (!parsed.success || parsed.data.tipo === 'VENDA') {
+        await prisma.vendaAjustePendente.delete({ where: { id: p.id } });
+        continue;
+      }
+      const desfecho = await aplicarAjuste(parsed.data);
+      if (desfecho !== 'VENDA_DESCONHECIDA') {
+        await prisma.vendaAjustePendente.delete({ where: { id: p.id } });
+        if (desfecho === 'APLICADO') resultado.pendentesAplicados++;
+      }
     }
   }
 
@@ -197,6 +248,6 @@ export async function ingerirEventos(params: { empresaId: string; integracaoId: 
     for (const dia of dias) await recalcularAgregadoDia(vendedorId, dia, tz);
   }
 
-  log.info({ empresaId, integracaoId, recebidos: resultado.recebidos, vendasNovas: resultado.vendasNovas, ajustesNovos: resultado.ajustesNovos, duplicados: resultado.duplicados, ignorados: resultado.motivosIgnorados }, 'eventos do ERP ingeridos');
+  log.info({ empresaId, integracaoId, recebidos: resultado.recebidos, vendasNovas: resultado.vendasNovas, ajustesNovos: resultado.ajustesNovos, pendentes: resultado.pendentes, pendentesAplicados: resultado.pendentesAplicados, duplicados: resultado.duplicados, ignorados: resultado.motivosIgnorados }, 'eventos do ERP ingeridos');
   return resultado;
 }

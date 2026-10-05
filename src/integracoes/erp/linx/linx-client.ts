@@ -18,10 +18,15 @@ export class LinxErpAdapter implements ErpAdapter {
   readonly provedor = 'LINX' as const;
 
   async buscarEventos(): Promise<unknown[]> {
-    throw new ErroIntegracao('Integração Linx preparada, mas ainda não conectada — etapa de integração Linx pendente.');
+    throw new ErroIntegracao('Integração Linx preparada, mas ainda não conectada — aguardando credencial e homologação do contrato Linx.');
   }
 
+  // L2: o sync já tem o caminho incremental (`buscarLote`, cursor por timestamp
+  // Microvix). O cliente real (LinxMovimento etc.) entra na L3, com a chave e a
+  // amostra real — por isso este adapter AINDA não expõe `buscarLote`.
+
   async testarConexao(): Promise<ResultadoTesteConexao> {
-    return { ok: false, mensagem: 'Integração Linx preparada, mas ainda não conectada — etapa de integração Linx pendente.' };
+    // Nunca finge conexão: sem cliente Linx real, nada é chamado.
+    return { ok: false, mensagem: 'NÃO TESTADO — aguardando credencial e o cliente Linx (próxima etapa).' };
   }
 }

@@ -1,14 +1,16 @@
-// Fila de sincronização de vendas (Fase 1, D1/T6). Dois tipos de job:
-//   - 'sync-todas'      repetível (ERP_SYNC_CRON, padrão a cada 15 min): todas
-//                       as integrações ATIVAS de todas as empresas;
-//   - 'sync-integracao' sob demanda (botão "Sincronizar agora" do Admin).
+// Fila de sincronização de vendas (Fase 1, D1/T6; Linx L2). Tipos de job:
+//   - 'sync-todas'        repetível (ERP_SYNC_CRON, padrão a cada 15 min): todas
+//                         as integrações ATIVAS de todas as empresas;
+//   - 'sync-integracao'   sob demanda (botão "Sincronizar agora" do Admin);
+//   - 'reconciliar-todas' repetível (ERP_RECONCILIACAO_CRON, padrão 03:40):
+//                         releitura idempotente de janela curta, sem mexer no cursor.
 // concurrency 1: duas execuções nunca disputam o mesmo cursor (a ingestão é
 // idempotente de qualquer forma).
 import { Queue, Worker } from 'bullmq';
 import { connection } from './connection';
 import { env } from '../config';
 import { createLogger } from '../utils/logger';
-import { sincronizarIntegracao, sincronizarTodasAtivas } from '../fase1/integracoes/sync.service';
+import { reconciliarTodasAtivas, sincronizarIntegracao, sincronizarTodasAtivas } from '../fase1/integracoes/sync.service';
 
 const log = createLogger('queue:sync-erp');
 
@@ -25,6 +27,8 @@ export const syncErpQueue = new Queue('sync-erp', {
 export async function agendarSyncHorario() {
   await syncErpQueue.add('sync-todas', {}, { repeat: { pattern: env.ERP_SYNC_CRON }, jobId: 'sync-erp-repeatable-fase1' });
   log.info({ cron: env.ERP_SYNC_CRON }, 'sync de vendas agendado');
+  await syncErpQueue.add('reconciliar-todas', {}, { repeat: { pattern: env.ERP_RECONCILIACAO_CRON }, jobId: 'reconciliacao-erp-repeatable' });
+  log.info({ cron: env.ERP_RECONCILIACAO_CRON, dias: env.ERP_RECONCILIACAO_DIAS }, 'reconciliação de vendas agendada');
 }
 
 export async function solicitarSyncIntegracao(integracaoId: string) {
@@ -45,6 +49,11 @@ export function createSyncErpWorker() {
         const resumo = await sincronizarIntegracao(String(job.data.integracaoId));
         log.info(resumo, 'sincronização manual concluída');
         return resumo;
+      }
+      if (job.name === 'reconciliar-todas') {
+        const resumos = await reconciliarTodasAtivas();
+        log.info({ integracoes: resumos.length, erros: resumos.filter((r) => r.status === 'ERRO').length }, 'reconciliação periódica concluída');
+        return resumos;
       }
       const resumos = await sincronizarTodasAtivas();
       log.info({ integracoes: resumos.length, erros: resumos.filter((r) => r.status === 'ERRO').length }, 'sincronização periódica concluída');

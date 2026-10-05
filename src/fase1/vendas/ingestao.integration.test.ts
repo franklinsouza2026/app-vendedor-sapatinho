@@ -97,7 +97,7 @@ describe('Ingestão de vendas — fatos e agregado do dia', () => {
     expect((await realizadoDoDia(c.vendedor.id, '2026-10-15')).faturamento).toBe(30);
   });
 
-  it('evento fora do contrato, loja sem vínculo e vendedor desconhecido são ignorados e contados — nunca inventados', async () => {
+  it('evento fora do contrato, loja sem vínculo e vendedor desconhecido são ignorados e contados — nunca inventados; ajuste sem venda fica PENDENTE', async () => {
     const c = await criarCenarioFase1();
     const r = await ingerirEventos({
       empresaId: c.empresa.id,
@@ -105,7 +105,11 @@ describe('Ingestão de vendas — fatos e agregado do dia', () => {
       eventos: [{ tipo: 'VENDA', valor: 'muito' }, venda('LOJA-INEXISTENTE', c.vendedor.matriculaErp, emLocal(DIA, '10:00'), [item(10)]), venda(c.loja.codigoErp, 'NINGUEM', emLocal(DIA, '10:00'), [item(10)]), cancelamento('VENDA-QUE-NAO-EXISTE', emLocal(DIA, '10:00'))],
     });
     expect(r.vendasNovas).toBe(0);
-    expect(r.motivosIgnorados).toEqual({ EVENTO_INVALIDO: 1, LOJA_NAO_VINCULADA: 1, VENDEDOR_NAO_VINCULADO: 1, VENDA_DESCONHECIDA: 1 });
+    expect(r.motivosIgnorados).toEqual({ EVENTO_INVALIDO: 1, LOJA_NAO_VINCULADA: 1, VENDEDOR_NAO_VINCULADO: 1 });
+    // Linx L2: cancelamento de venda ainda não recebida não se perde nem inventa a venda — espera por ela.
+    expect(r.pendentes).toBe(1);
+    expect(await prisma.vendaAjustePendente.count({ where: { empresaId: c.empresa.id } })).toBe(1);
+    expect(await prisma.venda.count({ where: { empresaId: c.empresa.id } })).toBe(0);
   });
 
   it('empresa A nunca grava venda numa loja da empresa B, mesmo com o código da loja de B', async () => {

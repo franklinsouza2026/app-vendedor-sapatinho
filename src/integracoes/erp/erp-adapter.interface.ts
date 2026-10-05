@@ -64,6 +64,47 @@ export interface ConsultaEventosErp {
   configuracao: Record<string, unknown>;
 }
 
+/**
+ * Cursor incremental de uma fonte (Linx L2). `valor` é o timestamp do Microvix:
+ * um CONTADOR (rowversion do SQL Server), nunca data. Trafega como STRING de
+ * dígitos para não perder precisão (pode passar de Number.MAX_SAFE_INTEGER).
+ */
+export interface CursorFonte {
+  /** Método/consulta da fonte (ex.: 'LinxMovimento'). Cada um evolui sozinho. */
+  metodo: string;
+  /** Escopo do cursor: CNPJ/loja externa, ou '*' quando é por integração. */
+  escopo: string;
+  valor: string;
+  fase: 'BACKFILL' | 'CATCH_UP' | 'LIVE';
+}
+
+/** Janela de datas (dia local da empresa, YYYY-MM-DD). É ESCOPO da consulta, não cursor. */
+export interface JanelaConsulta {
+  inicio: string;
+  fim: string;
+}
+
+/** Consulta de um adapter incremental: cursores atuais + janela de reabertura. */
+export interface ConsultaIncremental extends Omit<ConsultaEventosErp, 'desde' | 'ate'> {
+  cursores: CursorFonte[];
+  janela: JanelaConsulta;
+  /** RECONCILIACAO: releitura de janela curta com cursores em memória — nunca grava cursor. */
+  modo: 'INCREMENTAL' | 'RECONCILIACAO';
+}
+
+/**
+ * Uma página de eventos de um adapter incremental. O adapter devolve os
+ * cursores ATÉ ONDE os eventos desta página estão completos (um documento
+ * cortado entre páginas não pode avançar o cursor além do seu início). O sync
+ * só grava esses cursores depois de ingerir e reconciliar a página.
+ */
+export interface LoteIncremental {
+  eventos: unknown[];
+  cursores: { metodo: string; escopo: string; valor: string }[];
+  /** true = a fonte tem mais páginas além desta. */
+  haMais: boolean;
+}
+
 export interface ResultadoTesteConexao {
   ok: boolean;
   mensagem: string;
@@ -71,8 +112,13 @@ export interface ResultadoTesteConexao {
 
 export interface ErpAdapter {
   readonly provedor: 'LINX' | 'MOCK' | 'CONTROLADO';
-  /** Eventos de venda/cancelamento/devolução ocorridos em [desde, ate]. */
+  /** Eventos de venda/cancelamento/devolução ocorridos em [desde, ate] (fontes por janela de data). */
   buscarEventos(consulta: ConsultaEventosErp): Promise<unknown[]>;
+  /**
+   * Fontes com cursor incremental (Linx Microvix): uma página por chamada. Se
+   * existir, o sync usa ESTE caminho (cursor persistente), não `buscarEventos`.
+   */
+  buscarLote?(consulta: ConsultaIncremental): Promise<LoteIncremental>;
   testarConexao(consulta: Omit<ConsultaEventosErp, 'desde' | 'ate'>): Promise<ResultadoTesteConexao>;
 }
 

@@ -67,7 +67,7 @@ export interface IntegracaoAdmin {
   id: string;
   provedor: 'LINX' | 'MOCK' | 'CONTROLADO';
   status: 'CONFIGURANDO' | 'ATIVA' | 'DESATIVADA';
-  configuracao: { urlBase?: string; observacao?: string };
+  configuracao: { urlBase?: string; observacao?: string; portal?: number; backfillDesde?: string };
   credencial: string | null;
   credencialDefinida: boolean;
   credencialAtualizadaEm: string | null;
@@ -81,7 +81,7 @@ export interface Saude {
   geral: { estado: EstadoSaude; motivo: string };
   worker: { estado: EstadoSaude; motivo: string; ultimoEm: string | null };
   fila: { estado: EstadoSaude; motivo: string; aguardando?: number; falhas?: number };
-  integracoes: (IntegracaoAdmin & { estado: EstadoSaude; motivo: string; lojasVinculadas: { lojaId: string; codigoExterno: string; nome: string }[]; execucoes: { id: string; iniciadaEm: string; finalizadaEm: string | null; status: string; eventosRecebidos: number; vendasNovas: number; ajustesNovos: number; ignorados: number; erro: string | null }[]; errosUltimas24h: number })[];
+  integracoes: (IntegracaoAdmin & { estado: EstadoSaude; motivo: string; lojasVinculadas: { lojaId: string; codigoExterno: string; nome: string }[]; execucoes: { id: string; tipo: 'SYNC' | 'RECONCILIACAO'; iniciadaEm: string; finalizadaEm: string | null; status: string; eventosRecebidos: number; vendasNovas: number; ajustesNovos: number; cancelamentos: number; devolucoes: number; pendentes: number; paginas: number; ignorados: number; erro: string | null }[]; errosUltimas24h: number; naoConfigurada: boolean; cursores: { metodo: string; escopo: string; fase: 'BACKFILL' | 'CATCH_UP' | 'LIVE'; valor: string; ultimoAvancoEm: string | null }[]; minutosDesdeUltimoAvanco: number | null; ajustesPendentes: number })[];
   ultimaVendaEm: string | null;
   ultimaSyncSucessoEm: string | null;
   lojasSemVinculo: string[];

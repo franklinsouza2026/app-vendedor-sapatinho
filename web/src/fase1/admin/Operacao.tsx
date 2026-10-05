@@ -191,6 +191,8 @@ export function Prontidao() {
 
 // ================================================================== saúde dos dados
 
+const ROTULO_FASE = { BACKFILL: 'carga inicial', CATCH_UP: 'colocando em dia', LIVE: 'em dia' } as const;
+
 export function SaudeDados() {
   const { estado, executar } = useAdmin();
   const saude = useApi(() => buscarSaude(), []);
@@ -246,7 +248,14 @@ export function SaudeDados() {
               </p>
               <p className="mt-2 text-xs text-slate-400">
                 Lojas vinculadas: {i.lojasVinculadas.map((l) => `${l.nome} (${l.codigoExterno})`).join(', ') || 'nenhuma'} · erros nas últimas 24 h: {i.errosUltimas24h}
+                {i.ajustesPendentes > 0 && ` · ${i.ajustesPendentes} cancelamento(s)/devolução(ões) aguardando a venda original`}
               </p>
+              {i.cursores.length > 0 && (
+                <p className="mt-1 text-xs text-slate-400">
+                  Leitura incremental: {i.cursores.map((c) => `${c.metodo}${c.escopo !== '*' ? ` · ${c.escopo}` : ''}: ${ROTULO_FASE[c.fase]}`).join(' · ')}
+                  {i.minutosDesdeUltimoAvanco !== null && ` · último avanço há ${i.minutosDesdeUltimoAvanco} min`}
+                </p>
+              )}
               <TabelaResponsiva
                 legenda={`Últimas sincronizações ${i.provedor}`}
                 linhas={i.execucoes}
@@ -257,7 +266,9 @@ export function SaudeDados() {
                   { titulo: 'Situação', celula: (e) => <Selo tom={e.status === 'SUCESSO' ? 'ok' : e.status === 'ERRO' ? 'erro' : 'aviso'}>{e.status === 'SUCESSO' ? 'Sucesso' : e.status === 'ERRO' ? 'Erro' : 'Em andamento'}</Selo> },
                   { titulo: 'Eventos', celula: (e) => inteiro(e.eventosRecebidos), alinhar: 'direita' },
                   { titulo: 'Vendas novas', celula: (e) => inteiro(e.vendasNovas), alinhar: 'direita' },
-                  { titulo: 'Ajustes', celula: (e) => inteiro(e.ajustesNovos), alinhar: 'direita' },
+                  { titulo: 'Tipo', celula: (e) => (e.tipo === 'RECONCILIACAO' ? 'Reconciliação' : 'Sincronização') },
+                  { titulo: 'Cancel./Devol.', celula: (e) => `${inteiro(e.cancelamentos)} / ${inteiro(e.devolucoes)}`, alinhar: 'direita' },
+                  { titulo: 'Aguardando venda', celula: (e) => inteiro(e.pendentes), alinhar: 'direita' },
                   { titulo: 'Ignorados', celula: (e) => inteiro(e.ignorados), alinhar: 'direita' },
                   { titulo: 'Detalhe', celula: (e) => e.erro ?? '—' },
                 ]}

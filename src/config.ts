@@ -29,6 +29,18 @@ const envSchema = z.object({
   ERP_CONTROLADO_DIR: z.string().optional(),
   // Frequência do sync de vendas (cron do worker). Padrão: a cada 15 minutos.
   ERP_SYNC_CRON: z.string().default('*/15 * * * *'),
+  // Linx L2 — política de sincronização incremental. Defaults são HIPÓTESE de
+  // implementação (sem acesso real à Linx ainda): ajustar após homologação.
+  // Janela de reabertura (escopo de data da consulta incremental; o cursor é o
+  // timestamp): 'MES_ANTERIOR' = do 1º dia do mês anterior até hoje, ou N dias.
+  ERP_JANELA_REABERTURA: z.string().regex(/^(MES_ANTERIOR|\d{1,3})$/, "ERP_JANELA_REABERTURA deve ser 'MES_ANTERIOR' ou um número de dias").default('MES_ANTERIOR'),
+  // Páginas por execução (o resto fica para a próxima: fase CATCH_UP).
+  ERP_MAX_PAGINAS_POR_EXECUCAO: z.coerce.number().int().min(1).max(500).default(20),
+  // Reconciliação periódica (releitura idempotente de janela curta).
+  ERP_RECONCILIACAO_CRON: z.string().default('40 3 * * *'),
+  ERP_RECONCILIACAO_DIAS: z.coerce.number().int().min(1).max(92).default(35),
+  // Trava de sincronização por integração (expira sozinha se o processo cair).
+  ERP_SYNC_TRAVA_MINUTOS: z.coerce.number().int().min(1).max(240).default(15),
   // Chave mestra (AES-256-GCM, 32 bytes hex) das credenciais de integração
   // (T2). Fora do banco, fora do repositório. Obrigatória em produção.
   INTEGRATION_SECRETS_ENCRYPTION_KEY: z
