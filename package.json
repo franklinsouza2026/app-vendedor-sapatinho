@@ -5,7 +5,7 @@
   "private": true,
   "main": "dist/server.js",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
     "dev": "tsx watch src/server.ts",
     "dev:worker": "tsx watch src/worker.ts",
     "start": "node dist/server.js",

@@ -1,0 +1,5 @@
+{
+  // Build de PRODUÇÃO: sem testes, fixtures e helpers de teste (nunca vão para dist/ nem para a imagem).
+  "extends": "./tsconfig.json",
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts", "src/**/__testes__/**", "src/**/test-helpers.ts"]
+}
