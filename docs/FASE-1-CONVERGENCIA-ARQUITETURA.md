@@ -238,6 +238,34 @@ Também entram na saúde: fila acumulada e última venda recebida.
 - Validar com dados reais: cancelamento/devolução parcial, vendas multi-par,
   categorias (pares × acessórios) e identidade do vendedor por loja.
 
+### 13.1 Linx L2 — infraestrutura incremental (implementada, sem conexão real)
+
+- **Cursor** `IntegracaoCursor`: chave (integração, método, escopo/CNPJ), `valor` BIGINT
+  (timestamp Microvix = contador, nunca data; trafega como string), `fase`
+  BACKFILL → CATCH_UP → LIVE, `ultimoAvancoEm`.
+- **Contrato**: `ErpAdapter.buscarLote?(ConsultaIncremental) → LoteIncremental
+  { eventos, cursores, haMais }` (opcional; MOCK/CONTROLADO seguem por janela de
+  data). O adapter devolve o cursor até onde a página está COMPLETA (documento
+  cortado entre páginas não avança).
+- **Checkpoint**: buscar → validar (inteiro BIGINT) → ingerir (idempotente) →
+  reconciliar → só então gravar o cursor (compare-and-set "só se maior" no
+  próprio UPDATE). Falha antes disso = mesma página na próxima execução.
+- **Replay seguro**: registro já gravado ainda marca vendedor/dia como afetado,
+  então uma queda entre gravar e reconciliar se cura na reexecução.
+- **Fora de ordem**: cancelamento/devolução sem venda vira `VendaAjustePendente`
+  e é aplicado quando a venda chegar (nunca inventa venda, nunca se perde).
+- **Trava**: lease por integração (`syncTravadaAte`), expira sozinha.
+- **Reconciliação**: job `reconciliar-todas` (padrão 03:40) relê
+  `ERP_RECONCILIACAO_DIAS` (padrão 35) com cursores em memória; nunca grava cursor.
+- **Configuração (hipóteses, ajustáveis após homologação)**:
+  `ERP_JANELA_REABERTURA` (`MES_ANTERIOR`), `ERP_MAX_PAGINAS_POR_EXECUCAO` (20),
+  `ERP_RECONCILIACAO_CRON`, `ERP_RECONCILIACAO_DIAS`, `ERP_SYNC_TRAVA_MINUTOS` (15);
+  por integração: `configuracao.portal` (IdPortal) e `configuracao.backfillDesde`.
+- **Saúde**: Linx sem credencial = "não configurada / não testada" (nunca verde);
+  cursores, último avanço, ajustes pendentes, execução com tipo e contadores.
+- **Falta (L3, depende da chave/amostra)**: cliente XML do WebService, `buscarLote`
+  no `LinxErpAdapter`, tradução Microvix → eventos, cache de produtos.
+
 ## 14. Checkpoints (git)
 
 `4e0f25d` auditoria · `b46bd29` arquitetura · `f5ad829` backend green ·
@@ -246,7 +274,8 @@ Também entram na saúde: fila acumulada e última venda recebida.
 `1367c60` produção · `d53139a` resquícios do protótipo.
 `eac0716` celebração estornada + E2E campanha/tablet · `7297f20` PWA offline/deploy ·
 `99c761f` HTTPS/backup validados · tag **`restore/pre-linx-fase1`** = último
-estado homologado antes da integração Linx.
+estado homologado antes da integração Linx · `18c762d` auditoria Linx (tag
+`restore/pre-linx-l2`) · `989b662` D12 · `d0cef18` cursor incremental L2.
 
 Dívida técnica controlada (decisão: não fazer antes da Linx): vite 5→8,
 vitest 2→4, tailwind 3→4, react-router 6→7 — vulnerabilidades só em

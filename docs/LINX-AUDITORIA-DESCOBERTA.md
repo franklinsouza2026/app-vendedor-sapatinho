@@ -13,6 +13,18 @@ Legenda de evidência usada em todo o documento:
 
 ---
 
+## 0. Estado após a Linx L2 (2026-10-05)
+
+Implementado e testado sem conexão real (detalhes em `FASE-1-CONVERGENCIA-ARQUITETURA.md` §13):
+G1 (cursor por integração × método × escopo, BIGINT, monotônico), G2 (janela de
+reabertura configurável, hipótese "mês anterior"), G12 (reconciliação periódica),
+parte de G10 (campo Portal; "testar" honesto) e de G11 (Saúde com cursores,
+pendentes, cancelamentos/devoluções). **G4 foi reduzido pela D12**: o PA usa
+**peças** (quantidade comercial), então o PA não depende mais de regra de pares;
+"pares" só segue como dado físico (indicador "Pares", unidade "par" das missões
+de produto). Continuam dependendo da chave e da amostra: G3, G5–G9 e o cliente
+Linx (L3).
+
 ## 1. Veredito executivo
 
 - O ERP das lojas é o **Linx Microvix** **[C]**: ERP MCX FULL + PDV/POS, migração do ERP anterior ("SERVER") em **01/10/2025**.
