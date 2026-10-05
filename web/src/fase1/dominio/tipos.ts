@@ -27,8 +27,12 @@ export interface Loja {
 export interface Realizado {
   faturamento: number;
   vendas: number;
+  /** Peças válidas (D12: base do PA). */
+  pecas: number;
+  /** Pares físicos de calçado (indicador "Pares vendidos"; não é a base do PA). */
   pares: number;
   ticketMedio: number | null;
+  /** D12 — PA = Peças por Atendimento (peças ÷ atendimentos). */
   pa: number | null;
 }
 

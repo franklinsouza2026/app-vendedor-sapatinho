@@ -38,8 +38,8 @@ export function vendasEstimadas(valor: number, ticketMedio: number | null): numb
   return Math.ceil(valor / ticketMedio);
 }
 
-/** Pares estimados = vendas estimadas × PA. DECISÃO ABERTA: usar PA do mês do vendedor. */
-export function paresEstimados(vendas: number | null, pa: number | null): number | null {
+/** Peças estimadas = vendas estimadas × PA (D12: PA = peças por atendimento). */
+export function pecasEstimadas(vendas: number | null, pa: number | null): number | null {
   if (vendas === null || pa === null || pa <= 0) return null;
   return Math.round(vendas * pa);
 }
@@ -139,7 +139,7 @@ export const UNIDADE_METRICA: Record<Metrica, { rotulo: string; curto: string; f
   VENDAS: { rotulo: 'Vendas (R$)', curto: 'Vendas', formato: 'reais', converteEmVendas: true, ajuda: 'Faturamento no período. O valor dos colegas fica oculto — só a distância aparece.' },
   PERCENTUAL_META: { rotulo: '% da Meta', curto: '% Meta', formato: 'pp', converteEmVendas: false, ajuda: 'Quanto da própria meta cada um já atingiu. Compara esforço, não tamanho de loja.' },
   EVOLUCAO: { rotulo: 'Evolução', curto: 'Evolução', formato: 'pp', converteEmVendas: false, ajuda: 'Crescimento do % da meta contra o próprio histórico. Quem está começando também pode liderar.' },
-  PA: { rotulo: 'PA (peças por atendimento)', curto: 'PA', formato: 'decimal', converteEmVendas: false, ajuda: 'Média de pares por venda.' },
+  PA: { rotulo: 'PA (peças por atendimento)', curto: 'PA', formato: 'decimal', converteEmVendas: false, ajuda: 'Média de peças vendidas por atendimento.' },
   TICKET: { rotulo: 'Ticket médio', curto: 'Ticket', formato: 'reais', converteEmVendas: false, ajuda: 'Valor médio por venda.' },
   CONSISTENCIA: { rotulo: 'Consistência', curto: 'Consistência', formato: 'dias', converteEmVendas: false, ajuda: 'Dias do mês com a meta diária batida.' },
 };

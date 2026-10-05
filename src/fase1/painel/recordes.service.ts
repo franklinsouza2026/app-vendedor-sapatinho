@@ -1,6 +1,7 @@
 // Recordes pessoais (D5) — só os homologados, só com dado real do backend.
 // Recorde de dia/mês considera período FECHADO (o de hoje/este mês aparece
 // como "em disputa" no campo `atual`).
+import { calcularPa } from '../indicadores/pa';
 import { prisma } from '../../db';
 import { diaLocal, instanteDoDia, mesLocal, paraDate, somarDias, ultimoDiaDoMes } from '../../tempo/dia';
 import { efetivoDaVenda } from '../vendas/agregado.service';
@@ -31,18 +32,19 @@ export async function recordesDoVendedor(vendedorId: string, tz: string, agora: 
     recordes.push({ tipo: 'MELHOR_DIA', titulo: 'Melhor dia', unidade: 'reais', valor: melhor.faturamento, quando: melhor.dia, atual: Math.round(hojeFat * 100) / 100 });
   }
 
-  const porMes = new Map<string, { fat: number; vendas: number; pares: number }>();
+  const porMes = new Map<string, { fat: number; vendas: number; pecas: number }>();
   for (const d of serie) {
     const m = d.dia.slice(0, 7);
-    const x = porMes.get(m) ?? { fat: 0, vendas: 0, pares: 0 };
-    porMes.set(m, { fat: x.fat + d.faturamento, vendas: x.vendas + d.vendas, pares: x.pares + d.pares });
+    const x = porMes.get(m) ?? { fat: 0, vendas: 0, pecas: 0 };
+    porMes.set(m, { fat: x.fat + d.faturamento, vendas: x.vendas + d.vendas, pecas: x.pecas + d.pecas });
   }
   const mesesFechados = [...porMes.entries()].filter(([m, x]) => m < mesAtual && x.vendas > 0);
   if (mesesFechados.length) {
     const [mes, x] = mesesFechados.reduce((a, b) => (b[1].fat > a[1].fat ? b : a));
     recordes.push({ tipo: 'MELHOR_MES', titulo: 'Melhor mês', unidade: 'reais', valor: Math.round(x.fat * 100) / 100, quando: ultimoDiaDoMes(mes), atual: Math.round((porMes.get(mesAtual)?.fat ?? 0) * 100) / 100 });
-    const [mesPa, xPa] = mesesFechados.reduce((a, b) => (b[1].pares / b[1].vendas > a[1].pares / a[1].vendas ? b : a));
-    recordes.push({ tipo: 'MELHOR_PA', titulo: 'Melhor PA no mês', unidade: 'pa', valor: Math.round((xPa.pares / xPa.vendas) * 100) / 100, quando: ultimoDiaDoMes(mesPa), atual: null });
+    // D12: PA = peças por atendimento.
+    const [mesPa, xPa] = mesesFechados.reduce((a, b) => (b[1].pecas / b[1].vendas > a[1].pecas / a[1].vendas ? b : a));
+    recordes.push({ tipo: 'MELHOR_PA', titulo: 'Melhor PA no mês', unidade: 'pa', valor: calcularPa(xPa.pecas, xPa.vendas) ?? 0, quando: ultimoDiaDoMes(mesPa), atual: null });
 
     const metas = new Map<string, number | null>();
     for (const [m] of mesesFechados) metas.set(m, (await metasDoMesEmLote([vendedorId], m, tz)).get(vendedorId)?.mensal ?? null);
@@ -75,18 +77,18 @@ export async function historicoMensal(vendedorId: string, tz: string, agora: Dat
   const hoje = diaLocal(agora, tz);
   const mesAtual = mesLocal(agora, tz);
   const serie = await serieDoVendedor(vendedorId, somarDias(hoje, -(meses + 1) * 31), hoje, tz);
-  const porMes = new Map<string, { fat: number; vendas: number; pares: number }>();
+  const porMes = new Map<string, { fat: number; vendas: number; pecas: number }>();
   for (const d of serie) {
     if (d.dia.slice(0, 7) >= mesAtual) continue;
     const m = d.dia.slice(0, 7);
-    const x = porMes.get(m) ?? { fat: 0, vendas: 0, pares: 0 };
-    porMes.set(m, { fat: x.fat + d.faturamento, vendas: x.vendas + d.vendas, pares: x.pares + d.pares });
+    const x = porMes.get(m) ?? { fat: 0, vendas: 0, pecas: 0 };
+    porMes.set(m, { fat: x.fat + d.faturamento, vendas: x.vendas + d.vendas, pecas: x.pecas + d.pecas });
   }
   const lista = [...porMes.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-meses);
   const saida = [];
   for (const [mes, x] of lista) {
     const meta = (await metasDoMesEmLote([vendedorId], mes, tz)).get(vendedorId)?.mensal ?? 0;
-    saida.push({ mes, faturamento: Math.round(x.fat * 100) / 100, meta, ticketMedio: x.vendas ? Math.round((x.fat / x.vendas) * 100) / 100 : 0, pa: x.vendas ? Math.round((x.pares / x.vendas) * 100) / 100 : 0, vendas: x.vendas });
+    saida.push({ mes, faturamento: Math.round(x.fat * 100) / 100, meta, ticketMedio: x.vendas ? Math.round((x.fat / x.vendas) * 100) / 100 : 0, pa: calcularPa(x.pecas, x.vendas) ?? 0, vendas: x.vendas });
   }
   return saida;
 }

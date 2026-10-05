@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { falta, marcosAtingidos, ordenarRanking, paresEstimados, percentual, projecaoMes, proximoMarco, vendasEstimadas, vendasPorDia } from './estimativas';
+import { falta, marcosAtingidos, ordenarRanking, pecasEstimadas, percentual, projecaoMes, proximoMarco, vendasEstimadas, vendasPorDia } from './estimativas';
 import { calcularNivel } from '../demo/niveisDemo';
 import { priorizarAlvos, vocePerto } from './proximoAlvo';
 import type { Alvo } from './tipos';
@@ -9,7 +9,7 @@ describe('estimativas da Fase 1 (regra provisória)', () => {
   it('exemplo do comando: R$ 6.800 no ticket R$ 250 e PA 1,8 em 8 dias → ≈28 vendas, ≈50 pares, ≈4/dia', () => {
     const v = vendasEstimadas(6800, 250);
     expect(v).toBe(28);
-    expect(paresEstimados(v, 1.8)).toBe(50);
+    expect(pecasEstimadas(v, 1.8)).toBe(50);
     expect(vendasPorDia(v, 8)).toBe(4);
   });
 
@@ -25,7 +25,7 @@ describe('estimativas da Fase 1 (regra provisória)', () => {
     expect(f).toBe(6800);
     expect(vendasEstimadas(f, 250)).toBe(28);
     expect(vendasEstimadas(f, 200)).toBe(34); // ticket menor → mais vendas
-    expect(paresEstimados(28, 2)).toBe(56);
+    expect(pecasEstimadas(28, 2)).toBe(56);
     expect(vendasPorDia(28, 7)).toBe(4);
     expect(vendasPorDia(28, 5)).toBe(6);
   });

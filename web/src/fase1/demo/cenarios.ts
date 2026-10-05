@@ -160,8 +160,9 @@ interface Rascunho {
 
 const AGORA = '2026-10-22T15:20:00';
 
+// Cenários de teste só com calçados: cada par vendido é 1 peça (D12 — PA = peças por atendimento).
 function realizado(faturamento: number, vendas: number, pares: number): Realizado {
-  return { faturamento, vendas, pares, ticketMedio: vendas > 0 ? faturamento / vendas : null, pa: vendas > 0 ? pares / vendas : null };
+  return { faturamento, vendas, pecas: pares, pares, ticketMedio: vendas > 0 ? faturamento / vendas : null, pa: vendas > 0 ? pares / vendas : null };
 }
 
 function conquistasBase(): Conquista[] {
@@ -573,7 +574,7 @@ function finalizar(r: Rascunho): Fase1Dados {
     feed,
     reconhecimentos: reconhecimentos.map((x) => ({ id: x.id, quando: x.quando, autor: x.autor, motivo: x.motivo, titulo: x.titulo, mensagem: x.mensagem })),
     historico: r.historico,
-    comparavel: { faturamento: 21700, vendas: 92, pares: 160, ticketMedio: 235.9, pa: 1.74, percentualMeta: 77.5 },
+    comparavel: { faturamento: 21700, vendas: 92, pecas: 160, pares: 160, ticketMedio: 235.9, pa: 1.74, percentualMeta: 77.5 },
     celebracoes: [],
     indicadores,
     metricasRanking: estado.rankings.metricasAtivas.filter((m) => indicadores[INDICADOR_DA_METRICA[m]]),

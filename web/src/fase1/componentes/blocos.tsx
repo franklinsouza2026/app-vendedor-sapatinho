@@ -4,7 +4,7 @@
  */
 import { Link } from 'react-router-dom';
 import type { Alvo, Fase1Dados, Missao } from '../dominio/tipos';
-import { UNIDADE_METRICA, falta, paresEstimados, percentual, projecaoMes, proximoMarco, vendasEstimadas, vendasPorDia } from '../dominio/estimativas';
+import { UNIDADE_METRICA, falta, pecasEstimadas, percentual, projecaoMes, proximoMarco, vendasEstimadas, vendasPorDia } from '../dominio/estimativas';
 import { faltaMissao, minhaPosicao, textoUnidade } from '../dominio/alvos';
 import { distanciaMetrica, ordinal, plural, pct, reais } from '../formato';
 import { BarraMeta, BarraSimples, Painel, Pilula, Variacao } from './ui';
@@ -149,10 +149,10 @@ export function CorridaMes({ dados, detalhado = false }: { dados: Fase1Dados; de
   const p = percentual(realizado.faturamento, meta)!;
   const f = falta(realizado.faturamento, meta)!;
   const vendas = vendasEstimadas(f, ticket);
-  const pares = paresEstimados(vendas, pa);
+  const pecas = pecasEstimadas(vendas, pa);
   const porDia = vendasPorDia(vendas, diasTrabalhoRestantes);
   const projecao = projecaoMes(realizado.faturamento, diasTrabalhados, diasTrabalhoRestantes);
-  const mostrarPares = dados.indicadores.PARES && pares !== null;
+  const mostrarPecas = dados.indicadores.PA && pecas !== null;
   const mostrarTicket = dados.indicadores.TICKET && ticket !== null;
 
   return (
@@ -186,7 +186,7 @@ export function CorridaMes({ dados, detalhado = false }: { dados: Fase1Dados; de
           {f > 0 && vendas !== null && <p className="mt-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Para bater a meta do mês</p>}
           <dl className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
             {f > 0 && vendas !== null && <Numero rotulo="vendas" valor={String(vendas)} />}
-            {f > 0 && mostrarPares && <Numero rotulo="pares" valor={String(pares)} />}
+            {f > 0 && mostrarPecas && <Numero rotulo="peças" valor={String(pecas)} />}
             {f > 0 && porDia !== null && <Numero rotulo="vendas por dia" valor={String(porDia)} />}
             {mostrarTicket && <Numero rotulo="ticket médio atual" valor={reais(ticket!)} />}
           </dl>

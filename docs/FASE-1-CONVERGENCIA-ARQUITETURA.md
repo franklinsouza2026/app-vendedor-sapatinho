@@ -1,6 +1,6 @@
 # Fase 1 — Arquitetura da convergência (protótipo homologado → produto real)
 
-> Fonte de verdade técnica desta rodada. Complementa `FASE-1-AUDITORIA-PRONTIDAO-PILOTO.md` (gaps) e aplica as decisões congeladas **D1–D11** e **T1–T8**.
+> Fonte de verdade técnica desta rodada. Complementa `FASE-1-AUDITORIA-PRONTIDAO-PILOTO.md` (gaps) e aplica as decisões congeladas **D1–D12** e **T1–T8**.
 > Regra de ouro: **frontend apresenta, backend decide.** Nada que mexa em dinheiro, posição, prêmio, recompensa ou elegibilidade é calculado no cliente.
 
 ## 1. Princípios de convergência
@@ -100,6 +100,17 @@ Garantias:
   - **média do score**;
   - **evolução coletiva**: pontos percentuais do % meta contra o mesmo dia do mês anterior.
 - Privacidade preservada: o valor em R$ de colegas nunca sai do servidor.
+
+## 5.1 PA — Peças por Atendimento (D12, congelada em 2026-10-05)
+
+- **PA = peças válidas vendidas ÷ atendimentos válidos.** Não é "pares por atendimento".
+- **Peça** = cada unidade comercial registrada na quantidade do item: 1 calçado = 1 peça, 1 bolsa = 1 peça, 2 unidades = 2 peças. Não há conversão calçado→par.
+- **Atendimento** = venda/documento válido (contrato atual). A equivalência com o documento Linx será homologada com dado real.
+- Cancelamento e devolução compensam pelos fatos (agregado recalculado): venda cancelada sai de peças, atendimentos e PA; devolução parcial desconta só as peças devolvidas. Nada é apagado.
+- **Kit:** entra como a fonte registrar (item × quantidade). Regra definitiva com dados Linx; o ponto de ajuste é `pecasDoItem` em `src/fase1/indicadores/pa.ts` (fonte única: `calcularPa`).
+- Usado em: PA do mês (ranking, painel, médias), baseline e recompensa "melhora de PA", PA de competição, recorde "Melhor PA", histórico mensal, estimativa "peças para bater a meta" e Desafio de PA (vendas com ≥ N peças).
+- **Continua como par físico** (não é o indicador PA): indicador "Pares vendidos", unidade "par" das missões de produto, "pares da categoria". O parâmetro interno `minimoPares` do Desafio de PA é nome técnico legado (missões já gravadas); a semântica é peças.
+- Antes da D12 havia inconsistência: o agregado diário já usava peças ÷ vendas, mas o PA do mês, a competição e o recorde usavam pares ÷ vendas.
 
 ## 6. Incentivos
 

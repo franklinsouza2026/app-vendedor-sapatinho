@@ -28,7 +28,7 @@ const NOTA_INDICADOR: Record<string, string> = {
   QTD_VENDAS: 'Contagem de vendas válidas.',
   PARES: 'Soma de pares dos itens vendidos (informado pelo ERP).',
   TICKET: 'Faturamento ÷ vendas.',
-  PA: 'Pares ÷ vendas.',
+  PA: 'Peças por atendimento: peças vendidas ÷ atendimentos (vendas), já sem canceladas e devolvidas (D12).',
   PERCENTUAL_META: 'Depende de meta mensal cadastrada.',
   SCORE: 'Meta 40%, evolução 20%, PA 15%, ticket 15%, consistência 10% (régua v1).',
   EVOLUCAO: '% da meta contra o mesmo período do mês anterior.',

@@ -3,6 +3,7 @@
 // tipos.ts). Tudo vem de dado real: vendas (via ERP Adapter), metas derivadas,
 // ledgers, ranking D9, missões/competições/campanhas, feed e reconhecimentos.
 // Nenhum valor que decida posição, prêmio ou recompensa é calculado no app.
+import { calcularPa } from '../indicadores/pa';
 import { prisma } from '../../db';
 import { diaLocal, mesLocal, primeiroDiaDoMes } from '../../tempo/dia';
 import { timezoneDaEmpresa } from '../../tempo/empresa';
@@ -39,8 +40,9 @@ const MOTIVO_RECONHECIMENTO: Record<string, string> = { PERFORMANCE: 'RESULTADO'
 
 const INDICADOR_DA_METRICA: Record<Metrica, string> = { SCORE: 'SCORE', VENDAS: 'VENDAS', PERCENTUAL_META: 'PERCENTUAL_META', EVOLUCAO: 'EVOLUCAO', PA: 'PA', TICKET: 'TICKET', CONSISTENCIA: 'CONSISTENCIA' };
 
-function realizado(t: { faturamento: number; vendas: number; pares: number }) {
-  return { faturamento: t.faturamento, vendas: t.vendas, pares: t.pares, ticketMedio: t.vendas > 0 ? Math.round((t.faturamento / t.vendas) * 100) / 100 : null, pa: t.vendas > 0 ? Math.round((t.pares / t.vendas) * 100) / 100 : null };
+function realizado(t: { faturamento: number; vendas: number; pecas: number; pares: number }) {
+  // D12: PA = peças por atendimento (`pares` segue disponível como dado físico de calçado).
+  return { faturamento: t.faturamento, vendas: t.vendas, pecas: t.pecas, pares: t.pares, ticketMedio: t.vendas > 0 ? Math.round((t.faturamento / t.vendas) * 100) / 100 : null, pa: calcularPa(t.pecas, t.vendas) };
 }
 
 export async function montarPainel(vendedorId: string, agora = new Date()) {
@@ -139,7 +141,7 @@ export async function montarPainel(vendedorId: string, agora = new Date()) {
         ? { ticketMedio: media(outros.map((o) => o.ticket).filter((x): x is number => x !== null)), pa: media(outros.map((o) => o.pa).filter((x): x is number => x !== null)), origem: 'LOJA' }
         : { ticketMedio: null, pa: null, origem: null };
   if (!indicadores.TICKET) referencia = { ...referencia, ticketMedio: null };
-  if (!indicadores.PA || !indicadores.PARES) referencia = { ...referencia, pa: null };
+  if (!indicadores.PA) referencia = { ...referencia, pa: null };
 
   // Médias para "Você × média" — no servidor. Métrica financeira só com ≥ 3
   // colegas no grupo: com menos, a média revelaria o valor de quem está ao lado.

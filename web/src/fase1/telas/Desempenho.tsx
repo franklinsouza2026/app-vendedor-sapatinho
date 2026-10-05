@@ -8,7 +8,7 @@ import { ReactNode, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useFase1 } from '../contexto';
 import type { Fase1Dados, Metrica } from '../dominio/tipos';
-import { falta, paresEstimados, percentual, projecaoMes, vendasEstimadas, vendasPorDia, UNIDADE_METRICA } from '../dominio/estimativas';
+import { falta, pecasEstimadas, percentual, projecaoMes, vendasEstimadas, vendasPorDia, UNIDADE_METRICA } from '../dominio/estimativas';
 import { rankingCalculado } from '../dominio/alvos';
 import { CardMetaHoje, CorridaMes, NotaTicket } from '../componentes/blocos';
 import { Abas, CabecalhoTela, Painel, Tendencia, Vazio } from '../componentes/ui';
@@ -82,7 +82,7 @@ function PlanoHoje({ dados }: { dados: Fase1Dados }) {
   const f = falta(realizado.faturamento, meta)!;
   const t = dados.referencia.ticketMedio;
   const vendas = vendasEstimadas(f, t);
-  const pares = paresEstimados(vendas, dados.referencia.pa);
+  const pecas = pecasEstimadas(vendas, dados.referencia.pa);
   return (
     <Painel rotulo="Plano de hoje">
       <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Plano de hoje</h2>
@@ -93,7 +93,7 @@ function PlanoHoje({ dados }: { dados: Fase1Dados }) {
         <Linha rotulo="Falta" valor={f === 0 ? 'nada — meta batida' : reais(f)} destaque={f > 0} />
         {f > 0 && <Linha rotulo="Ticket médio usado" valor={t !== null ? reais(t) : 'sem base'} />}
         {f > 0 && <Linha rotulo="Vendas que faltam" valor={vendas !== null ? String(vendas) : '—'} destaque />}
-        {f > 0 && dados.indicadores.PARES && <Linha rotulo="Pares que faltam" valor={pares !== null ? String(pares) : '—'} />}
+        {f > 0 && dados.indicadores.PA && <Linha rotulo="Peças que faltam" valor={pecas !== null ? String(pecas) : '—'} />}
       </dl>
     </Painel>
   );
@@ -196,7 +196,7 @@ function GradeIndicadores({ dados, periodo }: { dados: Fase1Dados; periodo: 'hoj
       {ind.QTD_VENDAS && <Indicador rotulo="Nº de vendas" valor={inteiro(r.vendas)} tendencia={<Tendencia atual={r.vendas} anterior={ref.vendas} rotuloComparacao={rotuloRef} />} />}
       {ind.PARES && <Indicador rotulo="Pares" valor={inteiro(r.pares)} tendencia={<Tendencia atual={r.pares} anterior={ref.pares} rotuloComparacao={rotuloRef} />} />}
       {ind.TICKET && <Indicador rotulo="Ticket médio" valor={r.ticketMedio !== null ? reais(r.ticketMedio) : '—'} tendencia={<Tendencia atual={r.ticketMedio} anterior={ref.ticketMedio} rotuloComparacao={rotuloRef} />} />}
-      {ind.PA && <Indicador rotulo="PA" valor={r.pa !== null ? decimal(r.pa, 2) : '—'} contexto="pares por venda" tendencia={<Tendencia atual={r.pa} anterior={ref.pa} rotuloComparacao={rotuloRef} />} />}
+      {ind.PA && <Indicador rotulo="PA" valor={r.pa !== null ? decimal(r.pa, 2) : '—'} contexto="peças por atendimento" tendencia={<Tendencia atual={r.pa} anterior={ref.pa} rotuloComparacao={rotuloRef} />} />}
       {ind.PERCENTUAL_META && <Indicador rotulo="% da meta" valor={pctMeta !== null ? pct(pctMeta) : 'sem meta'} contexto={p.meta !== null ? `de ${reais(p.meta)}` : undefined} />}
       {periodo === 'mes' && ind.EVOLUCAO && (
         <Indicador

@@ -47,7 +47,7 @@ describe('Fase 1 — vendedora', () => {
     expect(mes).toHaveTextContent('RealizadoR$ 23.200,00');
     expect(mes).toHaveTextContent('Faltam R$ 6.800,00 e 8 dias para encerrar o mês.');
     expect(mes).toHaveTextContent('28vendas');
-    expect(mes).toHaveTextContent('50pares');
+    expect(mes).toHaveTextContent('50peças'); // D12: PA = peças por atendimento
     expect(mes).toHaveTextContent('4vendas por dia');
     expect(mes).toHaveTextContent('R$ 249,46ticket médio atual');
     const posicao = screen.getByRole('region', { name: 'Sua posição' });

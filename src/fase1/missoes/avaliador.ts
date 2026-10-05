@@ -41,8 +41,10 @@ export function progressoDasVendas(vendas: VendaComItens[], p: Omit<ParametrosAv
     case 'VENDAS_PRODUTOS':
       return vendas.filter((v) => itensEfetivos(v).some((i) => produtos.has(i.referencia))).length;
     case 'VENDAS_MULTIPAR': {
+      // Desafio de PA (D12): vendas com pelo menos N PEÇAS. `minimoPares` é o nome técnico
+      // legado do parâmetro (missões já gravadas); a semântica é peças.
       const minimo = Number(p.parametros.minimoPares ?? 2);
-      return vendas.filter((v) => itensEfetivos(v).reduce((a, i) => a + i.pares, 0) >= minimo).length;
+      return vendas.filter((v) => itensEfetivos(v).reduce((a, i) => a + i.quantidade, 0) >= minimo).length;
     }
     case 'VENDAS_CATEGORIA':
       return vendas.filter((v) => itensEfetivos(v).some((i) => normalizar(i.categoria) === categoria)).length;

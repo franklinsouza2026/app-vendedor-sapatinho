@@ -514,7 +514,7 @@ export function EditorCampanha() {
 
 const TEMPLATES: { id: string; titulo: string; icone: string; descricao: string; base: Partial<MissaoEntrada> }[] = [
   { id: 'PRODUTO_SEMANA', titulo: 'Produto da Semana', icone: '👠', descricao: 'Venda X pares de uma referência.', base: { tipo: 'PRODUTO_SEMANA', unidade: 'par', alvo: 3, xp: 30, moedas: 10, regras: 'Conta par vendido da referência, qualquer numeração.' } },
-  { id: 'DESAFIO_PA', titulo: 'Desafio de PA', icone: '👟', descricao: 'Vendas com 2 pares ou mais.', base: { tipo: 'SEMANAL', unidade: 'venda', alvo: 5, xp: 40, moedas: 15, regras: 'Venda com 2+ pares no mesmo cupom.', parametros: { minimoPares: 2 } } },
+  { id: 'DESAFIO_PA', titulo: 'Desafio de PA', icone: '👟', descricao: 'Vendas com 2 peças ou mais.', base: { tipo: 'SEMANAL', unidade: 'venda', alvo: 5, xp: 40, moedas: 15, regras: 'Venda com 2+ peças no mesmo cupom.', parametros: { minimoPares: 2 } } },
   { id: 'SPRINT_META', titulo: 'Sprint de Meta', icone: '🎯', descricao: 'X vendas no período.', base: { tipo: 'DIARIA', unidade: 'venda', alvo: 8, xp: 20, moedas: 5, regras: 'Conta toda venda finalizada no período.' } },
   { id: 'PONTA_ESTOQUE', titulo: 'Ponta de Estoque', icone: '📦', descricao: 'Girar uma seleção de produtos.', base: { tipo: 'PONTA_ESTOQUE', unidade: 'par', alvo: 6, xp: 35, moedas: 15, regras: 'Qualquer par das referências selecionadas.' } },
   { id: 'CATEGORIA', titulo: 'Categoria', icone: '👜', descricao: 'Vender uma categoria (bolsa, tênis…).', base: { tipo: 'CATEGORIA', unidade: 'venda', alvo: 4, xp: 30, moedas: 10, regras: 'Cupom com ao menos 1 item da categoria.' } },
@@ -846,7 +846,7 @@ export function EditorMissao() {
                 </Campo>
               )}
               {m.template === 'DESAFIO_PA' && (
-                <Campo rotulo="Mínimo de pares na mesma venda">
+                <Campo rotulo="Mínimo de peças na mesma venda">
                   <input type="number" min={2} max={10} className={INPUT} value={String(m.parametros.minimoPares ?? 2)} onChange={(e) => setM({ ...m, parametros: { minimoPares: Number(e.target.value) } })} />
                 </Campo>
               )}
@@ -957,7 +957,7 @@ const METRICAS_COMPETICAO: { metrica: NonNullable<CompeticaoCad['metrica']>; rot
   { metrica: 'EVOLUCAO', rotulo: 'Evolução (p.p.)' },
   { metrica: 'SCORE', rotulo: 'Score do período' },
   { metrica: 'QTD_VENDAS', rotulo: 'Quantidade de vendas' },
-  { metrica: 'PA', rotulo: 'PA (pares por venda)' },
+  { metrica: 'PA', rotulo: 'PA (peças por atendimento)' },
   { metrica: 'TICKET', rotulo: 'Ticket médio' },
   { metrica: 'PARES_CATEGORIA', rotulo: 'Pares de uma categoria' },
 ];

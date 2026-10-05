@@ -101,10 +101,10 @@ export async function estatisticasDoMes(params: { empresaId: string; vendedorIds
     const metaAnt = metasAnt.get(id)!.mensal;
 
     const ticket = mesTotais.vendas > 0 ? mesTotais.faturamento / mesTotais.vendas : null;
-    // PA da Fase 1 = PARES por venda (definição homologada: "Média de pares por venda").
-    const pa = mesTotais.vendas > 0 ? mesTotais.pares / mesTotais.vendas : null;
+    // D12: PA = peças por atendimento.
+    const pa = mesTotais.vendas > 0 ? mesTotais.pecas / mesTotais.vendas : null;
     const ticketAnt = anterior.vendas > 0 ? anterior.faturamento / anterior.vendas : null;
-    const paAnt = anterior.vendas > 0 ? anterior.pares / anterior.vendas : null;
+    const paAnt = anterior.vendas > 0 ? anterior.pecas / anterior.vendas : null;
     const percentualMeta = m.mensal ? (mesTotais.faturamento / m.mensal) * 100 : null;
     const percentualAnt = metaAnt ? (anterior.faturamento / metaAnt) * 100 : null;
     const score = calcularScoreGeral(

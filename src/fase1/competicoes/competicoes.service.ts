@@ -7,6 +7,7 @@
 //   - desempate D9 (métrica → acessos no período → ticket → empate);
 //   - prêmios do catálogo (Premio) para o 1º de cada classificação;
 //   - privacidade: valor em R$ de colega nunca sai do servidor.
+import { calcularPa } from '../indicadores/pa';
 import { Competition, Prisma, StatusCompeticao, TipoMetricaCompeticao } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
@@ -221,7 +222,7 @@ async function valoresVendedores(c: Competition, vendedorIds: string[], ate: Dat
         break;
       }
       case 'PA':
-        valor = t.vendas > 0 ? Math.round((t.pares / t.vendas) * 100) / 100 : null; // PA = pares por venda
+        valor = calcularPa(t.pecas, t.vendas); // D12: PA = peças por atendimento
         break;
       case 'TICKET':
         valor = t.vendas > 0 ? Math.round(ticket * 100) / 100 : null;
